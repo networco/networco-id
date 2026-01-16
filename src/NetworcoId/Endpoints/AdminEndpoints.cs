@@ -39,9 +39,9 @@ public static class AdminEndpoints
                 return Results.Json(new { error = "Unauthorized" }, statusCode: 401);
             });
 
-        group.MapGet("/clients", async (IClientManagementService clientService) =>
+        group.MapGet("/clients", async (IClientManagementService clientService, [FromQuery] int page = 1, [FromQuery] int pageSize = 10, [FromQuery] string? search = null) =>
         {
-            var clients = await clientService.GetClientsAsync();
+            var clients = await clientService.GetClientsAsync(page, pageSize, search);
             return Results.Ok(clients);
         });
 

@@ -5,11 +5,13 @@ using NetworcoId.Core.Security;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
 
+using NetworcoId.Models.Common;
+
 namespace NetworcoId.Services;
 
 public interface IClientManagementService
 {
-    Task<List<OAuthClientEntity>> GetClientsAsync();
+    Task<PagedResult<OAuthClientEntity>> GetClientsAsync(int pageNumber = 1, int pageSize = 10, string? searchTerm = null, string? sortBy = null, bool sortDescending = true);
     Task<OAuthClientEntity?> GetClientAsync(string clientId);
     Task<(OAuthClientEntity Client, string Secret)> CreateClientAsync(string displayName, List<string> redirectUris, List<string> allowedScopes, bool isTrustedForExchange = false);
     Task UpdateClientAsync(string clientId, string displayName, List<string> redirectUris, List<string> allowedScopes, bool isTrustedForExchange = false);
@@ -23,11 +25,36 @@ public class ClientManagementService(
     AuthDbContext dbContext,
     IPasswordHasher passwordHasher) : IClientManagementService
 {
-    public async Task<List<OAuthClientEntity>> GetClientsAsync()
+    public async Task<PagedResult<OAuthClientEntity>> GetClientsAsync(int pageNumber = 1, int pageSize = 10, string? searchTerm = null, string? sortBy = null, bool sortDescending = true)
     {
-        return await dbContext.OAuthClients
-            .OrderByDescending(c => c.CreatedAt)
+        var query = dbContext.OAuthClients.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            query = query.Where(c => c.ClientId.Contains(searchTerm) || c.DisplayName.Contains(searchTerm));
+        }
+
+        query = sortBy?.ToLower() switch
+        {
+            "clientid" => sortDescending ? query.OrderByDescending(c => c.ClientId) : query.OrderBy(c => c.ClientId),
+            "displayname" => sortDescending ? query.OrderByDescending(c => c.DisplayName) : query.OrderBy(c => c.DisplayName),
+            "isactive" => sortDescending ? query.OrderByDescending(c => c.IsActive) : query.OrderBy(c => c.IsActive),
+            _ => sortDescending ? query.OrderByDescending(c => c.CreatedAt) : query.OrderBy(c => c.CreatedAt)
+        };
+
+        var totalItems = await query.CountAsync();
+        var items = await query
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
+
+        return new PagedResult<OAuthClientEntity>
+        {
+            Items = items,
+            TotalItems = totalItems,
+            PageNumber = pageNumber,
+            PageSize = pageSize
+        };
     }
 
     public async Task<OAuthClientEntity?> GetClientAsync(string clientId)

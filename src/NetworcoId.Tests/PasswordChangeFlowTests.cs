@@ -39,7 +39,6 @@ public class PasswordChangeFlowTests : IClassFixture<WebApplicationFactory<Progr
                     d.ServiceType.FullName?.Contains("Npgsql") == true ||
                     d.ServiceType.FullName?.Contains("DataProtection") == true
                 ).ToList();
-                ).ToList();
 
                 foreach (var descriptor in efInternalDescriptors)
                 {

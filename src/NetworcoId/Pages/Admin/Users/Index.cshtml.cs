@@ -7,6 +7,8 @@ using NetworcoId.Services.Audit;
 
 using NetworcoId.Infrastructure.Auth;
 
+using NetworcoId.Models.Common;
+
 namespace NetworcoId.Pages.Admin.Users;
 
 [AdminAuth]
@@ -21,14 +23,53 @@ public class IndexModel : PageModel
         _auditService = auditService;
     }
 
-    public List<UserEntity> Users { get; set; } = new();
+    public PagedResult<UserEntity> Users { get; set; } = null!;
+
+    [BindProperty(SupportsGet = true)]
+    public int PageNumber { get; set; } = 1;
+
+    [BindProperty(SupportsGet = true)]
+    public string? SearchTerm { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public string? SortBy { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public bool SortDescending { get; set; } = true;
 
     public async Task OnGetAsync()
     {
-        Users = await _context.Users
+        var query = _context.Users
             .Include(u => u.Credential)
-            .OrderByDescending(u => u.CreatedAt)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(SearchTerm))
+        {
+            query = query.Where(u => u.Email.Contains(SearchTerm) || u.FirstName.Contains(SearchTerm) || u.LastName.Contains(SearchTerm));
+        }
+
+        query = SortBy?.ToLower() switch
+        {
+            "email" => SortDescending ? query.OrderByDescending(u => u.Email) : query.OrderBy(u => u.Email),
+            "firstname" => SortDescending ? query.OrderByDescending(u => u.FirstName) : query.OrderBy(u => u.FirstName),
+            "lastname" => SortDescending ? query.OrderByDescending(u => u.LastName) : query.OrderBy(u => u.LastName),
+            "isactive" => SortDescending ? query.OrderByDescending(u => u.IsActive) : query.OrderBy(u => u.IsActive),
+            _ => SortDescending ? query.OrderByDescending(u => u.CreatedAt) : query.OrderBy(u => u.CreatedAt)
+        };
+
+        var totalItems = await query.CountAsync();
+        var items = await query
+            .Skip((PageNumber - 1) * 10)
+            .Take(10)
             .ToListAsync();
+
+        Users = new PagedResult<UserEntity>
+        {
+            Items = items,
+            TotalItems = totalItems,
+            PageNumber = PageNumber,
+            PageSize = 10
+        };
     }
 
     public async Task<IActionResult> OnPostUnlockAsync(Guid id)
