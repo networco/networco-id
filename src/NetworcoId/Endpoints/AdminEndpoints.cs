@@ -43,12 +43,6 @@ public static class AdminEndpoints
             return Results.Ok(clients);
         });
 
-        group.MapPost("/clients/sync", async (IClientManagementService clientService) =>
-        {
-            await clientService.SyncFromConfigAsync();
-            return Results.Ok(new { message = "Clients synchronized successfully" });
-        });
-
         group.MapPost("/clients", async ([FromBody] CreateClientRequest request, IClientManagementService clientService) =>
         {
             if (string.IsNullOrEmpty(request.DisplayName))
@@ -59,7 +53,8 @@ public static class AdminEndpoints
             var result = await clientService.CreateClientAsync(
                 request.DisplayName, 
                 request.RedirectUris ?? new List<string>(), 
-                request.AllowedScopes ?? new List<string>());
+                request.AllowedScopes ?? new List<string>(),
+                request.IsTrustedForExchange);
 
             return Results.Ok(new 
             { 
@@ -85,5 +80,6 @@ public static class AdminEndpoints
     public record CreateClientRequest(
         string DisplayName, 
         List<string>? RedirectUris, 
-        List<string>? AllowedScopes);
+        List<string>? AllowedScopes,
+        bool IsTrustedForExchange = false);
 }

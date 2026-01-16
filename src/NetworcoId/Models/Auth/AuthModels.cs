@@ -15,8 +15,13 @@ public class NetworcoIdConfig
     public required string Issuer { get; set; }
     public required string Audience { get; set; }
     public string BaseUrl { get; set; } = "http://localhost:5200";
-    public List<OAuthClient> AllowedClients { get; set; } = new();
-    public List<string> TrustedExchangeClients { get; set; } = new();
+    
+    // Initial Bootstrap Configuration
+    public string? InitialAdminEmail { get; set; }
+    public string? InitialAdminPassword { get; set; }
+    public string? InitialClientId { get; set; }
+    public string? InitialClientSecret { get; set; }
+
     public List<NetworcoIdUserDto> TestUsers { get; set; } = new();
 }
 
@@ -33,6 +38,7 @@ public class NetworcoIdUserDto
     public required string Email { get; set; }
     public string? PhoneNumber { get; set; }
     public string? Password { get; set; }
+    public bool MustChangePassword { get; set; }
 }
 
 /// <summary>
@@ -121,6 +127,7 @@ public class OAuthClient
     public required string Name { get; set; }
     public List<string> RedirectUris { get; set; } = new();
     public List<string> AllowedScopes { get; set; } = new();
+    public bool IsTrustedForExchange { get; set; }
 }
 
 /// <summary>

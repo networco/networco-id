@@ -37,6 +37,7 @@ public class UserCredentialEntity
     public required string PasswordHash { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }
+    public bool MustChangePassword { get; set; } = false;
     public int FailedLoginAttempts { get; set; } = 0;
     public DateTimeOffset? LastFailedLoginAt { get; set; }
     public DateTimeOffset? LockedUntil { get; set; }

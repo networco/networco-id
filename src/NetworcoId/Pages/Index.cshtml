@@ -27,7 +27,7 @@
                 <a href="/swagger" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors">API Docs</a>
             </nav>
             <div>
-                <a href="/Login?client_id=networco_web&redirect_uri=http://localhost:3000/auth/callback&response_type=code" 
+                <a href="/Login?client_id=networco-admin&redirect_uri=http://localhost:5200/admin/callback&response_type=code&scope=openid profile email admin" 
                    class="bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors">
                     Logg inn
                 </a>
@@ -51,7 +51,7 @@
             </p>
             
             <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                <a href="/Register?return_url=@(HttpUtility.UrlEncode("/Login?client_id=networco_web&redirect_uri=http://localhost:3000/auth/callback&response_type=code"))" 
+                <a href="/Register?return_url=@(HttpUtility.UrlEncode("/Login?client_id=networco-admin&redirect_uri=http://localhost:5200/admin/callback&response_type=code&scope=openid profile email admin"))" 
                    class="w-full sm:w-auto px-8 py-4 bg-gray-900 text-white rounded-xl font-bold text-lg hover:bg-gray-800 transition-all transform hover:scale-105 shadow-lg">
                     Opprett konto
                 </a>

@@ -1,3 +1,4 @@
+using System.Text;
 using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using NetworcoId.Core.Security;
@@ -23,6 +24,7 @@ public interface IAuthService
     Task<bool> ValidateRefreshTokenAsync(string tokenHash);
     Task RevokeRefreshTokenAsync(string tokenHash);
     Task RotateRefreshTokenAsync(string oldTokenHash, string newTokenHash, DateTimeOffset expiresAt);
+    Task<bool> ChangePasswordAsync(string emailOrNationalId, string currentPassword, string newPassword);
 }
 
 /// <summary>
@@ -91,7 +93,8 @@ public class AuthService : IAuthService
             Email = user.Email,
             PhoneNumber = user.PhoneNumber,
             // Removed: Role - authorization handled by resource server
-            Password = null
+            Password = null,
+            MustChangePassword = user.Credential.MustChangePassword
         };
     }
 
@@ -195,7 +198,7 @@ public class AuthService : IAuthService
         // Stateless code: email|redirectUri|clientId|timestamp
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         var plainText = $"{emailOrNationalId}|{redirectUri}|{clientId ?? ""}|{timestamp}";
-        var bytes = System.Text.Encoding.UTF8.GetBytes(plainText);
+        var bytes = Encoding.UTF8.GetBytes(plainText);
         return Convert.ToBase64String(bytes)
             .Replace("+", "-")
             .Replace("/", "_")
@@ -230,7 +233,7 @@ public class AuthService : IAuthService
             while (paddedCode.Length % 4 != 0) paddedCode += "=";
 
             var bytes = Convert.FromBase64String(paddedCode);
-            var plainText = System.Text.Encoding.UTF8.GetString(bytes);
+            var plainText = Encoding.UTF8.GetString(bytes);
             var parts = plainText.Split('|');
 
             if (parts.Length < 3)
@@ -269,9 +272,13 @@ public class AuthService : IAuthService
                 // Allow trusted API clients to exchange codes for other clients (BFF pattern)
                 // This is required because the Web app initiates the flow, but the API service
                 // performs the final token exchange.
-                if (_config.TrustedExchangeClients == null || !_config.TrustedExchangeClients.Contains(clientId))
+                var exchangingClient = await _context.OAuthClients
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.ClientId == clientId);
+
+                if (exchangingClient == null || !exchangingClient.IsTrustedForExchange)
                 {
-                    _logger.LogWarning("Authorization code validation failed: client_id mismatch. Expected {Expected}, Got {Actual}", originalClientId, clientId);
+                    _logger.LogWarning("Authorization code validation failed: client_id mismatch and client {Actual} is not trusted for exchange. Expected {Expected}", clientId, originalClientId);
                     return null;
                 }
                 
@@ -430,6 +437,53 @@ public class AuthService : IAuthService
             _context.RefreshTokens.Add(newToken);
             await _context.SaveChangesAsync();
         }
+    }
+
+    public async Task<bool> ChangePasswordAsync(string emailOrNationalId, string currentPassword, string newPassword)
+    {
+        if (string.IsNullOrWhiteSpace(emailOrNationalId) || string.IsNullOrEmpty(currentPassword) || string.IsNullOrEmpty(newPassword))
+        {
+            return false;
+        }
+
+        var identifier = emailOrNationalId.Trim();
+
+        var user = await _context.Users
+            .Include(u => u.Credential)
+            .Where(u =>
+                (u.Email != null && EF.Functions.ILike(u.Email, identifier)) ||
+                (u.NationalId != null && u.NationalId == identifier) ||
+                (u.PhoneNumber != null && u.PhoneNumber == identifier))
+            .FirstOrDefaultAsync();
+
+        if (user == null || user.Credential == null)
+        {
+            return false;
+        }
+
+        if (!_passwordHasher.VerifyPassword(currentPassword, user.Credential.PasswordHash))
+        {
+            _logger.LogWarning("ChangePassword failed for {Identifier}: Current password verification failed.", identifier);
+            return false;
+        }
+
+        var newHash = _passwordHasher.HashPassword(newPassword);
+        _logger.LogInformation("Updating password for {Identifier}. Old hash start: {OldStart}, New hash start: {NewStart}", 
+            identifier, user.Credential.PasswordHash[..10], newHash[..10]);
+
+        user.Credential.PasswordHash = newHash;
+        user.Credential.MustChangePassword = false;
+        user.Credential.UpdatedAt = DateTimeOffset.UtcNow;
+
+        _context.Users.Update(user); // Force update tracking
+        await _context.SaveChangesAsync();
+        
+        // Verify saved state
+        var updatedUser = await _context.UserCredentials.AsNoTracking().FirstOrDefaultAsync(c => c.Id == user.Id);
+        _logger.LogInformation("Password update verified for {Identifier}. Saved hash matches: {Matches}", 
+            identifier, updatedUser?.PasswordHash == newHash);
+
+        return true;
     }
 
     private record AuthCodeSession(

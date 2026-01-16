@@ -31,7 +31,7 @@ public class AuthDbContext : DbContext, IDataProtectionKeyContext
         base.OnModelCreating(modelBuilder);
 
         // Use "auth" schema for all authentication tables
-        modelBuilder.HasDefaultSchema("auth");
+        // modelBuilder.HasDefaultSchema("auth");
 
         // Configure OAuthClientEntity
         modelBuilder.Entity<OAuthClientEntity>(entity =>

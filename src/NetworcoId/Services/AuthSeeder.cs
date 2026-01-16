@@ -19,32 +19,17 @@ public interface IAuthSeeder
 /// Seeds NETWORCO ID authentication users.
 /// Creates test users with known credentials for NETWORCO ID.
 /// </summary>
-public class AuthSeeder : IAuthSeeder
+public class AuthSeeder(
+    AuthDbContext context,
+    IPasswordHasher passwordHasher) : IAuthSeeder
 {
-    private readonly AuthDbContext _context;
-    private readonly IPasswordHasher _passwordHasher;
-    private readonly IClientManagementService _clientService;
-
-    public AuthSeeder(
-        AuthDbContext context,
-        IPasswordHasher passwordHasher,
-        IClientManagementService clientService)
-    {
-        _context = context;
-        _passwordHasher = passwordHasher;
-        _clientService = clientService;
-    }
-
     /// <summary>
     /// Seeds NETWORCO ID users with test credentials.
     /// </summary>
     public async Task SeedAsync()
     {
-        await _clientService.SyncFromConfigAsync();
         await SeedUsersAsync();
     }
-
-    private Task SeedClientsAsync() => Task.CompletedTask; // Replaced by _clientService.SyncFromConfigAsync()
 
     private async Task SeedUsersAsync()
     {
@@ -112,7 +97,7 @@ public class AuthSeeder : IAuthSeeder
         foreach (var userData in devUsers)
         {
             // Check if user already exists
-            var existingUser = await _context.Users
+            var existingUser = await context.Users
                 .FirstOrDefaultAsync(u => u.Email == userData.Email);
 
             if (existingUser != null)
@@ -138,17 +123,18 @@ public class AuthSeeder : IAuthSeeder
             var credential = new UserCredentialEntity
             {
                 Id = user.Id, // 1:1 relationship
-                PasswordHash = _passwordHasher.HashPassword(userData.Password),
+                PasswordHash = passwordHasher.HashPassword(userData.Password),
+                MustChangePassword = userData.Email.Contains("admin"),
                 CreatedAt = DateTimeOffset.UtcNow
             };
 
-            _context.Users.Add(user);
-            _context.UserCredentials.Add(credential);
+            context.Users.Add(user);
+            context.UserCredentials.Add(credential);
 
             Console.WriteLine($"Created user: {userData.Email} ({userData.FirstName} {userData.LastName})");
         }
 
-        await _context.SaveChangesAsync();
+        await context.SaveChangesAsync();
         Console.WriteLine("Authentication users seeded successfully!");
     }
 }
