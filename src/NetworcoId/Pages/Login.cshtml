@@ -1,0 +1,178 @@
+@page
+@model NetworcoId.Pages.LoginModel
+@using System.Web
+
+<!DOCTYPE html>
+<html lang="no">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NETWORCO Logg inn</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script async type="text/javascript" src="https://checkout.vipps.no/checkout-button/v1/vipps-checkout-button.js"></script>
+    <style>
+        .bankid-btn {
+            background-color: #39134C;
+            color: #FFFFFF;
+            transition: background-color 0.2s;
+        }
+        .bankid-btn:hover {
+            background-color: #470D70;
+        }
+    </style>
+</head>
+
+<body class="bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-8">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">NETWORCO</h1>
+            <p class="text-gray-600">Logg inn med din konto</p>
+        </div>
+
+        @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+        {
+            <div class="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 mb-6 text-center text-sm">
+                @if (Model.IsClientError)
+                {
+                    <div class="flex flex-col items-center gap-2">
+                        <svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                        <span class="font-bold text-base">Systemfeil</span>
+                        <span>@Model.ErrorMessage</span>
+                    </div>
+                }
+                else
+                {
+                    @Model.ErrorMessage
+                }
+            </div>
+        }
+
+        @if (!Model.IsClientError)
+        {
+            <div class="space-y-4 mb-8">
+                <!-- Vipps Login -->
+                <div class="h-[48px]">
+                    <vipps-mobilepay-button 
+                        brand="vipps" 
+                        language="no" 
+                        verb="login" 
+                        rounded="true" 
+                        stretched="true"
+                        branded="true"
+                        loading="false">
+                    </vipps-mobilepay-button>
+                </div>
+
+                <!-- BankID Login -->
+                <button type="button" class="bankid-btn w-full flex items-center justify-center gap-3 px-6 py-3 rounded-full font-medium text-lg h-[48px]">
+                    <svg width="33" height="24" viewBox="0 0 119 87" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M35.6071 23.8571H19.9214C17.83 23.8571 16 22.0238 16 19.9286C16 17.8333 17.83 16 19.9214 16H35.6071C37.6986 16 39.5286 17.8333 39.5286 19.9286C39.5286 22.0238 37.6986 23.8571 35.6071 23.8571Z" fill="white"/>
+                        <path d="M35.6071 55.2857H19.9214C17.83 55.2857 16 53.4524 16 51.3572C16 49.2619 17.83 47.4286 19.9214 47.4286H35.6071C37.6986 47.4286 39.5286 49.2619 39.5286 51.3572C39.5286 53.4524 37.6986 55.2857 35.6071 55.2857Z" fill="white"/>
+                        <path d="M35.6071 71H19.9214C17.83 71 16 69.1667 16 67.0715C16 64.9762 17.83 63.1429 19.9214 63.1429H35.6071C37.6986 63.1429 39.5286 64.9762 39.5286 67.0715C39.5286 69.1667 37.6986 71 35.6071 71Z" fill="white"/>
+                        <path d="M66.9786 39.5714H51.2929C49.2014 39.5714 47.3714 37.7381 47.3714 35.6429C47.3714 33.5476 49.2014 31.7143 51.2929 31.7143H66.9786C69.07 31.7143 70.9 33.5476 70.9 35.6429C70.9 37.7381 69.07 39.5714 66.9786 39.5714Z" fill="white"/>
+                        <path d="M66.9786 55.2857H51.2929C49.2014 55.2857 47.3714 53.4524 47.3714 51.3572C47.3714 49.2619 49.2014 47.4286 51.2929 47.4286H66.9786C69.07 47.4286 70.9 49.2619 70.9 51.3572C70.9 53.4524 69.07 55.2857 66.9786 55.2857Z" fill="white"/>
+                        <path d="M98.35 23.8571H82.6643C80.5729 23.8571 78.7429 22.0238 78.7429 19.9286C78.7429 17.8333 80.5729 16 82.6643 16H98.35C100.441 16 102.271 17.8333 102.271 19.9286C102.271 22.0238 100.441 23.8571 98.35 23.8571Z" fill="white"/>
+                        <path d="M98.35 39.5714H82.6643C80.5729 39.5714 78.7429 37.7381 78.7429 35.6429C78.7429 33.5476 80.5729 31.7143 82.6643 31.7143H98.35C100.441 31.7143 102.271 33.5476 102.271 35.6429C102.271 37.7381 100.441 39.5714 98.35 39.5714Z" fill="white"/>
+                        <path d="M98.35 71H82.6643C80.5729 71 78.7429 69.1667 78.7429 67.0715C78.7429 64.9762 80.5729 63.1429 82.6643 63.1429H98.35C100.441 63.1429 102.271 64.9762 102.271 67.0715C102.271 69.1667 100.441 71 98.35 71Z" fill="white"/>
+                    </svg>
+                    Logg inn med BankID
+                </button>
+            </div>
+
+            <div class="relative my-6">
+                <div class="absolute inset-0 flex items-center">
+                    <div class="w-full border-t border-gray-200"></div>
+                </div>
+                <div class="relative flex justify-center text-sm">
+                    <span class="px-2 bg-white text-gray-500">eller bruk e-post</span>
+                </div>
+            </div>
+
+            <form method="post" id="loginForm" class="space-y-4">
+                <input type="hidden" asp-for="ClientId" name="client_id" />
+                <input type="hidden" asp-for="RedirectUri" name="redirect_uri" />
+                <input type="hidden" asp-for="State" name="state" />
+                <input type="hidden" asp-for="Scope" name="scope" />
+
+                <div>
+                    <label asp-for="Email" class="block text-sm font-medium text-gray-700 mb-1">E-post</label>
+                    <input type="email" asp-for="Email" required autocomplete="username" placeholder="din.epost@eksempel.no"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                </div>
+
+                <div>
+                    <label asp-for="Password" class="block text-sm font-medium text-gray-700 mb-1">Passord</label>
+                    <input type="password" asp-for="Password" required autocomplete="current-password" placeholder="••••••••"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                </div>
+
+                <button type="submit" class="w-full bg-gray-800 text-white font-semibold py-3 px-4 rounded-lg hover:bg-gray-900 transition duration-200">
+                    Logg inn
+                </button>
+            </form>
+
+            <div class="text-center text-sm text-gray-600 mt-6">
+                <text>Ny hos NETWORCO?</text>
+                <a href="/Register?return_url=@(HttpUtility.UrlEncode(Request.Path + Request.QueryString))"
+                    class="text-indigo-600 hover:text-indigo-500 font-medium ml-1">Opprett konto</a>
+            </div>
+
+            @if (Model.TestUsers != null && Model.TestUsers.Any())
+            {
+                <div class="mt-8 pt-6 border-t border-gray-200">
+                    <h3 class="text-sm font-semibold text-gray-700 mb-3">NETWORCO ID Testbrukere</h3>
+                    <div class="space-y-2">
+                        @foreach (var user in Model.TestUsers)
+                        {
+                            <div class="p-3 bg-gray-50 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-100 hover:border-indigo-300 transition duration-200"
+                                onclick="fillCredentials('@user.Email', '@user.Password')">
+                                <div class="font-medium text-gray-900">@user.FirstName @user.LastName</div>
+                                <div class="text-xs text-gray-500">@user.Email</div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="mt-8 text-center">
+                <a href="/" class="text-indigo-600 hover:text-indigo-500 font-medium">Gå tilbake til forsiden</a>
+            </div>
+        }
+
+        <div class="mt-6 pt-6 border-t border-gray-200">
+            <p class="text-xs text-center text-gray-500">
+                NETWORCO ID er en sikker påloggingsmetode for enkel og trygg tilgang. Du kan også bruke Vipps og BankID.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        function fillCredentials(email, password) {
+            document.getElementById('Email').value = email;
+            document.getElementById('Password').value = password;
+        }
+
+        // Custom Norwegian validation messages for HTML5 popups
+        const inputs = document.querySelectorAll('input[required], input[type="email"]');
+        inputs.forEach(input => {
+            input.addEventListener('invalid', function (e) {
+                input.setCustomValidity(''); // Reset first
+                if (input.validity.valueMissing) {
+                    input.setCustomValidity('Vennligst fyll ut dette feltet');
+                } else if (input.validity.typeMismatch && input.type === 'email') {
+                    input.setCustomValidity('Vennligst oppgi en gyldig e-postadresse');
+                }
+            });
+            input.addEventListener('input', function (e) {
+                input.setCustomValidity('');
+            });
+        });
+    </script>
+</body>
+
+</html>
