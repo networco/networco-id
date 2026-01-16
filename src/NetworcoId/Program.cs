@@ -20,10 +20,29 @@ if (File.Exists(".env"))
 {
     DotNetEnv.Env.Load(".env");
 }
+else if (File.Exists("../../.env"))
+{
+    // Try root from bin/Debug/net10.0
+    DotNetEnv.Env.Load("../../.env");
+}
+else if (File.Exists("../../../.env"))
+{
+    // Try root from src/NetworcoId/bin/Debug/net10.0
+    DotNetEnv.Env.Load("../../../.env");
+}
 
 // Override configuration with environment variables
-builder.Configuration["ConnectionStrings:DefaultConnection"] = Environment.GetEnvironmentVariable("DATABASE_URL");
-builder.Configuration["Nats:Url"] = Environment.GetEnvironmentVariable("NATS_URL");
+var dbUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+if (!string.IsNullOrEmpty(dbUrl))
+{
+    builder.Configuration["ConnectionStrings:DefaultConnection"] = dbUrl;
+}
+
+var natsUrl = Environment.GetEnvironmentVariable("NATS_URL");
+if (!string.IsNullOrEmpty(natsUrl))
+{
+    builder.Configuration["Nats:Url"] = natsUrl;
+}
 
 var migrateOnly = args.Contains("--migrate-only");
 var seed = args.Contains("--seed");

@@ -21,6 +21,12 @@ public static class DatabaseConfiguration
 
         var connectionString = configuration.GetConnectionString("DefaultConnection");
 
+        if (string.IsNullOrEmpty(connectionString) || connectionString == "PLACEHOLDER")
+        {
+            // If placeholder, try direct environment variables as fallback
+            connectionString = Environment.GetEnvironmentVariable("DATABASE_URL");
+        }
+
         if (string.Equals(connectionString, "InMemory", StringComparison.OrdinalIgnoreCase))
         {
             // Do NOT register anything here if InMemory is specified.
@@ -40,9 +46,9 @@ public static class DatabaseConfiguration
             connectionString = $"Host={host};Port={port};Database={database};Username={user};Password={password};Ssl Mode=Prefer;";
         }
 
-        if (string.IsNullOrEmpty(connectionString))
+        if (string.IsNullOrEmpty(connectionString) || connectionString == "PLACEHOLDER")
         {
-            throw new InvalidOperationException("Connection string not found in configuration or environment variables.");
+            throw new InvalidOperationException("Connection string is missing or is set to PLACEHOLDER. Check your .env file or environment variables.");
         }
 
         services.AddDbContext<AuthDbContext>(options =>
