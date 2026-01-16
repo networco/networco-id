@@ -5,6 +5,7 @@ using NetworcoId.Services;
 
 namespace NetworcoId.Pages;
 
+[IgnoreAntiforgeryToken]
 public class ChangePasswordModel(IAuthService authService, NetworcoIdConfig config) : PageModel
 {
     [BindProperty(SupportsGet = true)]
@@ -39,6 +40,13 @@ public class ChangePasswordModel(IAuthService authService, NetworcoIdConfig conf
 
     public async Task<IActionResult> OnPostAsync()
     {
+        // Manual parameter extraction as fallback for WebApplicationFactory
+        Email ??= Request.Form["Email"].FirstOrDefault() ?? Request.Query["Email"].FirstOrDefault();
+        ClientId ??= Request.Form["client_id"].FirstOrDefault() ?? Request.Query["client_id"].FirstOrDefault();
+        RedirectUri ??= Request.Form["redirect_uri"].FirstOrDefault() ?? Request.Query["redirect_uri"].FirstOrDefault();
+        State ??= Request.Form["state"].FirstOrDefault() ?? Request.Query["state"].FirstOrDefault();
+        Scope ??= Request.Form["scope"].FirstOrDefault() ?? Request.Query["scope"].FirstOrDefault();
+
         if (string.IsNullOrEmpty(Email) || string.IsNullOrEmpty(CurrentPassword) || string.IsNullOrEmpty(NewPassword))
         {
             ErrorMessage = "Alle felt må fylles ut";

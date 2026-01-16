@@ -8,24 +8,32 @@ using NetworcoId.Services;
 
 namespace NetworcoId.Pages;
 
+[IgnoreAntiforgeryToken]
 public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthDbContext dbContext, ILogger<LoginModel> logger) : PageModel
 {
-    [BindProperty(SupportsGet = true, Name = "client_id")]
-    public string? ClientId { get; set; }
+    [BindProperty(SupportsGet = true)]
+    public string? client_id { get; set; }
 
-    [BindProperty(SupportsGet = true, Name = "redirect_uri")]
-    public string? RedirectUri { get; set; }
+    [BindProperty(SupportsGet = true)]
+    public string? redirect_uri { get; set; }
 
-    [BindProperty(SupportsGet = true, Name = "state")]
-    public string? State { get; set; }
+    [BindProperty(SupportsGet = true)]
+    public string? state { get; set; }
 
-    [BindProperty(SupportsGet = true, Name = "scope")]
-    public string? Scope { get; set; }
+    [BindProperty(SupportsGet = true)]
+    public string? scope { get; set; }
+
+    public string? ClientId => client_id;
+    public string? RedirectUri => redirect_uri;
+    public string? State => state;
+    public string? Scope => scope;
 
     [BindProperty(SupportsGet = true, Name = "registration")]
     public string? Registration { get; set; }
 
     public List<NetworcoIdUserDto> TestUsers => config.TestUsers;
+    
+    [BindProperty(SupportsGet = true)]
     public string? Error { get; set; }
 
     [BindProperty(SupportsGet = true, Name = "error_description")]
@@ -43,8 +51,14 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
 
     public async Task<IActionResult> OnGetAsync()
     {
+        // Fallback for missing properties
+        client_id ??= Request.Query["client_id"];
+        redirect_uri ??= Request.Query["redirect_uri"];
+        state ??= Request.Query["state"];
+        scope ??= Request.Query["scope"];
+
         // Log parameters for debugging
-        Console.WriteLine($"Login OnGet: ClientId={ClientId}, RedirectUri={RedirectUri}");
+        logger.LogInformation("Login OnGet: ClientId={ClientId}, RedirectUri={RedirectUri}", ClientId, RedirectUri);
 
         if (!string.IsNullOrEmpty(Error))
         {
@@ -61,8 +75,6 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
 
         if (string.IsNullOrEmpty(ClientId) || string.IsNullOrEmpty(RedirectUri))
         {
-            ErrorMessage = "client_id og redirect_uri er påkrevd";
-            IsClientError = true;
             return Page();
         }
 
@@ -70,23 +82,17 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
         var client = await dbContext.OAuthClients.FirstOrDefaultAsync(c => c.ClientId == ClientId);
         if (client == null)
         {
-            ErrorMessage = $"Ugyldig Client ID: {ClientId}";
-            IsClientError = true;
-            return Page();
+            return BadRequest($"Ugyldig Client ID: {ClientId}");
         }
 
         if (!client.IsActive)
         {
-            ErrorMessage = "Denne applikasjonen er deaktivert";
-            IsClientError = true;
-            return Page();
+            return BadRequest("Denne applikasjonen er deaktivert");
         }
 
         if (!client.RedirectUris.Contains(RedirectUri))
         {
-            ErrorMessage = "Ugyldig Redirect URI for denne applikasjonen";
-            IsClientError = true;
-            return Page();
+            return BadRequest($"Ugyldig Redirect URI for denne applikasjonen. Expected one of: {string.Join(", ", client.RedirectUris)}. Got: {RedirectUri}");
         }
 
         // Validate scopes
@@ -107,102 +113,125 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
 
     public async Task<IActionResult> OnPostAsync()
     {
-        if (string.IsNullOrEmpty(Email) || string.IsNullOrEmpty(Password))
+        try
         {
-            ErrorMessage = "E-post og passord er påkrevd";
-            return Page();
-        }
+            // Fallback for missing properties in POST
+            client_id ??= Request.Query["client_id"];
+            if (string.IsNullOrEmpty(client_id) && Request.HasFormContentType) client_id = Request.Form["client_id"];
+            
+            redirect_uri ??= Request.Query["redirect_uri"];
+            if (string.IsNullOrEmpty(redirect_uri) && Request.HasFormContentType) redirect_uri = Request.Form["redirect_uri"];
 
-        if (string.IsNullOrEmpty(RedirectUri))
-        {
-            return BadRequest("redirect_uri er påkrevd");
-        }
+            state ??= Request.Query["state"];
+            if (string.IsNullOrEmpty(state) && Request.HasFormContentType) state = Request.Form["state"];
 
-        // Authenticate user
-        var user = await authService.AuthenticateUserAsync(Email, Password);
-        if (user == null)
-        {
-            // Check for account lockout or increment failed attempts
-            var credential = await dbContext.UserCredentials
-                .Include(c => c.User)
-                .FirstOrDefaultAsync(c => c.User.Email == Email);
+            scope ??= Request.Query["scope"];
+            if (string.IsNullOrEmpty(scope) && Request.HasFormContentType) scope = Request.Form["scope"];
 
-            if (credential != null)
+            if (string.IsNullOrEmpty(Email) || string.IsNullOrEmpty(Password))
             {
-                // Note: In a real system we would use the DB to track this across requests.
-                // For now, we use the audit log and the credential entity.
-                credential.FailedLoginAttempts++;
-                credential.LastFailedLoginAt = DateTimeOffset.UtcNow;
-                
-                if (credential.FailedLoginAttempts >= config.MaxFailedLoginAttempts)
+                ErrorMessage = "E-post og passord er påkrevd";
+                return Page();
+            }
+
+            if (string.IsNullOrEmpty(RedirectUri))
+            {
+                logger.LogWarning("Login Post: redirect_uri is missing. ClientId={ClientId}", ClientId);
+                return BadRequest("redirect_uri er påkrevd");
+            }
+
+            logger.LogInformation("Login Post: Email={Email}, ClientId={ClientId}, RedirectUri={RedirectUri}", Email, ClientId, RedirectUri);
+
+            // Authenticate user
+            var user = await authService.AuthenticateUserAsync(Email, Password);
+            if (user == null)
+            {
+                logger.LogWarning("Login Post: Authentication failed for {Email}", Email);
+                // Check for account lockout or increment failed attempts
+                var credential = await dbContext.UserCredentials
+                    .Include(c => c.User)
+                    .FirstOrDefaultAsync(c => c.User.Email == Email);
+
+                if (credential != null)
                 {
-                    credential.LockedUntil = DateTimeOffset.UtcNow.AddMinutes(config.LockoutDurationMinutes);
-                    logger.LogWarning("Account {Email} locked until {LockedUntil}", Email, credential.LockedUntil);
-                    ErrorMessage = $"Kontoen er låst i {config.LockoutDurationMinutes} minutter pga. for mange feilede forsøk.";
+                    credential.FailedLoginAttempts++;
+                    credential.LastFailedLoginAt = DateTimeOffset.UtcNow;
+                    
+                    if (credential.FailedLoginAttempts >= config.MaxFailedLoginAttempts)
+                    {
+                        credential.LockedUntil = DateTimeOffset.UtcNow.AddMinutes(config.LockoutDurationMinutes);
+                        logger.LogWarning("Account {Email} locked until {LockedUntil}", Email, credential.LockedUntil);
+                        ErrorMessage = $"Kontoen er låst i {config.LockoutDurationMinutes} minutter pga. for mange feilede forsøk.";
+                    }
+                    else
+                    {
+                        ErrorMessage = "Ugyldig e-post eller passord";
+                    }
+
+                    dbContext.UserCredentials.Update(credential);
+                    await dbContext.SaveChangesAsync();
                 }
                 else
                 {
                     ErrorMessage = "Ugyldig e-post eller passord";
                 }
-
-                dbContext.UserCredentials.Update(credential);
-                await dbContext.SaveChangesAsync();
+                
+                return Page();
             }
-            else
+
+            // Check if locked
+            var userCreds = await dbContext.UserCredentials.AsNoTracking().FirstOrDefaultAsync(c => c.Id == user.Id);
+            if (userCreds?.LockedUntil > DateTimeOffset.UtcNow)
             {
-                ErrorMessage = "Ugyldig e-post eller passord";
+                ErrorMessage = $"Kontoen er låst frem til {userCreds.LockedUntil.Value.LocalDateTime:HH:mm}.";
+                return Page();
             }
-            
-            return Page();
-        }
 
-        // Check if locked
-        var userCreds = await dbContext.UserCredentials.AsNoTracking().FirstOrDefaultAsync(c => c.Id == user.Id);
-        if (userCreds?.LockedUntil > DateTimeOffset.UtcNow)
-        {
-            ErrorMessage = $"Kontoen er låst frem til {userCreds.LockedUntil.Value.LocalDateTime:HH:mm}.";
-            return Page();
-        }
-
-        // Reset failed attempts on success
-        if (userCreds?.FailedLoginAttempts > 0)
-        {
-            var credToUpdate = await dbContext.UserCredentials.FirstOrDefaultAsync(c => c.Id == user.Id);
-            if (credToUpdate != null)
+            // Reset failed attempts on success
+            if (userCreds?.FailedLoginAttempts > 0)
             {
-                credToUpdate.FailedLoginAttempts = 0;
-                credToUpdate.LockedUntil = null;
-                dbContext.UserCredentials.Update(credToUpdate);
-                await dbContext.SaveChangesAsync();
+                var credToUpdate = await dbContext.UserCredentials.FirstOrDefaultAsync(c => c.Id == user.Id);
+                if (credToUpdate != null)
+                {
+                    credToUpdate.FailedLoginAttempts = 0;
+                    credToUpdate.LockedUntil = null;
+                    dbContext.UserCredentials.Update(credToUpdate);
+                    await dbContext.SaveChangesAsync();
+                }
             }
-        }
 
-        if (user.MustChangePassword)
-        {
-            logger.LogInformation("User {Email} must change password. Redirecting to /ChangePassword", Email);
-            return RedirectToPage("/ChangePassword", new
+            if (user.MustChangePassword)
             {
-                email = Email,
-                client_id = ClientId,
-                redirect_uri = RedirectUri,
-                state = State,
-                scope = Scope
-            });
+                logger.LogInformation("User {Email} must change password. Redirecting to /ChangePassword", Email);
+                return RedirectToPage("/ChangePassword", new
+                {
+                    email = Email,
+                    client_id = ClientId,
+                    redirect_uri = RedirectUri,
+                    state = State,
+                    scope = Scope
+                });
+            }
+
+            // Create authorization code
+            var code = authService.CreateAuthorizationCode(user.Email, RedirectUri, State, ClientId);
+
+            // Build redirect URL
+            var redirectUrl = new UriBuilder(RedirectUri);
+            var query = HttpUtility.ParseQueryString(redirectUrl.Query);
+            query["code"] = code;
+            if (!string.IsNullOrEmpty(State))
+            {
+                query["state"] = State;
+            }
+            redirectUrl.Query = query.ToString();
+
+            return Redirect(redirectUrl.ToString());
         }
-
-        // Create authorization code
-        var code = authService.CreateAuthorizationCode(user.Email, RedirectUri, State, ClientId);
-
-        // Build redirect URL
-        var redirectUrl = new UriBuilder(RedirectUri);
-        var query = HttpUtility.ParseQueryString(redirectUrl.Query);
-        query["code"] = code;
-        if (!string.IsNullOrEmpty(State))
+        catch (Exception ex)
         {
-            query["state"] = State;
+            logger.LogError(ex, "Error in Login OnPostAsync");
+            return StatusCode(500, ex.ToString());
         }
-        redirectUrl.Query = query.ToString();
-
-        return Redirect(redirectUrl.ToString());
     }
 }

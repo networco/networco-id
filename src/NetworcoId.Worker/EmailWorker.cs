@@ -3,13 +3,13 @@ using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
 using NetworcoId.Core;
 using NetworcoId.Core.Models;
-using FluentEmail.Core;
+using NetworcoId.Worker.Services;
 
 namespace NetworcoId.Worker;
 
 public class EmailWorker(
     INatsConnection nats,
-    IFluentEmail fluentEmail,
+    IBrevoEmailService brevoEmail,
     ILogger<EmailWorker> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -17,57 +17,90 @@ public class EmailWorker(
         logger.LogInformation("NetworcoID Email Worker starting...");
 
         var js = new NatsJSContext(nats);
-        
+
         // Ensure stream exists
         await nats.ProvisionStreamsAsync(logger);
 
-        // Standard JetStream consumer pattern
-        var consumer = await js.CreateOrUpdateConsumerAsync(NetworcoIdSubjects.StreamName, new ConsumerConfig("email-worker")
+        var consumerName = "email-worker";
+
+        // IMPORTANT for WorkQueues:
+        // 1. We MUST use a DurableName so that restarts don't create multiple ephemeral consumers.
+        // 2. On a WorkQueue, NATS only allows one consumer per "partition" (FilterSubject).
+        // 3. To allow multiple workers to load-balance, they must all share the SAME DurableName.
+        // 4. We use CreateConsumerAsync with ConsumerCreateAction.CreateOrUpdate (default in CreateOrUpdateConsumerAsync)
+        //    but we ensure the configuration is exactly what NATS expects for a shared WorkQueue consumer.
+
+        var consumer = await js.CreateOrUpdateConsumerAsync(NetworcoIdSubjects.StreamName, new ConsumerConfig
         {
-            FilterSubject = NetworcoIdSubjects.EmailVerify,
-            DurableName = "email-worker",
-            AckPolicy = ConsumerConfigAckPolicy.Explicit
+            Name = consumerName,
+            DurableName = consumerName,
+            AckPolicy = ConsumerConfigAckPolicy.Explicit,
+            DeliverPolicy = ConsumerConfigDeliverPolicy.All
         }, stoppingToken);
 
-        await foreach (var msg in consumer.ConsumeAsync<EmailVerificationMessage>(cancellationToken: stoppingToken))
+        logger.LogInformation("Consumer {Name} active. Listening for identity.email.>", consumerName);
+
+        await foreach (var msg in consumer.ConsumeAsync<byte[]>(cancellationToken: stoppingToken))
         {
-            var emailMsg = msg.Data;
-            if (emailMsg == null) continue;
-
-            logger.LogInformation("Processing email for {Email} (Type: {Type})", emailMsg.Email, emailMsg.Type);
-            
-            try 
+            try
             {
-                if (emailMsg.Type == "Verification")
-                {
-                    logger.LogInformation("Sending verification email to {Email} with token {Token}", emailMsg.Email, emailMsg.Token);
-                    
-                    var email = fluentEmail
-                        .To(emailMsg.Email)
-                        .Subject("Verify your NetworcoID account")
-                        .Body($"Please verify your account using this token: {emailMsg.Token}\n\nLink: https://id.networco.no/verify?token={emailMsg.Token}");
+                var subject = msg.Subject;
+                logger.LogInformation(">>> RECEIVED MESSAGE: {Subject}", subject);
 
-                    await email.SendAsync(stoppingToken);
+                // For messages published via NatsEmailService, they go to 'identity.email.notification'
+                if (subject == NetworcoIdSubjects.EmailNotification)
+                {
+                    var data = System.Text.Json.JsonSerializer.Deserialize<EmailNotificationMessage>(msg.Data);
+                    if (data != null)
+                    {
+                        logger.LogInformation("Processing EmailNotification for {Email}: {Subject}", data.Email, data.Subject);
+                        await HandleNotificationEmail(data, stoppingToken);
+                    }
                 }
-                else if (emailMsg.Type == "OTP")
+                else if (subject == NetworcoIdSubjects.EmailVerify)
                 {
-                    logger.LogInformation("Sending OTP code to {Email}", emailMsg.Email);
-                    
-                    var email = fluentEmail
-                        .To(emailMsg.Email)
-                        .Subject("Your NetworcoID Login Code")
-                        .Body($"Your login code is: {emailMsg.Token}"); // Reusing Token field for OTP code
-
-                    await email.SendAsync(stoppingToken);
+                    var data = System.Text.Json.JsonSerializer.Deserialize<EmailVerificationMessage>(msg.Data);
+                    if (data != null) await HandleVerificationEmail(data, stoppingToken);
+                }
+                else if (subject == NetworcoIdSubjects.PasswordReset)
+                {
+                    var data = System.Text.Json.JsonSerializer.Deserialize<PasswordResetMessage>(msg.Data);
+                    if (data != null) await HandlePasswordResetEmail(data, stoppingToken);
+                }
+                else
+                {
+                    logger.LogWarning("Received message on unhandled subject: {Subject}", subject);
                 }
 
                 await msg.AckAsync(cancellationToken: stoppingToken);
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Failed to process email for {Email}", emailMsg.Email);
-                // NATS will retry based on AckWait if we don't Ack
+                logger.LogError(ex, "Failed to process message on subject {Subject}", msg.Subject);
             }
         }
     }
+
+    private async Task HandleVerificationEmail(EmailVerificationMessage data, CancellationToken ct)
+    {
+        var subject = data.Type == "OTP" ? "Your NetworcoID Login Code" : "Verify your NetworcoID account";
+        var body = data.Type == "OTP"
+            ? $"Your login code is: {data.Token}"
+            : $"Please verify your account using this token: {data.Token}\n\nLink: https://id.networco.no/verify?token={data.Token}";
+
+        await brevoEmail.SendEmailAsync(data.Email, data.FirstName, subject, ToHtml(body), ct);
+    }
+
+    private async Task HandlePasswordResetEmail(PasswordResetMessage data, CancellationToken ct)
+    {
+        var body = $"You requested a password reset. Please use the following link to reset your password:\n\nLink: https://id.networco.no/Auth/ResetPassword?token={data.Token}\n\nThis link expires in 2 hours.";
+        await brevoEmail.SendEmailAsync(data.Email, data.FirstName, "Reset your NetworcoID password", ToHtml(body), ct);
+    }
+
+    private async Task HandleNotificationEmail(EmailNotificationMessage data, CancellationToken ct)
+    {
+        await brevoEmail.SendEmailAsync(data.Email, data.FirstName ?? data.Email, data.Subject, ToHtml(data.Body), ct);
+    }
+
+    private string ToHtml(string text) => $"<html><body><p>{text.Replace("\n", "<br>")}</p></body></html>";
 }

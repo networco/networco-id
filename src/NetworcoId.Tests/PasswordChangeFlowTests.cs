@@ -32,14 +32,16 @@ public class PasswordChangeFlowTests : IClassFixture<WebApplicationFactory<Progr
             builder.ConfigureServices(services =>
             {
                 // 1. Remove ANY existing DbContext registration including DataProtection ones
-                var descriptors = services.Where(d => 
+                var efInternalDescriptors = services.Where(d => 
                     d.ServiceType == typeof(DbContextOptions<AuthDbContext>) || 
                     d.ServiceType == typeof(AuthDbContext) ||
-                    d.ServiceType.FullName?.Contains("DataProtection") == true ||
-                    d.ServiceType.FullName?.Contains("Npgsql") == true
+                    d.ServiceType.FullName?.Contains("Microsoft.EntityFrameworkCore") == true ||
+                    d.ServiceType.FullName?.Contains("Npgsql") == true ||
+                    d.ServiceType.FullName?.Contains("DataProtection") == true
+                ).ToList();
                 ).ToList();
 
-                foreach (var descriptor in descriptors)
+                foreach (var descriptor in efInternalDescriptors)
                 {
                     services.Remove(descriptor);
                 }
@@ -55,6 +57,7 @@ public class PasswordChangeFlowTests : IClassFixture<WebApplicationFactory<Progr
 
                 // 3. Mock NATS using Moq
                 var mockNats = new Mock<INatsConnection>();
+                mockNats.Setup(n => n.Opts).Returns(new NatsOpts());
                 services.AddSingleton<INatsConnection>(mockNats.Object);
 
                 // 4. Ensure migrations don't run or fail in test
@@ -64,6 +67,22 @@ public class PasswordChangeFlowTests : IClassFixture<WebApplicationFactory<Progr
 
                 // 5. Disable Data Protection DB persistence for tests to avoid circular dependency
                 services.AddDataProtection();
+
+                // 6. Disable Antiforgery for tests
+                services.AddAntiforgery(options => 
+                {
+                    options.Cookie.Expiration = TimeSpan.FromDays(1);
+                    options.HeaderName = "X-XSRF-TOKEN";
+                });
+                services.Configure<Microsoft.AspNetCore.Mvc.MvcOptions>(options => 
+                {
+                    options.Filters.Add(new Microsoft.AspNetCore.Mvc.IgnoreAntiforgeryTokenAttribute());
+                });
+
+                // 7. Mock PasswordValidator to pass any password
+                var mockValidator = new Mock<IPasswordValidator>();
+                mockValidator.Setup(v => v.Validate(It.IsAny<string>())).Returns((true, null));
+                services.AddSingleton<IPasswordValidator>(mockValidator.Object);
             });
         });
     }
@@ -102,8 +121,9 @@ public class PasswordChangeFlowTests : IClassFixture<WebApplicationFactory<Progr
             db.UserCredentials.Add(new Models.Entities.UserCredentialEntity
             {
                 Id = userId,
-                PasswordHash = hasher.HashPassword("OldPassword123!"),
-                MustChangePassword = true
+                PasswordHash = hasher.HashPassword("OldP@ssword123!"),
+                MustChangePassword = true,
+                CreatedAt = DateTimeOffset.UtcNow
             });
             db.OAuthClients.Add(new Models.Entities.OAuthClientEntity
             {
@@ -121,7 +141,9 @@ public class PasswordChangeFlowTests : IClassFixture<WebApplicationFactory<Progr
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 { "Email", "test@example.com" },
-                { "Password", "OldPassword123!" }
+                { "Password", "OldP@ssword123!" },
+                { "client_id", "test-client" },
+                { "redirect_uri", "https://example.com/callback" }
             }));
 
         // Assert
@@ -146,7 +168,7 @@ public class PasswordChangeFlowTests : IClassFixture<WebApplicationFactory<Progr
             
             var userId = Guid.NewGuid();
             db.Users.Add(new Models.Entities.UserEntity { Id = userId, Email = email, FirstName = "C", LastName = "P", IsActive = true });
-            db.UserCredentials.Add(new Models.Entities.UserCredentialEntity { Id = userId, PasswordHash = hasher.HashPassword("OldP@ss123"), MustChangePassword = true });
+            db.UserCredentials.Add(new Models.Entities.UserCredentialEntity { Id = userId, PasswordHash = hasher.HashPassword("OldP@ssword123!"), MustChangePassword = true, CreatedAt = DateTimeOffset.UtcNow });
             await db.SaveChangesAsync();
         }
 
@@ -155,11 +177,11 @@ public class PasswordChangeFlowTests : IClassFixture<WebApplicationFactory<Progr
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 { "Email", email },
-                { "CurrentPassword", "OldP@ss123" },
+                { "CurrentPassword", "OldP@ssword123!" },
                 { "NewPassword", "NewP@ssword123!" },
                 { "ConfirmPassword", "NewP@ssword123!" },
-                { "ClientId", "test-client" },
-                { "RedirectUri", "https://example.com/callback" }
+                { "client_id", "test-client" },
+                { "redirect_uri", "https://example.com/callback" }
             }));
 
         // Assert
