@@ -1,0 +1,137 @@
+@page
+@model Networco.Auth.Pages.Admin.Clients.EditModel
+@{
+    ViewData["Title"] = "Edit Client";
+}
+
+<div class="container mx-auto px-4 py-12 max-w-4xl">
+    <div class="flex items-center justify-between mb-8">
+        <div>
+            <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">Edit Client</h1>
+            <div class="flex items-center gap-2 mt-2">
+                <span class="px-2.5 py-0.5 rounded-md text-sm font-medium bg-indigo-100 text-indigo-800 font-mono">@Model.ClientId</span>
+            </div>
+        </div>
+        <a href="/Admin/Clients/Index" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+            Back to List
+        </a>
+    </div>
+
+    @if (Model.NewSecret != null)
+    {
+        <div class="bg-green-50 border border-green-200 rounded-xl p-6 mb-8 shadow-sm animate-fade-in-down">
+            <div class="flex items-start gap-4">
+                <div class="flex-shrink-0 w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-green-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </div>
+                <div class="w-full">
+                    <h3 class="text-lg font-bold text-green-900 mb-2">New @Model.SecretType Secret Generated</h3>
+                    <p class="text-green-800 mb-4">
+                        Please copy this secret now. It will not be shown again.
+                    </p>
+                    <div class="bg-white p-4 rounded-lg border border-green-200 font-mono text-sm break-all select-all shadow-inner text-gray-700">
+                        @Model.NewSecret
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="bg-white/80 backdrop-blur-xl shadow-xl rounded-2xl overflow-hidden border border-white/50 mb-8">
+        <div class="px-8 py-6 border-b border-gray-100 bg-gray-50/50">
+            <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                General Information
+            </h2>
+        </div>
+        <div class="p-8">
+            <form method="post" class="space-y-6">
+                @Html.AntiForgeryToken()
+                <input type="hidden" asp-for="ClientId" />
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2" for="displayName">
+                        Display Name
+                    </label>
+                    <input class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none"
+                           id="displayName" asp-for="DisplayName" required>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2" for="redirectUris">
+                        Redirect URIs (one per line)
+                    </label>
+                    <textarea class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none h-32 font-mono text-sm"
+                              id="redirectUris" asp-for="RedirectUris" required></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2" for="scopes">
+                        Allowed Scopes (comma separated)
+                    </label>
+                    <input class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none"
+                           id="scopes" asp-for="Scopes">
+                </div>
+
+                <div class="pt-4 flex justify-end">
+                    <button class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-indigo-200 transition-all transform hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                            type="submit">
+                        Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="bg-white/80 backdrop-blur-xl shadow-xl rounded-2xl overflow-hidden border border-white/50">
+        <div class="px-8 py-6 border-b border-gray-100 bg-gray-50/50">
+            <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+                Client Secrets
+            </h2>
+        </div>
+        <div class="p-8 space-y-6">
+            <!-- Primary Secret -->
+            <div class="flex items-center justify-between p-6 bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                <div>
+                    <h3 class="text-base font-bold text-gray-900">Primary Secret</h3>
+                    <p class="text-sm text-gray-500 mt-1">Active and ready for use.</p>
+                </div>
+                <form method="post" asp-page-handler="RotatePrimary" asp-route-id="@Model.ClientId" onsubmit="return confirm('Are you sure? This will invalidate the current primary secret immediately.');">
+                    <button type="submit" class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
+                        <svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                        Rotate Primary
+                    </button>
+                </form>
+            </div>
+
+            <!-- Secondary Secret -->
+            <div class="flex items-center justify-between p-6 bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                <div>
+                    <h3 class="text-base font-bold text-gray-900">Secondary Secret</h3>
+                    <p class="text-sm text-gray-500 mt-1">
+                        @(Model.HasSecondarySecret ? "Active. Useful for zero-downtime rotation." : "Not configured.")
+                    </p>
+                </div>
+                <div class="flex gap-3">
+                    @if (Model.HasSecondarySecret)
+                    {
+                        <form method="post" asp-page-handler="ClearSecondary" asp-route-id="@Model.ClientId" onsubmit="return confirm('Are you sure? This will remove the secondary secret.');">
+                            <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors">
+                                Remove
+                            </button>
+                        </form>
+                    }
+                    
+                    <form method="post" asp-page-handler="RotateSecondary" asp-route-id="@Model.ClientId" onsubmit="return confirm('Are you sure? This will replace the secondary secret if one exists.');">
+                        <button type="submit" class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
+                            <svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                            @(Model.HasSecondarySecret ? "Rotate Secondary" : "Generate Secondary")
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

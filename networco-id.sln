@@ -1,0 +1,46 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetworcoId.Core", "src\NetworcoId.Core\NetworcoId.Core.csproj", "{59A7D0CB-1CBA-AEA4-85D3-EA3335383D3D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetworcoId.Worker", "src\NetworcoId.Worker\NetworcoId.Worker.csproj", "{FCD3A7DD-4AE3-5EBF-0187-261E46F73B29}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "NetworcoId.Api", "NetworcoId.Api", "{45FC9411-E2BB-72F7-12D0-517CD728E054}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Networco.Auth", "src\NetworcoId.Api\Networco.Auth.csproj", "{0A007CAA-9734-1B30-C561-F4CFB97E85E8}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{59A7D0CB-1CBA-AEA4-85D3-EA3335383D3D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{59A7D0CB-1CBA-AEA4-85D3-EA3335383D3D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{59A7D0CB-1CBA-AEA4-85D3-EA3335383D3D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{59A7D0CB-1CBA-AEA4-85D3-EA3335383D3D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FCD3A7DD-4AE3-5EBF-0187-261E46F73B29}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FCD3A7DD-4AE3-5EBF-0187-261E46F73B29}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FCD3A7DD-4AE3-5EBF-0187-261E46F73B29}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FCD3A7DD-4AE3-5EBF-0187-261E46F73B29}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0A007CAA-9734-1B30-C561-F4CFB97E85E8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0A007CAA-9734-1B30-C561-F4CFB97E85E8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0A007CAA-9734-1B30-C561-F4CFB97E85E8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0A007CAA-9734-1B30-C561-F4CFB97E85E8}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{59A7D0CB-1CBA-AEA4-85D3-EA3335383D3D} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{FCD3A7DD-4AE3-5EBF-0187-261E46F73B29} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{45FC9411-E2BB-72F7-12D0-517CD728E054} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{0A007CAA-9734-1B30-C561-F4CFB97E85E8} = {45FC9411-E2BB-72F7-12D0-517CD728E054}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {52A60E05-5510-4B1C-9D59-F5C753DBF101}
+	EndGlobalSection
+EndGlobal

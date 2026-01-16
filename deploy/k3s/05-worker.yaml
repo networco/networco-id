@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: networcoid-worker
+  namespace: networcoid
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: networcoid-worker
+  template:
+    metadata:
+      labels:
+        app: networcoid-worker
+    spec:
+      containers:
+      - name: worker
+        image: networco/networco-id-worker:latest # Replace with your registry
+        env:
+        - name: NATS_URL
+          value: "nats://nats.networcoid.svc.cluster.local:4222"
+        - name: SMTP_HOST
+          value: "smtp.example.com"

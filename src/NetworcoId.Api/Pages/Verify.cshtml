@@ -1,0 +1,58 @@
+@page
+@model Networco.Auth.Pages.VerifyModel
+@{
+    ViewData["Title"] = Model.IsVerified ? "E-post bekreftet" : "Bekrefter...";
+}
+
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - NETWORCO</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    @if (Model.IsVerified && !string.IsNullOrEmpty(Model.AuthorizationUrl))
+    {
+        <meta http-equiv="refresh" content="2;url=@Model.AuthorizationUrl" />
+    }
+</head>
+<body class="bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-8">
+        @if (Model.IsVerified)
+        {
+            <div class="mb-6 text-center">
+                <div class="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                    <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                </div>
+                <h1 class="text-2xl font-bold text-gray-900 mb-2">E-post bekreftet!</h1>
+                <p class="text-gray-600 mb-6">Kontoen din er nå aktivert.</p>
+                <p class="text-sm text-gray-500">Videresender for å fullføre innlogging...</p>
+            </div>
+        }
+        else if (!string.IsNullOrEmpty(Model.ErrorMessage))
+        {
+            <div class="mb-6 text-center">
+                <div class="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                    <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </div>
+                <h1 class="text-2xl font-bold text-gray-900 mb-2">Bekreftelse feilet</h1>
+                <p class="text-red-600">@Model.ErrorMessage</p>
+            </div>
+        }
+        else
+        {
+            <div class="mb-6 text-center">
+                <div class="mx-auto w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mb-4">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                </div>
+                <h1 class="text-2xl font-bold text-gray-900 mb-2">Bekrefter...</h1>
+                <p class="text-gray-600">Vennligst vent mens vi bekrefter e-postadressen din.</p>
+            </div>
+        }
+    </div>
+</body>
+</html>
