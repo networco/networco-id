@@ -2,6 +2,7 @@ using NetworcoId.Core.Security;
 using NetworcoId.Models.Auth;
 using NetworcoId.Services;
 using NetworcoId.Services.System;
+using NetworcoId.Services.Audit;
 
 using Microsoft.Extensions.Options;
 using System.Text.Json;
@@ -48,6 +49,7 @@ public static class ServiceConfiguration
         services.AddSingleton<Infrastructure.Auth.IJwtService, Infrastructure.Auth.JwtService>();
 
         // Business services
+        services.AddScoped<IAuditService, AuditService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IAuthSeeder, AuthSeeder>();
         services.AddScoped<IBootstrapService, BootstrapService>();

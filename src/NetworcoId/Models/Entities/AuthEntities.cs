@@ -81,3 +81,21 @@ public class AuthSessionEntity
     // Navigation property
     public UserEntity User { get; set; } = null!;
 }
+
+/// <summary>
+/// Audit log entity for tracking system events.
+/// </summary>
+public class AuditLogEntity
+{
+    public Guid Id { get; set; }
+    public Guid? UserId { get; set; }
+    public required string EventType { get; set; } // e.g., Login, PasswordChange, AccountCreated
+    public required string Description { get; set; }
+    public string? IpAddress { get; set; }
+    public string? UserAgent { get; set; }
+    public required DateTimeOffset Timestamp { get; set; }
+    public string? Metadata { get; set; } // JSON blob for additional info
+
+    // Navigation property
+    public UserEntity? User { get; set; }
+}

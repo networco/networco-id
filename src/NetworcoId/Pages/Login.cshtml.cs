@@ -122,8 +122,59 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
         var user = await authService.AuthenticateUserAsync(Email, Password);
         if (user == null)
         {
-            ErrorMessage = "Ugyldig e-post eller passord";
+            // Check for account lockout or increment failed attempts
+            var credential = await dbContext.UserCredentials
+                .Include(c => c.User)
+                .FirstOrDefaultAsync(c => c.User.Email == Email);
+
+            if (credential != null)
+            {
+                // Note: In a real system we would use the DB to track this across requests.
+                // For now, we use the audit log and the credential entity.
+                credential.FailedLoginAttempts++;
+                credential.LastFailedLoginAt = DateTimeOffset.UtcNow;
+                
+                if (credential.FailedLoginAttempts >= config.MaxFailedLoginAttempts)
+                {
+                    credential.LockedUntil = DateTimeOffset.UtcNow.AddMinutes(config.LockoutDurationMinutes);
+                    logger.LogWarning("Account {Email} locked until {LockedUntil}", Email, credential.LockedUntil);
+                    ErrorMessage = $"Kontoen er låst i {config.LockoutDurationMinutes} minutter pga. for mange feilede forsøk.";
+                }
+                else
+                {
+                    ErrorMessage = "Ugyldig e-post eller passord";
+                }
+
+                dbContext.UserCredentials.Update(credential);
+                await dbContext.SaveChangesAsync();
+            }
+            else
+            {
+                ErrorMessage = "Ugyldig e-post eller passord";
+            }
+            
             return Page();
+        }
+
+        // Check if locked
+        var userCreds = await dbContext.UserCredentials.AsNoTracking().FirstOrDefaultAsync(c => c.Id == user.Id);
+        if (userCreds?.LockedUntil > DateTimeOffset.UtcNow)
+        {
+            ErrorMessage = $"Kontoen er låst frem til {userCreds.LockedUntil.Value.LocalDateTime:HH:mm}.";
+            return Page();
+        }
+
+        // Reset failed attempts on success
+        if (userCreds?.FailedLoginAttempts > 0)
+        {
+            var credToUpdate = await dbContext.UserCredentials.FirstOrDefaultAsync(c => c.Id == user.Id);
+            if (credToUpdate != null)
+            {
+                credToUpdate.FailedLoginAttempts = 0;
+                credToUpdate.LockedUntil = null;
+                dbContext.UserCredentials.Update(credToUpdate);
+                await dbContext.SaveChangesAsync();
+            }
         }
 
         if (user.MustChangePassword)

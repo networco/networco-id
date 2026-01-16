@@ -148,3 +148,45 @@ public class AuthSessionEntityConfiguration : IEntityTypeConfiguration<AuthSessi
             .OnDelete(DeleteBehavior.Cascade);
     }
 }
+
+/// <summary>
+/// EF Core configuration for AuditLogEntity.
+/// </summary>
+public class AuditLogEntityConfiguration : IEntityTypeConfiguration<AuditLogEntity>
+{
+    public void Configure(EntityTypeBuilder<AuditLogEntity> builder)
+    {
+        builder.HasKey(a => a.Id);
+
+        builder.Property(a => a.Id)
+            .HasDefaultValueSql("gen_random_uuid()");
+
+        builder.Property(a => a.EventType)
+            .HasMaxLength(50)
+            .IsRequired();
+
+        builder.Property(a => a.Description)
+            .HasMaxLength(1000)
+            .IsRequired();
+
+        builder.Property(a => a.IpAddress)
+            .HasMaxLength(45);
+
+        builder.Property(a => a.UserAgent)
+            .HasMaxLength(500);
+
+        builder.Property(a => a.Timestamp)
+            .HasDefaultValueSql("now()");
+
+        builder.Property(a => a.Metadata)
+            .HasColumnType("jsonb");
+
+        builder.HasOne(a => a.User)
+            .WithMany()
+            .HasForeignKey(a => a.UserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(a => a.EventType);
+        builder.HasIndex(a => a.Timestamp);
+    }
+}
