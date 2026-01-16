@@ -22,9 +22,12 @@ public record NetworcoIdUser
 
 public record EmailVerificationMessage(string Email, string Token, string FirstName, string Type = "Verification");
 
+public record EmailNotificationMessage(string Email, string Subject, string Body, string? FirstName = null);
+
 public static class NetworcoIdSubjects
 {
     public const string StreamName = "NETWORCOID";
     public const string EmailVerify = "identity.email.verify";
     public const string EmailOtp = "identity.email.otp";
+    public const string EmailNotification = "identity.email.notification";
 }

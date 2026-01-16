@@ -22,6 +22,7 @@ public static class AuthEndpoints
 
         group.MapPost("/register", Register)
             .WithName("Register")
+            .RequireRateLimiting("auth-strict")
             .WithSummary("Register new user")
             .WithDescription("""
                 Register a new user account.
@@ -40,6 +41,7 @@ public static class AuthEndpoints
 
         group.MapPost("/login", Login)
             .WithName("Login")
+            .RequireRateLimiting("auth-strict")
             .WithSummary("Direct login")
             .WithDescription("""
                 Direct user authentication.

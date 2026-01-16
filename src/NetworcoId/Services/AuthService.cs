@@ -7,6 +7,7 @@ using NetworcoId.Models.Auth;
 using NetworcoId.Models.Entities;
 
 using NetworcoId.Services.Audit;
+using NetworcoId.Services.Messaging;
 
 namespace NetworcoId.Services;
 
@@ -39,6 +40,7 @@ public class AuthService : IAuthService
     private readonly ILogger<AuthService> _logger;
     private readonly NetworcoIdConfig _config;
     private readonly IAuditService _auditService;
+    private readonly IEmailService _emailService;
 
     // In-memory storage for auth codes (stateless, short-lived)
     private static readonly ConcurrentDictionary<string, AuthCodeSession> _authCodes = new();
@@ -49,13 +51,15 @@ public class AuthService : IAuthService
         IPasswordHasher passwordHasher,
         ILogger<AuthService> logger,
         NetworcoIdConfig config,
-        IAuditService auditService)
+        IAuditService auditService,
+        IEmailService emailService)
     {
         _context = context;
         _passwordHasher = passwordHasher;
         _logger = logger;
         _config = config;
         _auditService = auditService;
+        _emailService = emailService;
     }
 
     public async Task<NetworcoIdUserDto?> AuthenticateUserAsync(string emailOrNationalId, string password)
@@ -84,14 +88,60 @@ public class AuthService : IAuthService
             return null;
         }
 
+        // Check if account is locked
+        if (user.Credential.LockedUntil.HasValue && user.Credential.LockedUntil.Value > DateTimeOffset.UtcNow)
+        {
+            _logger.LogWarning("Login attempt for locked account: {Identifier}", identifier);
+            await _auditService.LogAsync("LoginFailed", $"Login attempt for locked account: {user.Email}", user.Id);
+            return null;
+        }
+
         if (!_passwordHasher.VerifyPassword(password, user.Credential.PasswordHash))
         {
             _logger.LogWarning("Invalid password for identifier {Identifier}", identifier);
+            
+            // Increment failed attempts and check for lockout
+            var cred = await _context.UserCredentials.FindAsync(user.Id);
+            if (cred != null)
+            {
+                cred.FailedLoginAttempts++;
+                cred.LastFailedLoginAt = DateTimeOffset.UtcNow;
+                
+                if (cred.FailedLoginAttempts >= _config.MaxFailedLoginAttempts)
+                {
+                    cred.LockedUntil = DateTimeOffset.UtcNow.AddMinutes(_config.LockoutDurationMinutes);
+                    _logger.LogWarning("User account locked: {Email} for {Minutes} minutes", user.Email, _config.LockoutDurationMinutes);
+                    
+                    await _emailService.SendEmailAsync(
+                        user.Email, 
+                        "NETWORCO ID: Account Locked", 
+                        $"Your account has been temporarily locked due to too many failed login attempts. It will be automatically unlocked in {_config.LockoutDurationMinutes} minutes.",
+                        user.FirstName);
+                }
+                
+                _context.UserCredentials.Update(cred);
+                await _context.SaveChangesAsync();
+            }
+
             await _auditService.LogAsync("LoginFailed", $"Invalid password for user: {user.Email}", user.Id);
             return null;
         }
 
         await _auditService.LogAsync("LoginSuccess", $"User logged in: {user.Email}", user.Id);
+
+        // Reset failed attempts on success
+        if (user.Credential.FailedLoginAttempts > 0)
+        {
+            var cred = await _context.UserCredentials.FindAsync(user.Id);
+            if (cred != null)
+            {
+                cred.FailedLoginAttempts = 0;
+                cred.LastFailedLoginAt = null;
+                cred.LockedUntil = null;
+                _context.UserCredentials.Update(cred);
+                await _context.SaveChangesAsync();
+            }
+        }
 
         return new NetworcoIdUserDto
         {
