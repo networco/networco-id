@@ -10,11 +10,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace NetworcoId.Infrastructure.Database.Migrations
+namespace NetworcoId.Migrations
 {
     [DbContext(typeof(AuthDbContext))]
-    [Migration("20260116202549_AddAuditLogs")]
-    partial class AddAuditLogs
+    [Migration("20260116210615_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -359,6 +359,14 @@ namespace NetworcoId.Infrastructure.Database.Migrations
                         .HasMaxLength(11)
                         .HasColumnType("character varying(11)")
                         .HasColumnName("national_id");
+
+                    b.Property<string>("PasswordResetToken")
+                        .HasColumnType("text")
+                        .HasColumnName("password_reset_token");
+
+                    b.Property<DateTimeOffset?>("PasswordResetTokenExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("password_reset_token_expires_at");
 
                     b.Property<string>("PhoneNumber")
                         .HasMaxLength(20)

@@ -9,7 +9,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace NetworcoId.Infrastructure.Database.Migrations
+namespace NetworcoId.Migrations
 {
     [DbContext(typeof(AuthDbContext))]
     partial class AuthDbContextModelSnapshot : ModelSnapshot
@@ -356,6 +356,14 @@ namespace NetworcoId.Infrastructure.Database.Migrations
                         .HasMaxLength(11)
                         .HasColumnType("character varying(11)")
                         .HasColumnName("national_id");
+
+                    b.Property<string>("PasswordResetToken")
+                        .HasColumnType("text")
+                        .HasColumnName("password_reset_token");
+
+                    b.Property<DateTimeOffset?>("PasswordResetTokenExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("password_reset_token_expires_at");
 
                     b.Property<string>("PhoneNumber")
                         .HasMaxLength(20)

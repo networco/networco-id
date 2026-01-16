@@ -22,6 +22,7 @@ public static class ServiceConfiguration
     {
         // Infrastructure services
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
+        services.AddSingleton<IPasswordValidator, PasswordValidator>();
 
         // Configuration
         services.Configure<NetworcoIdConfig>(configuration.GetSection("NetworcoId"));

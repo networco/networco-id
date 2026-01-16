@@ -8,13 +8,27 @@
 			"problemMatcher": [],
 			"label": "dotnet: build"
 		},
-        {
-            "label": "build:networcoid",
-            "type": "shell",
-            "command": "dotnet",
-            "args": ["build", "${workspaceFolder}/src/NetworcoId/NetworcoId.csproj"],
-            "group": "build",
-            "problemMatcher": "$msCompile"
-        },
+		{
+			"label": "build:networcoid",
+			"type": "shell",
+			"command": "dotnet",
+			"args": [
+				"build",
+				"${workspaceFolder}/src/NetworcoId/NetworcoId.csproj"
+			],
+			"group": "build",
+			"problemMatcher": "$msCompile"
+		},
+		{
+			"label": "build:worker",
+			"type": "shell",
+			"command": "dotnet",
+			"args": [
+				"build",
+				"${workspaceFolder}/src/NetworcoId.Worker/NetworcoId.Worker.csproj"
+			],
+			"group": "build",
+			"problemMatcher": "$msCompile"
+		},
 	]
 }

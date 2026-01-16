@@ -41,6 +41,7 @@ public static class NatsExtensions
                     subjects: new[] { 
                         NetworcoIdSubjects.EmailVerify, 
                         NetworcoIdSubjects.EmailOtp,
+                        NetworcoIdSubjects.PasswordReset,
                         NetworcoIdSubjects.EmailNotification
                     })
                 {

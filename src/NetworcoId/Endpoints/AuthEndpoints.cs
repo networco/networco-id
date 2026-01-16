@@ -86,6 +86,50 @@ public static class AuthEndpoints
                 """)
             .Produces<NetworcoIdUserDto>(200)
             .RequireAuthorization();
+
+        group.MapPost("/forgot-password", ForgotPassword)
+            .WithName("ForgotPassword")
+            .RequireRateLimiting("auth-strict")
+            .WithSummary("Initiate password reset")
+            .Produces(200);
+
+        group.MapPost("/reset-password", ResetPassword)
+            .WithName("ResetPassword")
+            .RequireRateLimiting("auth-strict")
+            .WithSummary("Complete password reset")
+            .Produces(200)
+            .Produces(400);
+    }
+
+    private static async Task<IResult> ForgotPassword(
+        [FromBody] ForgotPasswordRequest request,
+        IAuthService authService)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email))
+        {
+            return Results.BadRequest(new { error = "Email is required" });
+        }
+
+        await authService.InitiatePasswordResetAsync(request.Email);
+        return Results.Ok(new { message = "If the email exists, a reset link has been sent." });
+    }
+
+    private static async Task<IResult> ResetPassword(
+        [FromBody] ResetPasswordRequest request,
+        IAuthService authService)
+    {
+        if (string.IsNullOrWhiteSpace(request.Token) || string.IsNullOrWhiteSpace(request.NewPassword))
+        {
+            return Results.BadRequest(new { error = "Token and NewPassword are required" });
+        }
+
+        var result = await authService.ResetPasswordWithTokenAsync(request.Token, request.NewPassword);
+        if (!result)
+        {
+            return Results.BadRequest(new { error = "Invalid or expired reset token" });
+        }
+
+        return Results.Ok(new { message = "Password has been successfully reset." });
     }
 
     private static async Task<IResult> Login(

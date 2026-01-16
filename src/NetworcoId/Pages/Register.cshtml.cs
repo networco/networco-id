@@ -15,6 +15,7 @@ public class RegisterModel(
     AuthDbContext dbContext,
     INatsConnection nats,
     IPasswordHasher passwordHasher,
+    IPasswordValidator passwordValidator,
     ILogger<RegisterModel> logger) : PageModel
 {
     public string? ErrorMessage { get; set; }
@@ -53,16 +54,10 @@ public class RegisterModel(
             return Page();
         }
 
-        if (password.Length < 8)
+        var validationResult = passwordValidator.Validate(password);
+        if (!validationResult.IsValid)
         {
-            ErrorMessage = "Passordet må være minst 8 tegn";
-            ReturnUrl = return_url ?? "http://localhost:3000";
-            return Page();
-        }
-
-        if (!password.Any(char.IsUpper) || !password.Any(char.IsLower) || !password.Any(char.IsDigit))
-        {
-            ErrorMessage = "Passordet må inneholde minst én stor bokstav, én liten bokstav og ett tall";
+            ErrorMessage = validationResult.ErrorMessage;
             ReturnUrl = return_url ?? "http://localhost:3000";
             return Page();
         }

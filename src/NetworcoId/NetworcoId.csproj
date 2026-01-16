@@ -9,6 +9,8 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AnalysisLevel>latest</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <BaseOutputPath>bin/</BaseOutputPath>
+    <BaseIntermediateOutputPath>obj/</BaseIntermediateOutputPath>
   </PropertyGroup>
 
   <ItemGroup>

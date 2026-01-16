@@ -19,6 +19,10 @@ public class UserEntity
     public DateTimeOffset? EmailVerificationTokenExpiresAt { get; set; }
     public bool EmailVerified { get; set; } = false;
     
+    // Password reset
+    public string? PasswordResetToken { get; set; }
+    public DateTimeOffset? PasswordResetTokenExpiresAt { get; set; }
+    
     public bool IsActive { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; }
 

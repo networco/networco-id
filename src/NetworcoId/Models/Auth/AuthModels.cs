@@ -110,6 +110,23 @@ public class RefreshTokenResponse
 }
 
 /// <summary>
+/// Password reset request.
+/// </summary>
+public class ForgotPasswordRequest
+{
+    public required string Email { get; set; }
+}
+
+/// <summary>
+/// Password reset completion request.
+/// </summary>
+public class ResetPasswordRequest
+{
+    public required string Token { get; set; }
+    public required string NewPassword { get; set; }
+}
+
+/// <summary>
 /// OAuth2 authorization request.
 /// </summary>
 public class AuthorizationRequest
