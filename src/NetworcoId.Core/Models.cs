@@ -28,7 +28,7 @@ public record EmailNotificationMessage(string Email, string Subject, string Body
 
 public static class NetworcoIdSubjects
 {
-    public const string StreamName = "NETWORCOID";
+    public const string StreamName = "IDENTITY_EMAILS";
     public const string EmailVerify = "identity.email.verify";
     public const string EmailOtp = "identity.email.otp";
     public const string PasswordReset = "identity.email.reset";
