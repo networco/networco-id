@@ -40,6 +40,7 @@ public static class OAuthEndpoints
 
         group.MapPost("/token", Token)
             .WithName("Token")
+            .RequireRateLimiting("auth-strict")
             .WithSummary("OAuth2 token endpoint")
             .WithDescription("""
                 OAuth2 token endpoint.

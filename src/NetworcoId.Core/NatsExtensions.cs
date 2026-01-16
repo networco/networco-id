@@ -38,7 +38,11 @@ public static class NatsExtensions
             {
                 await js.CreateStreamAsync(new StreamConfig(
                     name: NetworcoIdSubjects.StreamName,
-                    subjects: new[] { NetworcoIdSubjects.EmailVerify, NetworcoIdSubjects.EmailOtp })
+                    subjects: new[] { 
+                        NetworcoIdSubjects.EmailVerify, 
+                        NetworcoIdSubjects.EmailOtp,
+                        NetworcoIdSubjects.EmailNotification
+                    })
                 {
                     Retention = StreamConfigRetention.Workqueue,
                     Storage = StreamConfigStorage.File,

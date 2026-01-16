@@ -54,6 +54,7 @@ public static class ServiceConfiguration
         services.AddScoped<IAuthSeeder, AuthSeeder>();
         services.AddScoped<IBootstrapService, BootstrapService>();
         services.AddScoped<IClientManagementService, ClientManagementService>();
+        services.AddScoped<Services.Messaging.IEmailService, Services.Messaging.NatsEmailService>();
 
         return services;
     }
