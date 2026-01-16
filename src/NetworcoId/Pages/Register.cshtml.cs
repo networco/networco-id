@@ -9,11 +9,13 @@ using NATS.Client.Core;
 using NetworcoId.Core.Models;
 using NetworcoId.Models.Auth;
 
+using NetworcoId.Services.Messaging;
+
 namespace NetworcoId.Pages;
 
 public class RegisterModel(
     AuthDbContext dbContext,
-    INatsConnection nats,
+    IEmailService emailService,
     IPasswordHasher passwordHasher,
     IPasswordValidator passwordValidator,
     ILogger<RegisterModel> logger) : PageModel
@@ -106,10 +108,14 @@ public class RegisterModel(
             dbContext.UserCredentials.Add(credential);
             await dbContext.SaveChangesAsync();
 
-            // Send NATS message to worker to send verification email
-            var emailMessage = new EmailVerificationMessage(email, verificationToken, firstName);
+            // Send NATS message via IEmailService to follow project convention
+            // The NatsEmailService will handle publishing the EmailNotificationMessage
+            await emailService.SendEmailAsync(
+                email,
+                "Verify your NetworcoID account",
+                $"Please verify your account using this link: https://id.networco.no/verify?token={verificationToken}",
+                firstName);
 
-            await nats.PublishAsync(NetworcoIdSubjects.EmailVerify, emailMessage);
             logger.LogInformation("User {Email} registered, verification email queued", email);
 
             // Show success message

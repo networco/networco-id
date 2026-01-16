@@ -47,7 +47,8 @@ public static class NatsExtensions
                 {
                     Retention = StreamConfigRetention.Workqueue,
                     Storage = StreamConfigStorage.File,
-                    Discard = StreamConfigDiscard.Old
+                    Discard = StreamConfigDiscard.Old,
+                    DuplicateWindow = TimeSpan.FromMinutes(2)
                 });
                 logger.LogInformation("NATS Stream {Stream} (WorkQueue) provisioned", NetworcoIdSubjects.StreamName);
             }

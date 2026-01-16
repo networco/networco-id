@@ -23,20 +23,28 @@ public class EmailWorker(
 
         var consumerName = "email-worker";
 
-        // IMPORTANT for WorkQueues:
-        // 1. We MUST use a DurableName so that restarts don't create multiple ephemeral consumers.
-        // 2. On a WorkQueue, NATS only allows one consumer per "partition" (FilterSubject).
-        // 3. To allow multiple workers to load-balance, they must all share the SAME DurableName.
-        // 4. We use CreateConsumerAsync with ConsumerCreateAction.CreateOrUpdate (default in CreateOrUpdateConsumerAsync)
-        //    but we ensure the configuration is exactly what NATS expects for a shared WorkQueue consumer.
-
-        var consumer = await js.CreateOrUpdateConsumerAsync(NetworcoIdSubjects.StreamName, new ConsumerConfig
+        // To handle WorkQueue streams reliably across restarts and scaling:
+        // We use GetConsumerAsync first. If it doesn't exist, we create it.
+        // This avoids the "multiple non-filtered consumers" error caused by overlapping ephemeral/durable states.
+        INatsJSConsumer consumer;
+        try
         {
-            Name = consumerName,
-            DurableName = consumerName,
-            AckPolicy = ConsumerConfigAckPolicy.Explicit,
-            DeliverPolicy = ConsumerConfigDeliverPolicy.All
-        }, stoppingToken);
+            consumer = await js.GetConsumerAsync(NetworcoIdSubjects.StreamName, consumerName, stoppingToken);
+            logger.LogInformation("Reconnected to existing durable consumer: {Name}", consumerName);
+        }
+        catch (NatsJSApiException ex) when (ex.Error.Code == 404 || ex.Message.Contains("consumer not found"))
+        {
+            logger.LogInformation("Creating new durable consumer: {Name}", consumerName);
+            consumer = await js.CreateOrUpdateConsumerAsync(NetworcoIdSubjects.StreamName, new ConsumerConfig
+            {
+                Name = consumerName,
+                DurableName = consumerName,
+                AckPolicy = ConsumerConfigAckPolicy.Explicit,
+                DeliverPolicy = ConsumerConfigDeliverPolicy.All,
+                AckWait = TimeSpan.FromSeconds(30),
+                MaxDeliver = 3
+            }, stoppingToken);
+        }
 
         logger.LogInformation("Consumer {Name} active. Listening for identity.email.>", consumerName);
 

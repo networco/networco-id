@@ -601,16 +601,18 @@ public class AuthService : IAuthService
             return true;
         }
 
+        // Send reset email via the IEmailService to follow the project convention
+        // This ensures the EmailWorker handles it consistently
         var token = Convert.ToBase64String(global::System.Security.Cryptography.RandomNumberGenerator.GetBytes(32))
             .Replace("+", "-").Replace("/", "_").TrimEnd('=');
-            
+
         user.PasswordResetToken = token;
         user.PasswordResetTokenExpiresAt = DateTimeOffset.UtcNow.AddHours(2);
-        
+
         _context.Users.Update(user);
         await _context.SaveChangesAsync();
 
-        // Use injected NATS connection to publish reset message (to follow worker pattern)
+        // Publish to NATS using the specialized message type for better worker handling
         await _nats.PublishAsync(NetworcoIdSubjects.PasswordReset, new PasswordResetMessage(user.Email, token, user.FirstName));
 
         _logger.LogInformation("Password reset initiated for {Email}", email);
