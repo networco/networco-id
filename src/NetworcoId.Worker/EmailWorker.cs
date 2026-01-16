@@ -23,28 +23,25 @@ public class EmailWorker(
 
         var consumerName = "email-worker";
 
-        // To handle WorkQueue streams reliably across restarts and scaling:
-        // We use GetConsumerAsync first. If it doesn't exist, we create it.
-        // This avoids the "multiple non-filtered consumers" error caused by overlapping ephemeral/durable states.
+        // To handle WorkQueue streams reliably:
+        // 1. We use a single durable consumer for the worker.
+        // 2. This consumer handles ALL subjects on the NETWORCOID_IDENTITY stream.
+        // 3. Since it's a WorkQueue, multiple instances of this worker will automatically
+        //    load-balance messages by attaching to the same durable consumer.
         INatsJSConsumer consumer;
-        try
+        logger.LogInformation("Ensuring durable consumer: {Name} on stream {Stream}", consumerName, NetworcoIdSubjects.StreamName);
+        
+        consumer = await js.CreateOrUpdateConsumerAsync(NetworcoIdSubjects.StreamName, new ConsumerConfig
         {
-            consumer = await js.GetConsumerAsync(NetworcoIdSubjects.StreamName, consumerName, stoppingToken);
-            logger.LogInformation("Reconnected to existing durable consumer: {Name}", consumerName);
-        }
-        catch (NatsJSApiException ex) when (ex.Error.Code == 404 || ex.Message.Contains("consumer not found"))
-        {
-            logger.LogInformation("Creating new durable consumer: {Name}", consumerName);
-            consumer = await js.CreateOrUpdateConsumerAsync(NetworcoIdSubjects.StreamName, new ConsumerConfig
-            {
-                Name = consumerName,
-                DurableName = consumerName,
-                AckPolicy = ConsumerConfigAckPolicy.Explicit,
-                DeliverPolicy = ConsumerConfigDeliverPolicy.All,
-                AckWait = TimeSpan.FromSeconds(30),
-                MaxDeliver = 3
-            }, stoppingToken);
-        }
+            Name = consumerName,
+            DurableName = consumerName,
+            AckPolicy = ConsumerConfigAckPolicy.Explicit,
+            DeliverPolicy = ConsumerConfigDeliverPolicy.All,
+            AckWait = TimeSpan.FromSeconds(30),
+            MaxDeliver = 3
+        }, stoppingToken);
+
+        logger.LogInformation("Consumer {Name} active and ready.", consumerName);
 
         logger.LogInformation("Consumer {Name} active. Listening for identity.email.>", consumerName);
 
@@ -54,6 +51,13 @@ public class EmailWorker(
             {
                 var subject = msg.Subject;
                 logger.LogInformation(">>> RECEIVED MESSAGE: {Subject}", subject);
+
+                if (msg.Data == null || msg.Data.Length == 0)
+                {
+                    logger.LogWarning("Received empty message data on subject {Subject}", subject);
+                    await msg.AckAsync(cancellationToken: stoppingToken);
+                    continue;
+                }
 
                 // For messages published via NatsEmailService, they go to 'identity.email.notification'
                 if (subject == NetworcoIdSubjects.EmailNotification)
@@ -80,6 +84,14 @@ public class EmailWorker(
                     logger.LogWarning("Received message on unhandled subject: {Subject}", subject);
                 }
 
+                await msg.AckAsync(cancellationToken: stoppingToken);
+            }
+            catch (System.Text.Json.JsonException jsonEx)
+            {
+                var dataStr = msg.Data != null ? System.Text.Encoding.UTF8.GetString(msg.Data) : "NULL";
+                logger.LogError(jsonEx, "JSON Deserialization failed for message on {Subject}. Data: {Data}", 
+                    msg.Subject, dataStr);
+                // Ack bad messages to remove them from the WorkQueue so they don't block
                 await msg.AckAsync(cancellationToken: stoppingToken);
             }
             catch (Exception ex)

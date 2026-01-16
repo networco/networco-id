@@ -613,7 +613,12 @@ public class AuthService : IAuthService
         await _context.SaveChangesAsync();
 
         // Publish to NATS using the specialized message type for better worker handling
-        await _nats.PublishAsync(NetworcoIdSubjects.PasswordReset, new PasswordResetMessage(user.Email, token, user.FirstName));
+        var resetMessage = new PasswordResetMessage(user.Email, token, user.FirstName);
+        var jsonBytes = global::System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(resetMessage);
+        
+        _logger.LogInformation("Publishing password reset message to NATS: {Email} ({ByteCount} bytes)", user.Email, jsonBytes.Length);
+        
+        await _nats.PublishAsync(NetworcoIdSubjects.PasswordReset, jsonBytes);
 
         _logger.LogInformation("Password reset initiated for {Email}", email);
         await _auditService.LogAsync("PasswordResetInitiated", $"Password reset token generated for: {email}", user.Id);

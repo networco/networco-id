@@ -49,7 +49,7 @@ public class BrevoEmailService : IBrevoEmailService
 
         try
         {
-            _logger.LogDebug("Sending email to {Email} using Brevo", toEmail);
+            _logger.LogInformation("Attempting to send email to {Email} with subject '{Subject}' using Brevo", toEmail, subject);
 
             using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.brevo.com/v3/smtp/email");
             request.Headers.TryAddWithoutValidation("api-key", _settings.ApiKey);

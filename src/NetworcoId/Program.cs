@@ -59,7 +59,7 @@ builder.Services.AddDataProtection()
     .SetApplicationName("NetworcoId");
 
 // Add NATS for messaging
-builder.Services.AddNatsMessaging(builder.Configuration, "NetworcoId");
+builder.Services.AddNatsMessaging(builder.Configuration);
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
