@@ -1,0 +1,26 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            // Use this for debugging - stops cleanly when debugger detaches
+            "name": "NetworcoId: Debug",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build:networcoid",
+            "program": "${workspaceFolder}/src/NetworcoId.Api/bin/Debug/net10.0/NetworcoId.Api.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/src/NetworcoId.Api",
+            "stopAtEntry": false,
+            "serverReadyAction": {
+                "action": "openExternally",
+                "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
+            },
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development"
+            }
+        },
+    ]
+}

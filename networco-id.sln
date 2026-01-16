@@ -10,7 +10,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetworcoId.Worker", "src\Ne
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "NetworcoId.Api", "NetworcoId.Api", "{45FC9411-E2BB-72F7-12D0-517CD728E054}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Networco.Auth", "src\NetworcoId.Api\Networco.Auth.csproj", "{0A007CAA-9734-1B30-C561-F4CFB97E85E8}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetworcoId", "src\NetworcoId\NetworcoId.csproj", "{0A007CAA-9734-1B30-C561-F4CFB97E85E8}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

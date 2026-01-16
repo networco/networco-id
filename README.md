@@ -17,7 +17,41 @@ Open source Identity Provider for the Networco ecosystem.
 4. Deploy API & Worker: `kubectl apply -f deploy/k3s/04-api.yaml -f deploy/k3s/05-worker.yaml`
 5. Configure Ingress: `kubectl apply -f deploy/k3s/06-ingress.yaml`
 
-## Development
+## Integration
 
-Run locally using `dotnet run --project src/NetworcoId.Api`.
-Ensure NATS is running at `localhost:4222`.
+NetworcoID is a standards-compliant OpenID Connect (OIDC) provider.
+
+### OIDC Configuration
+
+The OIDC discovery endpoint is available at:
+`https://id.networco.no/.well-known/openid-configuration`
+
+### Client Configuration Example (ASP.NET Core)
+
+```csharp
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.Authority = "https://id.networco.no";
+        options.Audience = "your-api-audience";
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = "https://id.networco.no",
+            // ... other validation params
+        };
+    });
+```
+
+### Claims Provided
+
+- `sub`: Unique user identifier (GUID)
+- `national_id`: User's national ID number
+- `email`: User's email address
+- `given_name`: First name
+- `family_name`: Last name
+- `phone_number`: Contact number
+
+## Background Processing
+
+The service uses NATS JetStream for background tasks like sending verification emails and OTP codes. Ensure the `networco-id` stream is provisioned in NATS.

@@ -3,11 +3,13 @@ using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
 using NetworcoId.Core;
 using NetworcoId.Core.Models;
+using FluentEmail.Core;
 
 namespace NetworcoId.Worker;
 
 public class EmailWorker(
     INatsConnection nats,
+    IFluentEmail fluentEmail,
     ILogger<EmailWorker> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -39,12 +41,24 @@ public class EmailWorker(
                 if (emailMsg.Type == "Verification")
                 {
                     logger.LogInformation("Sending verification email to {Email} with token {Token}", emailMsg.Email, emailMsg.Token);
-                    // TODO: Implement actual SMTP/SendGrid call
+                    
+                    var email = fluentEmail
+                        .To(emailMsg.Email)
+                        .Subject("Verify your NetworcoID account")
+                        .Body($"Please verify your account using this token: {emailMsg.Token}\n\nLink: https://id.networco.no/verify?token={emailMsg.Token}");
+
+                    await email.SendAsync(stoppingToken);
                 }
                 else if (emailMsg.Type == "OTP")
                 {
                     logger.LogInformation("Sending OTP code to {Email}", emailMsg.Email);
-                    // TODO: Implement actual SMTP/SendGrid call
+                    
+                    var email = fluentEmail
+                        .To(emailMsg.Email)
+                        .Subject("Your NetworcoID Login Code")
+                        .Body($"Your login code is: {emailMsg.Token}"); // Reusing Token field for OTP code
+
+                    await email.SendAsync(stoppingToken);
                 }
 
                 await msg.AckAsync(cancellationToken: stoppingToken);
