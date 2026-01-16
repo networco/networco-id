@@ -29,6 +29,20 @@
         </div>
     }
 
+    <div class="mt-4 flex flex-wrap gap-4 items-center">
+        <form method="get" class="flex-1 min-w-[300px] relative">
+            <input type="text" name="SearchTerm" value="@Model.SearchTerm" placeholder="Search by name or email..." 
+                   class="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm" />
+            <div class="absolute left-3 top-2.5 text-gray-400">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+            </div>
+            <input type="hidden" name="SortBy" value="@Model.SortBy" />
+            <input type="hidden" name="SortDescending" value="@Model.SortDescending.ToString().ToLower()" />
+        </form>
+    </div>
+
     <div class="mt-8 flex flex-col">
         <div class="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
             <div class="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
@@ -36,17 +50,41 @@
                     <table class="min-w-full divide-y divide-gray-300">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">User</th>
-                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
+                                <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">
+                                    <a asp-page="./Index" asp-route-SortBy="Email" asp-route-SortDescending="@(Model.SortBy == "Email" ? (!Model.SortDescending).ToString().ToLower() : "false")" asp-route-SearchTerm="@Model.SearchTerm" class="flex items-center gap-1 hover:text-indigo-600">
+                                        User
+                                        @if (Model.SortBy == "Email")
+                                        {
+                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="@(Model.SortDescending ? "M19 9l-7 7-7-7" : "M5 15l7-7 7 7")" /></svg>
+                                        }
+                                    </a>
+                                </th>
+                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                                    <a asp-page="./Index" asp-route-SortBy="IsActive" asp-route-SortDescending="@(Model.SortBy == "IsActive" ? (!Model.SortDescending).ToString().ToLower() : "false")" asp-route-SearchTerm="@Model.SearchTerm" class="flex items-center gap-1 hover:text-indigo-600">
+                                        Status
+                                        @if (Model.SortBy == "IsActive")
+                                        {
+                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="@(Model.SortDescending ? "M19 9l-7 7-7-7" : "M5 15l7-7 7 7")" /></svg>
+                                        }
+                                    </a>
+                                </th>
                                 <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Security</th>
-                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Created</th>
+                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                                    <a asp-page="./Index" asp-route-SortBy="CreatedAt" asp-route-SortDescending="@(Model.SortBy == "CreatedAt" ? (!Model.SortDescending).ToString().ToLower() : "true")" asp-route-SearchTerm="@Model.SearchTerm" class="flex items-center gap-1 hover:text-indigo-600">
+                                        Created
+                                        @if (string.IsNullOrEmpty(Model.SortBy) || Model.SortBy == "CreatedAt")
+                                        {
+                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="@(Model.SortDescending ? "M19 9l-7 7-7-7" : "M5 15l7-7 7 7")" /></svg>
+                                        }
+                                    </a>
+                                </th>
                                 <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
                                     <span class="sr-only">Actions</span>
                                 </th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200 bg-white">
-                            @foreach (var user in Model.Users)
+                            @foreach (var user in Model.Users.Items)
                             {
                                 var isLocked = user.Credential?.LockedUntil > DateTimeOffset.UtcNow;
                                 <tr class="hover:bg-gray-50 transition-colors">
@@ -110,6 +148,30 @@
                             }
                         </tbody>
                     </table>
+                    @if (Model.Users.TotalPages > 1)
+                    {
+                        <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+                            <div class="text-sm text-gray-700">
+                                Showing <span class="font-medium">@(((Model.PageNumber - 1) * Model.Users.PageSize) + 1)</span> to <span class="font-medium">@Math.Min(Model.PageNumber * Model.Users.PageSize, Model.Users.TotalItems)</span> of <span class="font-medium">@Model.Users.TotalItems</span> results
+                            </div>
+                            <div class="flex-1 flex justify-end gap-2">
+                                @if (Model.Users.HasPreviousPage)
+                                {
+                                    <a asp-page="./Index" asp-route-PageNumber="@(Model.PageNumber - 1)" asp-route-SearchTerm="@Model.SearchTerm" asp-route-SortBy="@Model.SortBy" asp-route-SortDescending="@Model.SortDescending.ToString().ToLower()" 
+                                       class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-colors">
+                                        Previous
+                                    </a>
+                                }
+                                @if (Model.Users.HasNextPage)
+                                {
+                                    <a asp-page="./Index" asp-route-PageNumber="@(Model.PageNumber + 1)" asp-route-SearchTerm="@Model.SearchTerm" asp-route-SortBy="@Model.SortBy" asp-route-SortDescending="@Model.SortDescending.ToString().ToLower()" 
+                                       class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-colors">
+                                        Next
+                                    </a>
+                                }
+                            </div>
+                        </div>
+                    }
                 </div>
             </div>
         </div>
