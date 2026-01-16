@@ -23,6 +23,20 @@ public class NetworcoIdConfig
     public string? InitialClientSecret { get; set; }
 
     public List<NetworcoIdUserDto> TestUsers { get; set; } = new();
+
+    // JWKS / Signing Configuration
+    public string? JwksJson { get; set; }
+    public string? SigningKeyPem { get; set; } // RS256 Private Key
+    public string? SigningKeyId { get; set; } = "networco-id-primary";
+
+    // Security Settings
+    public int MinPasswordLength { get; set; } = 12;
+    public bool RequireDigit { get; set; } = true;
+    public bool RequireUppercase { get; set; } = true;
+    public bool RequireLowercase { get; set; } = true;
+    public bool RequireNonAlphanumeric { get; set; } = true;
+    public int MaxFailedLoginAttempts { get; set; } = 5;
+    public int LockoutDurationMinutes { get; set; } = 15;
 }
 
 /// <summary>

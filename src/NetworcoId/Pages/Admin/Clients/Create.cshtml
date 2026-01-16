@@ -72,11 +72,27 @@
                     </div>
 
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2" asp-for="Scopes">
-                            Allowed Scopes (comma separated)
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            Allowed Scopes
                         </label>
-                        <input class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none"
-                               asp-for="Scopes">
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                            @foreach (var scope in Model.AvailableScopes)
+                            {
+                                <div class="flex items-center">
+                                    <input type="checkbox" name="SelectedScopes" value="@scope" id="scope_@scope"
+                                           @(Model.SelectedScopes.Contains(scope) ? "checked" : "")
+                                           class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded">
+                                    <label for="scope_@scope" class="ml-2 text-sm text-gray-700 font-mono">@scope</label>
+                                </div>
+                            }
+                        </div>
+                        <div class="mt-3">
+                            <label class="block text-xs font-semibold text-gray-500 mb-1" for="scopes">
+                                Custom Scopes (comma separated)
+                            </label>
+                            <input class="w-full px-3 py-2 rounded border border-gray-300 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none text-sm font-mono"
+                                   id="scopes" asp-for="Scopes" placeholder="e.g. api.read, custom.scope">
+                        </div>
                     </div>
 
                     <div class="flex items-start">

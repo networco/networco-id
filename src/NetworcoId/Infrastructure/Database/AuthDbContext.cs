@@ -22,6 +22,7 @@ public class AuthDbContext : DbContext, IDataProtectionKeyContext
     public DbSet<RefreshTokenEntity> RefreshTokens => Set<RefreshTokenEntity>();
     public DbSet<AuthSessionEntity> AuthSessions => Set<AuthSessionEntity>();
     public DbSet<OAuthClientEntity> OAuthClients => Set<OAuthClientEntity>();
+    public DbSet<AuditLogEntity> AuditLogs => Set<AuditLogEntity>();
     
     // Data Protection keys for multi-instance deployments
     public DbSet<DataProtectionKey> DataProtectionKeys { get; set; } = null!;

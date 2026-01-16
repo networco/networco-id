@@ -1,10 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using NetworcoId.Models.Auth;
 using NetworcoId.Services;
 
 namespace NetworcoId.Pages;
 
-public class ChangePasswordModel(IAuthService authService) : PageModel
+public class ChangePasswordModel(IAuthService authService, NetworcoIdConfig config) : PageModel
 {
     [BindProperty(SupportsGet = true)]
     public string? Email { get; set; }
@@ -50,15 +51,33 @@ public class ChangePasswordModel(IAuthService authService) : PageModel
             return Page();
         }
 
-        if (NewPassword.Length < 12)
+        if (NewPassword.Length < config.MinPasswordLength)
         {
-            ErrorMessage = "Passordet må være minst 12 tegn langt";
+            ErrorMessage = $"Passordet må være minst {config.MinPasswordLength} tegn langt";
             return Page();
         }
 
-        if (!NewPassword.Any(char.IsUpper) || !NewPassword.Any(char.IsLower) || !NewPassword.Any(char.IsDigit))
+        if (config.RequireUppercase && !NewPassword.Any(char.IsUpper))
         {
-            ErrorMessage = "Passordet må inneholde store og små bokstaver, samt tall";
+            ErrorMessage = "Passordet må inneholde minst én stor bokstav";
+            return Page();
+        }
+
+        if (config.RequireLowercase && !NewPassword.Any(char.IsLower))
+        {
+            ErrorMessage = "Passordet må inneholde minst én liten bokstav";
+            return Page();
+        }
+
+        if (config.RequireDigit && !NewPassword.Any(char.IsDigit))
+        {
+            ErrorMessage = "Passordet må inneholde minst ett tall";
+            return Page();
+        }
+
+        if (config.RequireNonAlphanumeric && NewPassword.All(char.IsLetterOrDigit))
+        {
+            ErrorMessage = "Passordet må inneholde minst ett spesialtegn";
             return Page();
         }
 

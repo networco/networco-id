@@ -23,6 +23,7 @@ var migrateOnly = args.Contains("--migrate-only");
 var seed = args.Contains("--seed");
 
 // Configure core services
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddJsonSerialization();
 builder.Services.AddDatabase(builder.Configuration);
 builder.Services.AddAuthServices(builder.Configuration);

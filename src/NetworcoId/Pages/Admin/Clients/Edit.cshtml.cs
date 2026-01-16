@@ -8,10 +8,12 @@ using NetworcoId.Models.Entities;
 using NetworcoId.Core.Security;
 using NetworcoId.Services;
 
+using NetworcoId.Services.Audit;
+
 namespace NetworcoId.Pages.Admin.Clients;
 
 [AdminAuth]
-public class EditModel(IClientManagementService clientService) : PageModel
+public class EditModel(IClientManagementService clientService, IAuditService auditService) : PageModel
 {
     [BindProperty]
     public string ClientId { get; set; } = string.Empty;
@@ -24,6 +26,17 @@ public class EditModel(IClientManagementService clientService) : PageModel
 
     [BindProperty]
     public string Scopes { get; set; } = string.Empty;
+
+    [BindProperty]
+    public List<string> SelectedScopes { get; set; } = new();
+
+    public List<string> AvailableScopes { get; set; } = new()
+    {
+        "openid", "profile", "email", "phone", "address", "offline_access"
+    };
+
+    [BindProperty]
+    public bool IsTrustedForExchange { get; set; }
 
     public string? NewSecret { get; set; }
     public string? SecretType { get; set; } // "Primary" or "Secondary"
@@ -42,6 +55,8 @@ public class EditModel(IClientManagementService clientService) : PageModel
         DisplayName = client.DisplayName;
         RedirectUris = string.Join("\n", client.RedirectUris);
         Scopes = string.Join(", ", client.AllowedScopes);
+        SelectedScopes = client.AllowedScopes;
+        IsTrustedForExchange = client.IsTrustedForExchange;
         HasSecondarySecret = !string.IsNullOrEmpty(client.SecondaryClientSecretHash);
 
         return Page();
@@ -56,9 +71,15 @@ public class EditModel(IClientManagementService clientService) : PageModel
         }
 
         var redirectUriList = RedirectUris.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).ToList();
-        var scopeList = Scopes.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList();
+        
+        // Use SelectedScopes if provided, otherwise fallback to Scopes text field
+        var scopeList = SelectedScopes.Any() 
+            ? SelectedScopes 
+            : Scopes.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList();
 
-        await clientService.UpdateClientAsync(ClientId, DisplayName, redirectUriList, scopeList);
+        await clientService.UpdateClientAsync(ClientId, DisplayName, redirectUriList, scopeList, IsTrustedForExchange);
+        
+        await auditService.LogAsync("ClientUpdated", $"OAuth client {ClientId} was updated.");
 
         return RedirectToPage(new { id = ClientId });
     }
@@ -67,6 +88,8 @@ public class EditModel(IClientManagementService clientService) : PageModel
     {
         var secret = await clientService.RotateClientSecretAsync(id, isPrimary: true);
         if (secret == null) return RedirectToPage("./Index");
+
+        await auditService.LogAsync("ClientSecretRotated", $"Primary secret for client {id} was rotated.");
 
         NewSecret = secret;
         SecretType = "Primary";
@@ -81,6 +104,8 @@ public class EditModel(IClientManagementService clientService) : PageModel
         var secret = await clientService.RotateClientSecretAsync(id, isPrimary: false);
         if (secret == null) return RedirectToPage("./Index");
 
+        await auditService.LogAsync("ClientSecretRotated", $"Secondary secret for client {id} was {(HasSecondarySecret ? "rotated" : "generated")}.");
+
         NewSecret = secret;
         SecretType = "Secondary";
 
@@ -92,6 +117,7 @@ public class EditModel(IClientManagementService clientService) : PageModel
     public async Task<IActionResult> OnPostClearSecondaryAsync(string id)
     {
         await clientService.ClearSecondarySecretAsync(id);
+        await auditService.LogAsync("ClientSecretCleared", $"Secondary secret for client {id} was cleared.");
         return RedirectToPage(new { id = id });
     }
 

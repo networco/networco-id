@@ -23,6 +23,14 @@ public class CreateModel(IClientManagementService clientManagementService) : Pag
     public string Scopes { get; set; } = "openid,profile,email,offline_access";
 
     [BindProperty]
+    public List<string> SelectedScopes { get; set; } = new() { "openid", "profile", "email", "offline_access" };
+
+    public List<string> AvailableScopes { get; set; } = new()
+    {
+        "openid", "profile", "email", "phone", "address", "offline_access"
+    };
+
+    [BindProperty]
     public bool IsTrustedForExchange { get; set; }
 
     public string? CreatedClientId { get; set; }
@@ -40,7 +48,10 @@ public class CreateModel(IClientManagementService clientManagementService) : Pag
         }
 
         var redirectUriList = RedirectUris.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
-        var scopeList = Scopes.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+        
+        var scopeList = SelectedScopes.Any() 
+            ? SelectedScopes 
+            : Scopes.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
 
         var (client, secret) = await clientManagementService.CreateClientAsync(DisplayName, redirectUriList, scopeList, IsTrustedForExchange);
 

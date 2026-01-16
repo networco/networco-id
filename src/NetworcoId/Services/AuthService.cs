@@ -6,6 +6,8 @@ using NetworcoId.Infrastructure.Database;
 using NetworcoId.Models.Auth;
 using NetworcoId.Models.Entities;
 
+using NetworcoId.Services.Audit;
+
 namespace NetworcoId.Services;
 
 /// <summary>
@@ -36,6 +38,7 @@ public class AuthService : IAuthService
     private readonly IPasswordHasher _passwordHasher;
     private readonly ILogger<AuthService> _logger;
     private readonly NetworcoIdConfig _config;
+    private readonly IAuditService _auditService;
 
     // In-memory storage for auth codes (stateless, short-lived)
     private static readonly ConcurrentDictionary<string, AuthCodeSession> _authCodes = new();
@@ -45,12 +48,14 @@ public class AuthService : IAuthService
         AuthDbContext context,
         IPasswordHasher passwordHasher,
         ILogger<AuthService> logger,
-        NetworcoIdConfig config)
+        NetworcoIdConfig config,
+        IAuditService auditService)
     {
         _context = context;
         _passwordHasher = passwordHasher;
         _logger = logger;
         _config = config;
+        _auditService = auditService;
     }
 
     public async Task<NetworcoIdUserDto?> AuthenticateUserAsync(string emailOrNationalId, string password)
@@ -75,14 +80,18 @@ public class AuthService : IAuthService
         if (user is null || user.Credential is null)
         {
             _logger.LogWarning("NETWORCO ID login attempt for unknown identifier {Identifier}", identifier);
+            await _auditService.LogAsync("LoginFailed", $"Login attempt for unknown user: {identifier}");
             return null;
         }
 
         if (!_passwordHasher.VerifyPassword(password, user.Credential.PasswordHash))
         {
             _logger.LogWarning("Invalid password for identifier {Identifier}", identifier);
+            await _auditService.LogAsync("LoginFailed", $"Invalid password for user: {user.Email}", user.Id);
             return null;
         }
+
+        await _auditService.LogAsync("LoginSuccess", $"User logged in: {user.Email}", user.Id);
 
         return new NetworcoIdUserDto
         {
@@ -146,6 +155,8 @@ public class AuthService : IAuthService
         await _context.SaveChangesAsync();
 
         _logger.LogInformation("Created new user account for {Email}", email);
+
+        await _auditService.LogAsync("AccountCreated", $"New account created: {email}", user.Id);
 
         return new NetworcoIdUserDto
         {
@@ -478,6 +489,8 @@ public class AuthService : IAuthService
         _context.Users.Update(user); // Force update tracking
         await _context.SaveChangesAsync();
         
+        await _auditService.LogAsync("PasswordChanged", $"User changed their password: {user.Email}", user.Id);
+
         // Verify saved state
         var updatedUser = await _context.UserCredentials.AsNoTracking().FirstOrDefaultAsync(c => c.Id == user.Id);
         _logger.LogInformation("Password update verified for {Identifier}. Saved hash matches: {Matches}", 

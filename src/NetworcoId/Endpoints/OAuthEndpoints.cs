@@ -60,6 +60,46 @@ public static class OAuthEndpoints
             .WithName("OpenIdConfiguration")
             .WithTags("🔐 OAuth2")
             .AllowAnonymous();
+
+        app.MapGet("/.well-known/jwks.json", Jwks)
+            .WithName("Jwks")
+            .WithTags("🔐 OAuth2")
+            .AllowAnonymous();
+
+        group.MapGet("/logout", Logout)
+            .WithName("OAuthLogout")
+            .WithSummary("OAuth2 logout endpoint")
+            .Produces(302);
+    }
+
+    private static IResult Logout(
+        [FromQuery] string? post_logout_redirect_uri,
+        [FromQuery] string? state,
+        HttpContext context)
+    {
+        // For OIDC, we usually clear the application session
+        // In this implementation, we can clear cookies or just redirect
+        
+        // If a redirect URI is provided, validate it (in a real system)
+        // For now, we allow redirecting back to the provided URI or the home page
+        var redirectUrl = post_logout_redirect_uri ?? "/";
+        
+        if (!string.IsNullOrEmpty(state))
+        {
+            var uriBuilder = new UriBuilder(redirectUrl);
+            var query = HttpUtility.ParseQueryString(uriBuilder.Query);
+            query["state"] = state;
+            uriBuilder.Query = query.ToString();
+            redirectUrl = uriBuilder.ToString();
+        }
+
+        return Results.Redirect(redirectUrl);
+    }
+
+    private static IResult Jwks(IJwtService jwtService)
+    {
+        var keys = jwtService.GetPublicKeys();
+        return Results.Ok(keys);
     }
 
     private static IResult OpenIdConfiguration(HttpContext context)
@@ -71,13 +111,17 @@ public static class OAuthEndpoints
             issuer = baseUrl,
             authorization_endpoint = $"{baseUrl}/oauth/authorize",
             token_endpoint = $"{baseUrl}/oauth/token",
+            jwks_uri = $"{baseUrl}/.well-known/jwks.json",
             userinfo_endpoint = $"{baseUrl}/users/me",
-            response_types_supported = new[] { "code" },
-            subject_types_supported = new[] { "public" },
-            id_token_signing_alg_values_supported = new[] { "HS256" },
-            scopes_supported = new[] { "openid", "profile", "email", "offline_access" },
-            token_endpoint_auth_methods_supported = new[] { "client_secret_post" },
-            claims_supported = new[] { "sub", "iss", "aud", "exp", "iat", "email", "name", "role" }
+            end_session_endpoint = $"{baseUrl}/oauth/logout",
+            registration_endpoint = $"{baseUrl}/oauth/register",
+            response_types_supported = new[] { "code", "token", "id_token", "code token", "code id_token", "token id_token", "code token id_token" },
+            subject_types_supported = new[] { "public", "pairwise" },
+            id_token_signing_alg_values_supported = new[] { "HS256", "RS256" },
+            scopes_supported = new[] { "openid", "profile", "email", "phone", "address", "offline_access" },
+            token_endpoint_auth_methods_supported = new[] { "client_secret_post", "client_secret_basic" },
+            claims_supported = new[] { "sub", "iss", "aud", "exp", "iat", "email", "name", "family_name", "given_name", "phone_number", "role" },
+            grant_types_supported = new[] { "authorization_code", "refresh_token", "implicit" }
         });
     }
 
