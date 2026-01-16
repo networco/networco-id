@@ -8,6 +8,9 @@ using NetworcoId.Models.Entities;
 
 using NetworcoId.Services.Audit;
 using NetworcoId.Services.Messaging;
+using NATS.Client.Core;
+using NetworcoId.Core.Models;
+using NetworcoId.Core;
 
 namespace NetworcoId.Services;
 
@@ -28,6 +31,10 @@ public interface IAuthService
     Task RevokeRefreshTokenAsync(string tokenHash);
     Task RotateRefreshTokenAsync(string oldTokenHash, string newTokenHash, DateTimeOffset expiresAt);
     Task<bool> ChangePasswordAsync(string emailOrNationalId, string currentPassword, string newPassword);
+    
+    // Password Reset
+    Task<bool> InitiatePasswordResetAsync(string email);
+    Task<bool> ResetPasswordWithTokenAsync(string token, string newPassword);
 }
 
 /// <summary>
@@ -41,6 +48,8 @@ public class AuthService : IAuthService
     private readonly NetworcoIdConfig _config;
     private readonly IAuditService _auditService;
     private readonly IEmailService _emailService;
+    private readonly INatsConnection _nats;
+    private readonly IPasswordValidator _passwordValidator;
 
     // In-memory storage for auth codes (stateless, short-lived)
     private static readonly ConcurrentDictionary<string, AuthCodeSession> _authCodes = new();
@@ -52,7 +61,9 @@ public class AuthService : IAuthService
         ILogger<AuthService> logger,
         NetworcoIdConfig config,
         IAuditService auditService,
-        IEmailService emailService)
+        IEmailService emailService,
+        INatsConnection nats,
+        IPasswordValidator passwordValidator)
     {
         _context = context;
         _passwordHasher = passwordHasher;
@@ -60,6 +71,8 @@ public class AuthService : IAuthService
         _config = config;
         _auditService = auditService;
         _emailService = emailService;
+        _nats = nats;
+        _passwordValidator = passwordValidator;
     }
 
     public async Task<NetworcoIdUserDto?> AuthenticateUserAsync(string emailOrNationalId, string password)
@@ -178,6 +191,12 @@ public class AuthService : IAuthService
             throw new InvalidOperationException("User with this email, national ID, or phone number already exists");
         }
 
+        var validationResult = _passwordValidator.Validate(password);
+        if (!validationResult.IsValid)
+        {
+            throw new ArgumentException(validationResult.ErrorMessage);
+        }
+
         // Create new user
         var user = new UserEntity
         {
@@ -207,6 +226,13 @@ public class AuthService : IAuthService
         _logger.LogInformation("Created new user account for {Email}", email);
 
         await _auditService.LogAsync("AccountCreated", $"New account created: {email}", user.Id);
+
+        // Notify user about registration
+        await _emailService.SendEmailAsync(
+            email,
+            "Welcome to NETWORCO ID",
+            $"Your account has been successfully created. Welcome aboard, {firstName}!",
+            firstName);
 
         return new NetworcoIdUserDto
         {
@@ -528,6 +554,12 @@ public class AuthService : IAuthService
             return false;
         }
 
+        var validationResult = _passwordValidator.Validate(newPassword);
+        if (!validationResult.IsValid)
+        {
+            throw new ArgumentException(validationResult.ErrorMessage);
+        }
+
         var newHash = _passwordHasher.HashPassword(newPassword);
         _logger.LogInformation("Updating password for {Identifier}. Old hash start: {OldStart}, New hash start: {NewStart}", 
             identifier, user.Credential.PasswordHash[..10], newHash[..10]);
@@ -541,10 +573,94 @@ public class AuthService : IAuthService
         
         await _auditService.LogAsync("PasswordChanged", $"User changed their password: {user.Email}", user.Id);
 
+        // Notify user about password change
+        await _emailService.SendEmailAsync(
+            user.Email,
+            "NETWORCO ID: Password Changed",
+            "Your password was recently changed. If you did not perform this action, please contact support immediately.",
+            user.FirstName);
+
         // Verify saved state
         var updatedUser = await _context.UserCredentials.AsNoTracking().FirstOrDefaultAsync(c => c.Id == user.Id);
         _logger.LogInformation("Password update verified for {Identifier}. Saved hash matches: {Matches}", 
             identifier, updatedUser?.PasswordHash == newHash);
+
+        return true;
+    }
+
+    public async Task<bool> InitiatePasswordResetAsync(string email)
+    {
+        var user = await _context.Users
+            .Where(u => EF.Functions.ILike(u.Email, email))
+            .FirstOrDefaultAsync();
+
+        if (user == null)
+        {
+            // For security, don't reveal that the user doesn't exist
+            _logger.LogWarning("Password reset requested for unknown email: {Email}", email);
+            return true;
+        }
+
+        var token = Convert.ToBase64String(global::System.Security.Cryptography.RandomNumberGenerator.GetBytes(32))
+            .Replace("+", "-").Replace("/", "_").TrimEnd('=');
+            
+        user.PasswordResetToken = token;
+        user.PasswordResetTokenExpiresAt = DateTimeOffset.UtcNow.AddHours(2);
+        
+        _context.Users.Update(user);
+        await _context.SaveChangesAsync();
+
+        // Use injected NATS connection to publish reset message (to follow worker pattern)
+        await _nats.PublishAsync(NetworcoIdSubjects.PasswordReset, new PasswordResetMessage(user.Email, token, user.FirstName));
+
+        _logger.LogInformation("Password reset initiated for {Email}", email);
+        await _auditService.LogAsync("PasswordResetInitiated", $"Password reset token generated for: {email}", user.Id);
+
+        return true;
+    }
+
+    public async Task<bool> ResetPasswordWithTokenAsync(string token, string newPassword)
+    {
+        var user = await _context.Users
+            .Include(u => u.Credential)
+            .Where(u => u.PasswordResetToken == token && u.PasswordResetTokenExpiresAt > DateTimeOffset.UtcNow)
+            .FirstOrDefaultAsync();
+
+        if (user == null || user.Credential == null)
+        {
+            _logger.LogWarning("Invalid or expired password reset token: {Token}", token);
+            return false;
+        }
+
+        var validationResult = _passwordValidator.Validate(newPassword);
+        if (!validationResult.IsValid)
+        {
+            throw new ArgumentException(validationResult.ErrorMessage);
+        }
+
+        var newHash = _passwordHasher.HashPassword(newPassword);
+        user.Credential.PasswordHash = newHash;
+        user.Credential.MustChangePassword = false;
+        user.Credential.UpdatedAt = DateTimeOffset.UtcNow;
+        user.Credential.FailedLoginAttempts = 0;
+        user.Credential.LockedUntil = null;
+
+        user.PasswordResetToken = null;
+        user.PasswordResetTokenExpiresAt = null;
+
+        _context.Users.Update(user);
+        _context.UserCredentials.Update(user.Credential);
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("Password reset completed for user {Id}", user.Id);
+        await _auditService.LogAsync("PasswordResetCompleted", $"Password reset completed using token for: {user.Email}", user.Id);
+
+        // Notify user
+        await _emailService.SendEmailAsync(
+            user.Email,
+            "NETWORCO ID: Password Reset Successful",
+            "Your password has been successfully reset. You can now log in with your new password.",
+            user.FirstName);
 
         return true;
     }

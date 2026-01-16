@@ -22,5 +22,25 @@
                 "ASPNETCORE_ENVIRONMENT": "Development"
             }
         },
+        {
+            // Use this for debugging - stops cleanly when debugger detaches
+            "name": "Worker: Debug",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build:worker",
+            "program": "${workspaceFolder}/src/NetworcoId.Worker/bin/Debug/net10.0/NetworcoId.Worker.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/src/NetworcoId.Worker",
+            "stopAtEntry": false,
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development"
+            }
+        }
+    ],
+    "compounds": [
+        {
+            "name": "NetworcoId Full Debug",
+            "configurations": ["NetworcoId: Debug", "Worker: Debug"]
+        }
     ]
 }

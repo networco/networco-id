@@ -35,7 +35,8 @@ public class PasswordChangeFlowTests : IClassFixture<WebApplicationFactory<Progr
                 var descriptors = services.Where(d => 
                     d.ServiceType == typeof(DbContextOptions<AuthDbContext>) || 
                     d.ServiceType == typeof(AuthDbContext) ||
-                    d.ServiceType.FullName?.Contains("DataProtection") == true
+                    d.ServiceType.FullName?.Contains("DataProtection") == true ||
+                    d.ServiceType.FullName?.Contains("Npgsql") == true
                 ).ToList();
 
                 foreach (var descriptor in descriptors)
