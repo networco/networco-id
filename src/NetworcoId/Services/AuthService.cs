@@ -89,7 +89,7 @@ public class AuthService : IAuthService
             .AsNoTracking()
             .Include(u => u.Credential)
             .Where(u =>
-                (u.Email != null && EF.Functions.ILike(u.Email, identifier)) ||
+                (u.Email != null && u.Email.ToLower() == identifier.ToLower()) ||
                 (u.NationalId != null && u.NationalId == identifier) ||
                 (u.PhoneNumber != null && u.PhoneNumber == identifier))
             .FirstOrDefaultAsync();
@@ -259,7 +259,7 @@ public class AuthService : IAuthService
         var user = await _context.Users
             .AsNoTracking()
             .Where(u =>
-                (u.Email != null && EF.Functions.ILike(u.Email, identifier)) ||
+                (u.Email != null && u.Email.ToLower() == identifier.ToLower()) ||
                 (u.NationalId != null && u.NationalId == identifier) ||
                 (u.PhoneNumber != null && u.PhoneNumber == identifier))
             .FirstOrDefaultAsync();
@@ -538,7 +538,7 @@ public class AuthService : IAuthService
         var user = await _context.Users
             .Include(u => u.Credential)
             .Where(u =>
-                (u.Email != null && EF.Functions.ILike(u.Email, identifier)) ||
+                (u.Email != null && u.Email.ToLower() == identifier.ToLower()) ||
                 (u.NationalId != null && u.NationalId == identifier) ||
                 (u.PhoneNumber != null && u.PhoneNumber == identifier))
             .FirstOrDefaultAsync();
@@ -591,7 +591,7 @@ public class AuthService : IAuthService
     public async Task<bool> InitiatePasswordResetAsync(string email)
     {
         var user = await _context.Users
-            .Where(u => EF.Functions.ILike(u.Email, email))
+            .Where(u => u.Email != null && EF.Functions.ILike(u.Email, email))
             .FirstOrDefaultAsync();
 
         if (user == null)

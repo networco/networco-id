@@ -15,11 +15,15 @@ using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Load environment variables if secrets.env exists
-if (File.Exists("secrets.env"))
+// Load environment variables if .env exists
+if (File.Exists(".env"))
 {
-    DotNetEnv.Env.Load("secrets.env");
+    DotNetEnv.Env.Load(".env");
 }
+
+// Override configuration with environment variables
+builder.Configuration["ConnectionStrings:DefaultConnection"] = Environment.GetEnvironmentVariable("DATABASE_URL");
+builder.Configuration["Nats:Url"] = Environment.GetEnvironmentVariable("NATS_URL");
 
 var migrateOnly = args.Contains("--migrate-only");
 var seed = args.Contains("--seed");
@@ -148,7 +152,10 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "auth
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
-    await db.Database.MigrateAsync();
+    if (db.Database.ProviderName != "Microsoft.EntityFrameworkCore.InMemory")
+    {
+        await db.Database.MigrateAsync();
+    }
 
     // Bootstrap system (Initial Admin and Management Client)
     var bootstrap = scope.ServiceProvider.GetRequiredService<IBootstrapService>();

@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using NetworcoId.Services;
+using NetworcoId.Infrastructure.Database;
+using Microsoft.EntityFrameworkCore;
 
 namespace NetworcoId.Endpoints;
 
@@ -74,6 +76,15 @@ public static class AdminEndpoints
         {
             var success = await clientService.DeleteClientAsync(id);
             return success ? Results.Ok(new { message = "Client deleted" }) : Results.NotFound();
+        });
+
+        group.MapGet("/audit-logs", async (AuthDbContext db) =>
+        {
+            var logs = await db.AuditLogs
+                .OrderByDescending(l => l.Timestamp)
+                .Take(50)
+                .ToListAsync();
+            return Results.Ok(logs);
         });
     }
 
