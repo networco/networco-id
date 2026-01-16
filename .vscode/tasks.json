@@ -12,7 +12,7 @@
             "label": "build:networcoid",
             "type": "shell",
             "command": "dotnet",
-            "args": ["build", "${workspaceFolder}/src/NetworcoId.Api/NetworcoId.Api.csproj"],
+            "args": ["build", "${workspaceFolder}/src/NetworcoId/NetworcoId.csproj"],
             "group": "build",
             "problemMatcher": "$msCompile"
         },

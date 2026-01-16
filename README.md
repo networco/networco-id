@@ -5,7 +5,7 @@ Open source Identity Provider for the Networco ecosystem.
 ## Structure
 
 - `src/NetworcoId.Core`: Shared models, security, and messaging logic.
-- `src/NetworcoId.Api`: OAuth2/OIDC compatible identity service.
+- `src/NetworcoId`: OAuth2/OIDC compatible identity service.
 - `src/NetworcoId.Worker`: Background worker for emails and OTPs.
 - `deploy/k3s`: Kubernetes manifests for standalone deployment.
 
