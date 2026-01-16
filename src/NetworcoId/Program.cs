@@ -4,6 +4,7 @@ using NetworcoId.Core.Security;
 using NetworcoId.Infrastructure.Database;
 using NetworcoId.Models.Auth;
 using NetworcoId.Services;
+using NetworcoId.Services.System;
 using Microsoft.EntityFrameworkCore;
 using NATS.Client.Core;
 using NetworcoId.Core;
@@ -115,6 +116,13 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "auth
 // Provision NATS streams on startup
 using (var scope = app.Services.CreateScope())
 {
+    var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+    await db.Database.MigrateAsync();
+
+    // Bootstrap system (Initial Admin and Management Client)
+    var bootstrap = scope.ServiceProvider.GetRequiredService<IBootstrapService>();
+    await bootstrap.BootstrapAsync();
+
     var nats = scope.ServiceProvider.GetRequiredService<INatsConnection>();
     var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("NatsProvisioner");
     await nats.ProvisionStreamsAsync(logger);

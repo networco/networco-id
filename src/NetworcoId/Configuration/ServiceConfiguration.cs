@@ -1,6 +1,7 @@
 using NetworcoId.Core.Security;
 using NetworcoId.Models.Auth;
 using NetworcoId.Services;
+using NetworcoId.Services.System;
 
 using Microsoft.Extensions.Options;
 using System.Text.Json;
@@ -33,6 +34,12 @@ public static class ServiceConfiguration
                 config.Secret = configuration["Auth:Jwt:SigningKey"] 
                              ?? configuration["JWT_SECRET"];
             }
+
+            // Fallbacks for bootstrap configuration from environment variables
+            config.InitialAdminEmail ??= configuration["INITIAL_ADMIN_EMAIL"];
+            config.InitialAdminPassword ??= configuration["INITIAL_ADMIN_PASSWORD"];
+            config.InitialClientId ??= configuration["INITIAL_CLIENT_ID"];
+            config.InitialClientSecret ??= configuration["INITIAL_CLIENT_SECRET"];
             
             return config;
         });
@@ -43,6 +50,7 @@ public static class ServiceConfiguration
         // Business services
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IAuthSeeder, AuthSeeder>();
+        services.AddScoped<IBootstrapService, BootstrapService>();
         services.AddScoped<IClientManagementService, ClientManagementService>();
 
         return services;

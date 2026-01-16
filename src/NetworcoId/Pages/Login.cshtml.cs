@@ -8,7 +8,7 @@ using NetworcoId.Services;
 
 namespace NetworcoId.Pages;
 
-public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthDbContext dbContext) : PageModel
+public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthDbContext dbContext, ILogger<LoginModel> logger) : PageModel
 {
     [BindProperty(SupportsGet = true, Name = "client_id")]
     public string? ClientId { get; set; }
@@ -124,6 +124,19 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
         {
             ErrorMessage = "Ugyldig e-post eller passord";
             return Page();
+        }
+
+        if (user.MustChangePassword)
+        {
+            logger.LogInformation("User {Email} must change password. Redirecting to /ChangePassword", Email);
+            return RedirectToPage("/ChangePassword", new
+            {
+                email = Email,
+                client_id = ClientId,
+                redirect_uri = RedirectUri,
+                state = State,
+                scope = Scope
+            });
         }
 
         // Create authorization code

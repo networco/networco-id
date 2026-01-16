@@ -11,19 +11,17 @@ public interface IClientManagementService
 {
     Task<List<OAuthClientEntity>> GetClientsAsync();
     Task<OAuthClientEntity?> GetClientAsync(string clientId);
-    Task<(OAuthClientEntity Client, string Secret)> CreateClientAsync(string displayName, List<string> redirectUris, List<string> allowedScopes);
-    Task UpdateClientAsync(string clientId, string displayName, List<string> redirectUris, List<string> allowedScopes);
+    Task<(OAuthClientEntity Client, string Secret)> CreateClientAsync(string displayName, List<string> redirectUris, List<string> allowedScopes, bool isTrustedForExchange = false);
+    Task UpdateClientAsync(string clientId, string displayName, List<string> redirectUris, List<string> allowedScopes, bool isTrustedForExchange = false);
     Task<string?> RotateClientSecretAsync(string clientId, bool isPrimary);
     Task ClearSecondarySecretAsync(string clientId);
     Task<bool> ToggleClientStatusAsync(string clientId);
     Task<bool> DeleteClientAsync(string clientId);
-    Task SyncFromConfigAsync();
 }
 
 public class ClientManagementService(
     AuthDbContext dbContext,
-    IPasswordHasher passwordHasher,
-    NetworcoIdConfig config) : IClientManagementService
+    IPasswordHasher passwordHasher) : IClientManagementService
 {
     public async Task<List<OAuthClientEntity>> GetClientsAsync()
     {
@@ -37,7 +35,7 @@ public class ClientManagementService(
         return await dbContext.OAuthClients.FirstOrDefaultAsync(c => c.ClientId == clientId);
     }
 
-    public async Task<(OAuthClientEntity Client, string Secret)> CreateClientAsync(string displayName, List<string> redirectUris, List<string> allowedScopes)
+    public async Task<(OAuthClientEntity Client, string Secret)> CreateClientAsync(string displayName, List<string> redirectUris, List<string> allowedScopes, bool isTrustedForExchange = false)
     {
         var clientId = "nw_" + Convert.ToHexString(RandomNumberGenerator.GetBytes(8)).ToLowerInvariant();
 
@@ -56,6 +54,7 @@ public class ClientManagementService(
             DisplayName = displayName,
             RedirectUris = redirectUris,
             AllowedScopes = allowedScopes,
+            IsTrustedForExchange = isTrustedForExchange,
             CreatedAt = DateTimeOffset.UtcNow,
             IsActive = true
         };
@@ -66,7 +65,7 @@ public class ClientManagementService(
         return (client, secret);
     }
 
-    public async Task UpdateClientAsync(string clientId, string displayName, List<string> redirectUris, List<string> allowedScopes)
+    public async Task UpdateClientAsync(string clientId, string displayName, List<string> redirectUris, List<string> allowedScopes, bool isTrustedForExchange = false)
     {
         var client = await dbContext.OAuthClients.AsTracking().FirstOrDefaultAsync(c => c.ClientId == clientId);
         if (client == null) return;
@@ -74,6 +73,7 @@ public class ClientManagementService(
         client.DisplayName = displayName;
         client.RedirectUris = redirectUris;
         client.AllowedScopes = allowedScopes;
+        client.IsTrustedForExchange = isTrustedForExchange;
         client.UpdatedAt = DateTimeOffset.UtcNow;
 
         await dbContext.SaveChangesAsync();
@@ -131,53 +131,5 @@ public class ClientManagementService(
         dbContext.OAuthClients.Remove(client);
         await dbContext.SaveChangesAsync();
         return true;
-    }
-
-    public async Task SyncFromConfigAsync()
-    {
-        if (config.AllowedClients == null || !config.AllowedClients.Any())
-        {
-            return;
-        }
-
-        foreach (var clientConfig in config.AllowedClients)
-        {
-            var existingClient = await dbContext.OAuthClients.AsTracking()
-                .FirstOrDefaultAsync(c => c.ClientId == clientConfig.ClientId);
-
-            if (existingClient != null)
-            {
-                existingClient.DisplayName = clientConfig.Name;
-                existingClient.RedirectUris = clientConfig.RedirectUris;
-                existingClient.AllowedScopes = clientConfig.AllowedScopes;
-                existingClient.UpdatedAt = DateTimeOffset.UtcNow;
-                existingClient.PrimaryClientSecretHash = passwordHasher.HashPassword(clientConfig.ClientSecret);
-                existingClient.SecondaryClientSecretHash = !string.IsNullOrEmpty(clientConfig.SecondaryClientSecret)
-                    ? passwordHasher.HashPassword(clientConfig.SecondaryClientSecret)
-                    : null;
-
-                dbContext.OAuthClients.Update(existingClient);
-            }
-            else
-            {
-                var client = new OAuthClientEntity
-                {
-                    ClientId = clientConfig.ClientId,
-                    DisplayName = clientConfig.Name,
-                    PrimaryClientSecretHash = passwordHasher.HashPassword(clientConfig.ClientSecret),
-                    SecondaryClientSecretHash = !string.IsNullOrEmpty(clientConfig.SecondaryClientSecret)
-                        ? passwordHasher.HashPassword(clientConfig.SecondaryClientSecret)
-                        : null,
-                    RedirectUris = clientConfig.RedirectUris,
-                    AllowedScopes = clientConfig.AllowedScopes,
-                    IsActive = true,
-                    CreatedAt = DateTimeOffset.UtcNow
-                };
-
-                dbContext.OAuthClients.Add(client);
-            }
-        }
-
-        await dbContext.SaveChangesAsync();
     }
 }

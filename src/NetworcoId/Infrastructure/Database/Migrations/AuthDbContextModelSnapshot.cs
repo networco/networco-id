@@ -18,8 +18,7 @@ namespace NetworcoId.Infrastructure.Database.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasDefaultSchema("auth")
-                .HasAnnotation("ProductVersion", "10.0.1")
+                .HasAnnotation("ProductVersion", "10.0.2")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -43,7 +42,7 @@ namespace NetworcoId.Infrastructure.Database.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("data_protection_keys", "auth");
+                    b.ToTable("data_protection_keys");
                 });
 
             modelBuilder.Entity("NetworcoId.Models.Entities.AuthSessionEntity", b =>
@@ -98,7 +97,7 @@ namespace NetworcoId.Infrastructure.Database.Migrations
 
                     b.HasIndex("UserId", "IsActive");
 
-                    b.ToTable("auth_sessions", "auth");
+                    b.ToTable("auth_sessions");
                 });
 
             modelBuilder.Entity("NetworcoId.Models.Entities.OAuthClientEntity", b =>
@@ -127,6 +126,10 @@ namespace NetworcoId.Infrastructure.Database.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
 
+                    b.Property<bool>("IsTrustedForExchange")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_trusted_for_exchange");
+
                     b.Property<string>("PrimaryClientSecretHash")
                         .IsRequired()
                         .HasColumnType("text")
@@ -147,7 +150,7 @@ namespace NetworcoId.Infrastructure.Database.Migrations
 
                     b.HasKey("ClientId");
 
-                    b.ToTable("o_auth_clients", "auth");
+                    b.ToTable("o_auth_clients");
                 });
 
             modelBuilder.Entity("NetworcoId.Models.Entities.RefreshTokenEntity", b =>
@@ -194,7 +197,7 @@ namespace NetworcoId.Infrastructure.Database.Migrations
                     b.HasIndex("UserId", "RevokedAt")
                         .HasFilter("revoked_at IS NULL");
 
-                    b.ToTable("refresh_tokens", "auth");
+                    b.ToTable("refresh_tokens");
                 });
 
             modelBuilder.Entity("NetworcoId.Models.Entities.UserCredentialEntity", b =>
@@ -223,6 +226,10 @@ namespace NetworcoId.Infrastructure.Database.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("locked_until");
 
+                    b.Property<bool>("MustChangePassword")
+                        .HasColumnType("boolean")
+                        .HasColumnName("must_change_password");
+
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -237,7 +244,7 @@ namespace NetworcoId.Infrastructure.Database.Migrations
 
                     b.HasIndex("Id");
 
-                    b.ToTable("user_credentials", "auth");
+                    b.ToTable("user_credentials");
                 });
 
             modelBuilder.Entity("NetworcoId.Models.Entities.UserEntity", b =>
@@ -305,7 +312,7 @@ namespace NetworcoId.Infrastructure.Database.Migrations
                     b.HasIndex("Email")
                         .IsUnique();
 
-                    b.ToTable("users", "auth");
+                    b.ToTable("users");
                 });
 
             modelBuilder.Entity("NetworcoId.Models.Entities.AuthSessionEntity", b =>

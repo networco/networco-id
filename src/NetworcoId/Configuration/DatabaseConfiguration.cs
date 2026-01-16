@@ -14,12 +14,24 @@ public static class DatabaseConfiguration
     /// </summary>
     public static IServiceCollection AddDatabase(this IServiceCollection services, IConfiguration configuration)
     {
+        if (services.Any(d => d.ServiceType == typeof(DbContextOptions<AuthDbContext>)))
+        {
+            return services;
+        }
+
         var connectionString = configuration.GetConnectionString("DefaultConnection");
+
+        if (string.Equals(connectionString, "InMemory", StringComparison.OrdinalIgnoreCase))
+        {
+            // Do NOT register anything here if InMemory is specified.
+            // The caller (like a test) is responsible for registering the InMemory provider.
+            return services;
+        }
 
         // Allow overriding individual components via environment variables (common in Docker/K8s/Native Dev)
         var host = configuration["DATABASE_HOST"] ?? configuration["POSTGRES_HOST"] ?? configuration["DB_HOST"];
         var port = configuration["DATABASE_PORT"] ?? configuration["POSTGRES_PORT"] ?? configuration["DB_PORT"] ?? "5432";
-        var database = configuration["DATABASE_NAME"] ?? configuration["POSTGRES_DB"] ?? configuration["DB_NAME"] ?? "networco_auth";
+        var database = configuration["DATABASE_NAME"] ?? configuration["POSTGRES_DB"] ?? configuration["DB_NAME"] ?? "networco_id";
         var user = configuration["DATABASE_USER"] ?? configuration["POSTGRES_USER"] ?? configuration["DB_USER"];
         var password = configuration["DATABASE_PASSWORD"] ?? configuration["POSTGRES_PASSWORD"] ?? configuration["DB_PASSWORD"];
 
@@ -46,8 +58,8 @@ public static class DatabaseConfiguration
                 // Command timeout
                 npgsqlOptions.CommandTimeout(30);
 
-                // Use auth schema for migrations history
-                npgsqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "auth");
+                // Use default schema (public) for migrations history
+                // npgsqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", "auth");
             });
 
             // Development: Enable sensitive data logging and detailed errors
