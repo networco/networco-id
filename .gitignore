@@ -482,3 +482,4 @@ $RECYCLE.BIN/
 *.swp
 
 bin/Debug/
+openid-conformance-suite/
