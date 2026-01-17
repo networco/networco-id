@@ -83,7 +83,12 @@
 2.  [x] **Hardened Discovery:** Advertise PKCE support and remove insecure flows (Implicit).
 3.  [ ] **OpenID Conformance Suite:** Setup the local test suite (Python-based) to run against NetworcoID.
 4.  [ ] **PKCE Enforcement:** Verify `code_challenge` in the `/authorize` endpoint.
-5.  [ ] **JWKS Rotation:** Implement a background worker to generate and publish new keys monthly.
+5.  [x] **JWKS Rotation:** Implement a background worker to generate and publish new keys monthly.
+    *   [x] Entity & Service Layer (Key Generation/Storage)
+    *   [x] JWKS Endpoint Logic
+    *   [x] Background Worker for Rotation
+    *   [x] Token Validation with Key Cache
+
 
 ---
 *This document is the blueprint for the most robust identity system in existence. We do not settle for "secure"; we build for "certified trust".*

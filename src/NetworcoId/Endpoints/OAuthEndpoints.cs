@@ -97,9 +97,9 @@ public static class OAuthEndpoints
         return Results.Redirect(redirectUrl);
     }
 
-    private static IResult Jwks(IJwtService jwtService)
+    private static async Task<IResult> Jwks(IJwtService jwtService)
     {
-        var keys = jwtService.GetPublicKeys();
+        var keys = await jwtService.GetPublicKeysAsync();
         return Results.Ok(keys);
     }
 
@@ -277,7 +277,7 @@ public static class OAuthEndpoints
         Console.WriteLine($"Token exchange for user ID: {user.Id}, Email: {user.Email}");
 
         // Generate tokens
-        var accessToken = jwtService.GenerateAccessToken(user);
+        var accessToken = await jwtService.GenerateAccessTokenAsync(user);
         var refreshToken = jwtService.GenerateRefreshToken();
 
         // Store refresh token

@@ -3,10 +3,13 @@ using NetworcoId.Models.Auth;
 using NetworcoId.Services;
 using NetworcoId.Services.System;
 using NetworcoId.Services.Audit;
+using NetworcoId.Infrastructure.Auth;
+using NetworcoId.Workers;
 
 using Microsoft.Extensions.Options;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace NetworcoId.Configuration;
 
@@ -23,6 +26,9 @@ public static class ServiceConfiguration
         // Infrastructure services
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddSingleton<IPasswordValidator, PasswordValidator>();
+        
+        // Add Memory Cache for JWKS caching
+        services.AddMemoryCache();
 
         // Configuration
         services.Configure<NetworcoIdConfig>(configuration.GetSection("NetworcoId"));
@@ -46,8 +52,12 @@ public static class ServiceConfiguration
             return config;
         });
 
+        // Key management
+        services.AddScoped<IKeyManagementService, KeyManagementService>();
+        services.AddHostedService<KeyRotationWorker>();
+
         // JWT service
-        services.AddSingleton<Infrastructure.Auth.IJwtService, Infrastructure.Auth.JwtService>();
+        services.AddScoped<IJwtService, JwtService>();
 
         // Business services
         services.AddScoped<IAuditService, AuditService>();
