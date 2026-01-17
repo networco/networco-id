@@ -121,8 +121,9 @@ public static class OAuthEndpoints
             id_token_signing_alg_values_supported = new[] { "HS256", "RS256" },
             scopes_supported = new[] { "openid", "profile", "email", "phone", "address", "offline_access" },
             token_endpoint_auth_methods_supported = new[] { "client_secret_post", "client_secret_basic" },
-            claims_supported = new[] { "sub", "iss", "aud", "exp", "iat", "email", "name", "family_name", "given_name", "phone_number", "role" },
-            grant_types_supported = new[] { "authorization_code", "refresh_token", "implicit" }
+            claims_supported = new[] { "sub", "iss", "aud", "exp", "iat", "email", "name", "family_name", "given_name", "phone_number", "role", "national_id" },
+            grant_types_supported = new[] { "authorization_code", "refresh_token" },
+            code_challenge_methods_supported = new[] { "S256" }
         });
     }
 
@@ -240,6 +241,15 @@ public static class OAuthEndpoints
             {
                 error = "invalid_grant",
                 error_description = "Invalid or expired authorization code"
+            });
+        }
+
+        if (user.MustChangePassword)
+        {
+            return Results.BadRequest(new
+            {
+                error = "interaction_required",
+                error_description = "User must change their password."
             });
         }
 
