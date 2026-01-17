@@ -87,6 +87,17 @@ public static class AuthEndpoints
             .Produces<NetworcoIdUserDto>(200)
             .RequireAuthorization();
 
+        group.MapPost("/me", GetCurrentUser)
+            .WithName("GetCurrentUserPost")
+            .WithSummary("Get current user info (POST)")
+            .WithDescription("""
+                Get information about the currently authenticated user.
+                Requires valid access token in Authorization header.
+                Supported for OIDC compliance.
+                """)
+            .Produces<NetworcoIdUserDto>(200)
+            .RequireAuthorization();
+
         group.MapPost("/forgot-password", ForgotPassword)
             .WithName("ForgotPassword")
             .RequireRateLimiting("auth-strict")
@@ -335,6 +346,18 @@ public static class AuthEndpoints
             var familyName = context.User.FindFirst("family_name")?.Value;
             if (!string.IsNullOrEmpty(familyName))
                 claims.Add("family_name", familyName);
+        }
+
+        // Add 'name' claim which is standard in OIDC profile scope
+        if (claims.ContainsKey("given_name") && claims.ContainsKey("family_name"))
+        {
+            claims.Add("name", $"{claims["given_name"]} {claims["family_name"]}");
+        }
+        
+        // Add preferred_username (usually email or a specific username field)
+        if (claims.ContainsKey("email"))
+        {
+            claims.Add("preferred_username", claims["email"]);
         }
             
         if (context.User.HasClaim(c => c.Type == "national_id"))
