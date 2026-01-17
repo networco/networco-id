@@ -13,7 +13,9 @@ public class AuthDbContext : DbContext, IDataProtectionKeyContext
     public AuthDbContext(DbContextOptions<AuthDbContext> options) : base(options)
     {
         // Stateless API optimization: disable change tracking by default
-        ChangeTracker.QueryTrackingBehavior = QueryTrackingBehavior.NoTracking;
+        // WARNING: This causes issues when multiple providers are registered in tests
+        // or when using inheritance with different providers.
+        // ChangeTracker.QueryTrackingBehavior = QueryTrackingBehavior.NoTracking;
     }
 
     // Authentication entities

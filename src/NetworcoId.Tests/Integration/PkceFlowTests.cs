@@ -30,15 +30,30 @@ public class PkceFlowTests : IClassFixture<WebApplicationFactory<Program>>
         {
             builder.ConfigureServices(services =>
             {
-                // Replace DbContext with InMemory
-                var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<AuthDbContext>));
-                if (descriptor != null) services.Remove(descriptor);
+                // Aggressively remove existing database services to avoid "Multiple providers" error
+                var dbContextOptions = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<AuthDbContext>));
+                if (dbContextOptions != null) services.Remove(dbContextOptions);
 
+                var dbContextOptionsGeneric = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions));
+                if (dbContextOptionsGeneric != null) services.Remove(dbContextOptionsGeneric);
+
+                var dbContext = services.SingleOrDefault(d => d.ServiceType == typeof(AuthDbContext));
+                if (dbContext != null) services.Remove(dbContext);
+
+                // Ensure no background workers or services are using the DB before we can replace it?
+                // Actually, KeyManagementService might be registered with the old context type if it was added before removal?
+                // No, it's scoped, so it resolves at request time.
+                
+                // Add InMemory DbContext
                 services.AddDbContext<AuthDbContext>(options =>
                 {
                     options.UseInMemoryDatabase("PkceTestDb");
+                    options.ConfigureWarnings(x => x.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning));
                 });
             });
+            
+            // Try to signal to DatabaseConfiguration to skip Npgsql registration
+            builder.UseSetting("ConnectionStrings:DefaultConnection", "InMemory");
             
             // Disable NATS stream provisioning
             builder.UseSetting("Nats:ProvisionStreams", "false");
@@ -264,5 +279,31 @@ public class PkceFlowTests : IClassFixture<WebApplicationFactory<Program>>
         var tokenResponse = await _client.PostAsync("/oauth/token", tokenRequest);
         
         Assert.Equal(HttpStatusCode.BadRequest, tokenResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Authorize_WithoutCodeChallenge_Fails()
+    {
+        // Act
+        var authUrl = $"/oauth/authorize?response_type=code&client_id={ClientId}&redirect_uri={RedirectUri}&state=no-pkce";
+        var authResponse = await _client.GetAsync(authUrl);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.BadRequest, authResponse.StatusCode);
+        var json = await authResponse.Content.ReadAsStringAsync();
+        Assert.Contains("code_challenge is required", json);
+    }
+
+    [Fact]
+    public async Task Authorize_WithPlainMethod_Fails()
+    {
+        // Act
+        var authUrl = $"/oauth/authorize?response_type=code&client_id={ClientId}&redirect_uri={RedirectUri}&state=plain-pkce&code_challenge=foo&code_challenge_method=plain";
+        var authResponse = await _client.GetAsync(authUrl);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.BadRequest, authResponse.StatusCode);
+        var json = await authResponse.Content.ReadAsStringAsync();
+        Assert.Contains("code_challenge_method must be 'S256'", json);
     }
 }

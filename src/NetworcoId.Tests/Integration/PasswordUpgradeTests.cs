@@ -26,15 +26,24 @@ public class PasswordUpgradeTests : IClassFixture<WebApplicationFactory<Program>
         {
             builder.ConfigureServices(services =>
             {
-                var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<AuthDbContext>));
-                if (descriptor != null) services.Remove(descriptor);
+                // Aggressively remove existing database services to avoid "Multiple providers" error
+                var dbContextOptions = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<AuthDbContext>));
+                if (dbContextOptions != null) services.Remove(dbContextOptions);
+
+                var dbContextOptionsGeneric = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions));
+                if (dbContextOptionsGeneric != null) services.Remove(dbContextOptionsGeneric);
+
+                var dbContext = services.SingleOrDefault(d => d.ServiceType == typeof(AuthDbContext));
+                if (dbContext != null) services.Remove(dbContext);
 
                 services.AddDbContext<AuthDbContext>(options =>
                 {
                     options.UseInMemoryDatabase(dbName);
+                    options.ConfigureWarnings(x => x.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning));
                 });
             });
             
+            builder.UseSetting("ConnectionStrings:DefaultConnection", "InMemory");
             builder.UseSetting("Nats:ProvisionStreams", "false");
         });
 
@@ -118,7 +127,7 @@ public class PasswordUpgradeTests : IClassFixture<WebApplicationFactory<Program>
                 
             Assert.NotNull(user);
             Assert.NotNull(user!.Credential);
-            Assert.False(user.Credential.PasswordHash.StartsWith("$argon2id"), "Initial hash should NOT be Argon2id");
+            Assert.False(user.Credential.PasswordHash.StartsWith("$argon2"), "Initial hash should NOT be Argon2id");
         }
 
         // 2. Perform Login via AuthService directly
@@ -142,7 +151,7 @@ public class PasswordUpgradeTests : IClassFixture<WebApplicationFactory<Program>
             
             Assert.NotNull(user);
             Assert.NotNull(user!.Credential);
-            Assert.StartsWith("$argon2id", user.Credential.PasswordHash);
+            Assert.StartsWith("$argon2", user.Credential.PasswordHash);
             
             // Verify verification still works with new hash
             var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();

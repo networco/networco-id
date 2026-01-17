@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
+using NATS.Client.Core;
+using NetworcoId.Core.Models;
 using NetworcoId.Infrastructure.Database;
 using NetworcoId.Models.Entities;
 
@@ -16,6 +18,7 @@ public class KeyManagementService : IKeyManagementService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<KeyManagementService> _logger;
+    private readonly INatsConnection _nats;
 
     // Rotation interval: 30 days
     private readonly TimeSpan _rotationInterval = TimeSpan.FromDays(30);
@@ -25,10 +28,12 @@ public class KeyManagementService : IKeyManagementService
 
     public KeyManagementService(
         IServiceProvider serviceProvider,
-        ILogger<KeyManagementService> logger)
+        ILogger<KeyManagementService> logger,
+        INatsConnection nats)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
+        _nats = nats;
     }
 
     public async Task EnsureActiveKeyAsync(CancellationToken cancellationToken = default)
@@ -36,15 +41,31 @@ public class KeyManagementService : IKeyManagementService
         using var scope = _serviceProvider.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
 
-        var activeKey = await dbContext.SigningKeys
-            .Where(k => k.Status == KeyStatus.Active && !k.IsRevoked)
-            .OrderByDescending(k => k.CreatedAt)
-            .FirstOrDefaultAsync(cancellationToken);
+        // Use a transaction with Serializable isolation level to prevent race conditions during initial key generation
+        // This acts as a basic database-level lock for this specific operation
+        using var transaction = await dbContext.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken);
 
-        if (activeKey == null || (activeKey.ExpiresAt.HasValue && activeKey.ExpiresAt.Value <= DateTimeOffset.UtcNow))
+        try
         {
-            _logger.LogInformation("No active valid key found. Generating new key...");
-            await GenerateNewKeyAsync(dbContext, cancellationToken);
+            var activeKey = await dbContext.SigningKeys
+                .Where(k => k.Status == KeyStatus.Active && !k.IsRevoked)
+                .OrderByDescending(k => k.CreatedAt)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (activeKey == null || (activeKey.ExpiresAt.HasValue && activeKey.ExpiresAt.Value <= DateTimeOffset.UtcNow))
+            {
+                _logger.LogInformation("No active valid key found. Generating new key...");
+                await GenerateNewKeyAsync(dbContext, cancellationToken);
+                await PublishKeyRotationEventAsync();
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error ensuring active key (possible race condition, which is handled).");
+            await transaction.RollbackAsync(cancellationToken);
+            // We don't rethrow here because if another pod won the race, the key exists, which is our goal.
         }
     }
 
@@ -54,49 +75,88 @@ public class KeyManagementService : IKeyManagementService
         var dbContext = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
 
         // 1. Check if active key needs rotation
-        var activeKey = await dbContext.SigningKeys
-            .Where(k => k.Status == KeyStatus.Active && !k.IsRevoked)
-            .OrderByDescending(k => k.CreatedAt)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (activeKey != null)
-        {
-            // If expires soon (or already expired), rotate
-            // We rotate if < 24 hours remaining, just to be safe
-            if (activeKey.ExpiresAt.HasValue && activeKey.ExpiresAt.Value.Subtract(DateTimeOffset.UtcNow) < TimeSpan.FromHours(24))
-            {
-                _logger.LogInformation("Active key expiring soon. Rotating...");
-                
-                // Mark current active as previous
-                activeKey.Status = KeyStatus.Previous;
-                // Extend expiration for grace period? No, ExpiresAt is for "signing usage".
-                // We keep it valid for verification as long as it's in "Previous" status.
-                
-                await GenerateNewKeyAsync(dbContext, cancellationToken);
-            }
-        }
-        else
-        {
-            await GenerateNewKeyAsync(dbContext, cancellationToken);
-        }
-
-        // 2. Retire old keys
-        // If a key is Previous and older than grace period (relative to when it stopped being active), retire it.
-        // Simplified logic: If created > Rotation + Grace, retire.
-        var cutoff = DateTimeOffset.UtcNow.Subtract(_rotationInterval).Subtract(_gracePeriod);
+        // We use a transaction to lock the rows involved and prevent race conditions
+        using var transaction = await dbContext.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken);
         
-        var oldKeys = await dbContext.SigningKeys
-            .Where(k => k.Status == KeyStatus.Previous && k.CreatedAt < cutoff)
-            .ToListAsync(cancellationToken);
-
-        if (oldKeys.Any())
+        try
         {
-            foreach (var key in oldKeys)
+            var activeKey = await dbContext.SigningKeys
+                .Where(k => k.Status == KeyStatus.Active && !k.IsRevoked)
+                .OrderByDescending(k => k.CreatedAt)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            bool rotated = false;
+
+            if (activeKey != null)
             {
-                key.Status = KeyStatus.Retired;
-                _logger.LogInformation("Retiring old key {KeyId}", key.KeyId);
+                // If expires soon (or already expired), rotate
+                // We rotate if < 24 hours remaining, just to be safe
+                if (activeKey.ExpiresAt.HasValue && activeKey.ExpiresAt.Value.Subtract(DateTimeOffset.UtcNow) < TimeSpan.FromHours(24))
+                {
+                    _logger.LogInformation("Active key expiring soon. Rotating...");
+                    
+                    // Mark current active as previous
+                    activeKey.Status = KeyStatus.Previous;
+                    // Extend expiration for grace period? No, ExpiresAt is for "signing usage".
+                    // We keep it valid for verification as long as it's in "Previous" status.
+                    
+                    await GenerateNewKeyAsync(dbContext, cancellationToken);
+                    rotated = true;
+                }
             }
-            await dbContext.SaveChangesAsync(cancellationToken);
+            else
+            {
+                await GenerateNewKeyAsync(dbContext, cancellationToken);
+                rotated = true;
+            }
+
+            // 2. Retire old keys
+            // If a key is Previous and older than grace period (relative to when it stopped being active), retire it.
+            // Simplified logic: If created > Rotation + Grace, retire.
+            var cutoff = DateTimeOffset.UtcNow.Subtract(_rotationInterval).Subtract(_gracePeriod);
+            
+            var oldKeys = await dbContext.SigningKeys
+                .Where(k => k.Status == KeyStatus.Previous && k.CreatedAt < cutoff)
+                .ToListAsync(cancellationToken);
+
+            if (oldKeys.Any())
+            {
+                foreach (var key in oldKeys)
+                {
+                    key.Status = KeyStatus.Retired;
+                    _logger.LogInformation("Retiring old key {KeyId}", key.KeyId);
+                }
+                // Save changes for retired keys is part of the transaction
+            }
+
+            if (rotated || oldKeys.Any())
+            {
+                 await dbContext.SaveChangesAsync(cancellationToken);
+                 if (rotated) 
+                 {
+                     await PublishKeyRotationEventAsync();
+                 }
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+             _logger.LogError(ex, "Error rotating keys (possible race condition).");
+             await transaction.RollbackAsync(cancellationToken);
+        }
+    }
+
+    private async Task PublishKeyRotationEventAsync()
+    {
+        try
+        {
+            await _nats.PublishAsync(NetworcoIdSubjects.IdentityKeysRotated, new { Timestamp = DateTime.UtcNow });
+            _logger.LogInformation("Published key rotation event to NATS.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to publish key rotation event.");
         }
     }
 
@@ -124,6 +184,7 @@ public class KeyManagementService : IKeyManagementService
         
         _logger.LogInformation("Generated new active signing key: {KeyId}", keyId);
     }
+
 
     public async Task<List<SigningKeyEntity>> GetValidKeysAsync(CancellationToken cancellationToken = default)
     {

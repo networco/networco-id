@@ -144,17 +144,16 @@ public static class OAuthEndpoints
             return Results.BadRequest(new { error = "invalid_request", error_description = "response_type must be 'code'" });
         }
 
-        // Validate PKCE
-        if (!string.IsNullOrEmpty(code_challenge) && code_challenge_method != "S256" && code_challenge_method != "plain")
+        // Enforce PKCE for all clients (Security Hardening)
+        if (string.IsNullOrEmpty(code_challenge))
         {
-             return Results.BadRequest(new { error = "invalid_request", error_description = "code_challenge_method must be 'S256' or 'plain'" });
+             return Results.BadRequest(new { error = "invalid_request", error_description = "code_challenge is required" });
         }
 
-        // Enforce PKCE for public clients (or all, ideally)
-        // For now, we'll just ensure that if method is provided, challenge is also provided
-        if (!string.IsNullOrEmpty(code_challenge_method) && string.IsNullOrEmpty(code_challenge))
+        // Enforce S256 as the only allowed method
+        if (code_challenge_method != "S256")
         {
-            return Results.BadRequest(new { error = "invalid_request", error_description = "code_challenge is required when code_challenge_method is present" });
+             return Results.BadRequest(new { error = "invalid_request", error_description = "code_challenge_method must be 'S256'" });
         }
 
         if (string.IsNullOrEmpty(redirect_uri))

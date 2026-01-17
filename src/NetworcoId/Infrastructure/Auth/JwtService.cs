@@ -8,6 +8,7 @@ using NetworcoId.Core.Models;
 using NetworcoId.Models.Entities;
 using NetworcoId.Infrastructure.Database;
 using Microsoft.Extensions.Caching.Memory;
+using NATS.Client.Core;
 
 namespace NetworcoId.Infrastructure.Auth;
 
@@ -20,6 +21,7 @@ public interface IJwtService
     string GenerateRefreshToken();
     Task<ClaimsPrincipal?> ValidateTokenAsync(string token, CancellationToken cancellationToken = default);
     Task<JsonWebKeySet> GetPublicKeysAsync(CancellationToken cancellationToken = default);
+    Task ListenForKeyRotationEventsAsync(CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -30,17 +32,23 @@ public class JwtService : IJwtService
     private readonly NetworcoIdConfig _config;
     private readonly IKeyManagementService _keyManagementService;
     private readonly IMemoryCache _cache;
+    private readonly INatsConnection _nats;
+    private readonly ILogger<JwtService> _logger;
     
     private const string ValidKeysCacheKey = "valid_signing_keys";
 
     public JwtService(
         NetworcoIdConfig config,
         IKeyManagementService keyManagementService,
-        IMemoryCache cache)
+        IMemoryCache cache,
+        INatsConnection nats,
+        ILogger<JwtService> logger)
     {
         _config = config;
         _keyManagementService = keyManagementService;
         _cache = cache;
+        _nats = nats;
+        _logger = logger;
     }
 
     private async Task<List<SigningKeyEntity>> GetCachedKeysAsync(CancellationToken cancellationToken)
@@ -50,6 +58,32 @@ public class JwtService : IJwtService
             entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10); // Cache for 10 mins
             return await _keyManagementService.GetValidKeysAsync(cancellationToken);
         }) ?? new List<SigningKeyEntity>();
+    }
+
+    public async Task ListenForKeyRotationEventsAsync(CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Starting listener for key rotation events...");
+        
+        // Subscribe to the rotation event subject
+        await foreach (var msg in _nats.SubscribeAsync<object>(NetworcoIdSubjects.IdentityKeysRotated, cancellationToken: cancellationToken))
+        {
+            try
+            {
+                _logger.LogInformation("Received key rotation event. Invalidating local cache.");
+                
+                // 1. Remove the existing cache entry
+                _cache.Remove(ValidKeysCacheKey);
+                
+                // 2. Immediately refresh the cache to ensure we have the new keys ready
+                await GetCachedKeysAsync(cancellationToken);
+                
+                _logger.LogInformation("Local key cache refreshed successfully.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error handling key rotation event.");
+            }
+        }
     }
 
     public async Task<string> GenerateAccessTokenAsync(NetworcoIdUserDto user, CancellationToken cancellationToken = default)

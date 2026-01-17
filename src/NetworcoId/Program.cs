@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
+using System.Security.Cryptography.X509Certificates;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -53,10 +54,24 @@ builder.Services.AddJsonSerialization();
 builder.Services.AddDatabase(builder.Configuration);
 builder.Services.AddAuthServices(builder.Configuration);
 
+
 // Configure Data Protection for multi-instance deployments
-builder.Services.AddDataProtection()
+var dataProtection = builder.Services.AddDataProtection()
     .PersistKeysToDbContext<AuthDbContext>()
     .SetApplicationName("NetworcoId");
+
+// If certificate path is configured, use it for encryption at rest
+var certPath = builder.Configuration["DATA_PROTECTION_CERT_PATH"];
+var certPass = builder.Configuration["DATA_PROTECTION_CERT_PASSWORD"];
+
+if (!string.IsNullOrEmpty(certPath) && File.Exists(certPath))
+{
+#pragma warning disable SYSLIB0057 // Suppress obsolete warning for X509Certificate2 constructor
+    var certificate = new X509Certificate2(certPath, certPass);
+#pragma warning restore SYSLIB0057
+    dataProtection.ProtectKeysWithCertificate(certificate);
+}
+
 
 // Add NATS for messaging
 builder.Services.AddNatsMessaging(builder.Configuration);
@@ -170,10 +185,14 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "auth
 // Provision NATS streams on startup
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
-    if (db.Database.ProviderName != "Microsoft.EntityFrameworkCore.InMemory")
+    var connString = app.Configuration.GetConnectionString("DefaultConnection");
+    if (connString != "InMemory")
     {
-        await db.Database.MigrateAsync();
+        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        if (db.Database.ProviderName != "Microsoft.EntityFrameworkCore.InMemory")
+        {
+            await db.Database.MigrateAsync();
+        }
     }
 
     // Bootstrap system (Initial Admin and Management Client)

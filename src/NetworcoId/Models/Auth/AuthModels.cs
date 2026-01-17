@@ -38,6 +38,10 @@ public class NetworcoIdConfig
     public bool RequireNonAlphanumeric { get; set; } = true;
     public int MaxFailedLoginAttempts { get; set; } = 5;
     public int LockoutDurationMinutes { get; set; } = 15;
+
+    // Data Protection
+    public string? DataProtectionCertificatePath { get; set; }
+    public string? DataProtectionCertificatePassword { get; set; }
 }
 
 /// <summary>
