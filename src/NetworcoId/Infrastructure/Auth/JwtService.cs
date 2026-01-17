@@ -18,6 +18,7 @@ namespace NetworcoId.Infrastructure.Auth;
 public interface IJwtService
 {
     Task<string> GenerateAccessTokenAsync(NetworcoIdUserDto user, CancellationToken cancellationToken = default);
+    Task<string> GenerateIdTokenAsync(NetworcoIdUserDto user, string clientId, string? nonce = null, CancellationToken cancellationToken = default);
     string GenerateRefreshToken();
     Task<ClaimsPrincipal?> ValidateTokenAsync(string token, CancellationToken cancellationToken = default);
     Task<JsonWebKeySet> GetPublicKeysAsync(CancellationToken cancellationToken = default);
@@ -86,18 +87,70 @@ public class JwtService : IJwtService
         }
     }
 
+    public async Task<string> GenerateIdTokenAsync(NetworcoIdUserDto user, string clientId, string? nonce = null, CancellationToken cancellationToken = default)
+    {
+        var claims = new List<Claim>
+        {
+            new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            // ID Token specific claims
+            new Claim(JwtRegisteredClaimNames.Iat, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
+            new Claim(JwtRegisteredClaimNames.AuthTime, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64)
+        };
+
+        if (!string.IsNullOrEmpty(nonce)) claims.Add(new Claim(JwtRegisteredClaimNames.Nonce, nonce));
+        else if (!string.IsNullOrEmpty(user.Nonce)) claims.Add(new Claim(JwtRegisteredClaimNames.Nonce, user.Nonce));
+
+        var keys = await GetCachedKeysAsync(cancellationToken);
+        var activeKeyEntity = keys.FirstOrDefault(k => k.Status == KeyStatus.Active) 
+                              ?? keys.FirstOrDefault();
+
+        SigningCredentials creds;
+        if (activeKeyEntity != null)
+        {
+            var rsa = RSA.Create();
+            rsa.ImportFromPem(activeKeyEntity.PrivateKeyPem);
+            var securityKey = new RsaSecurityKey(rsa) { KeyId = activeKeyEntity.KeyId };
+            creds = new SigningCredentials(securityKey, SecurityAlgorithms.RsaSha256);
+        }
+        else
+        {
+            var signingKey = _config.Secret 
+                ?? throw new InvalidOperationException("No signing keys found.");
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey));
+            creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        }
+
+        var token = new JwtSecurityToken(
+            issuer: _config.Issuer,
+            audience: clientId, // ID Token audience IS the client_id
+            claims: claims,
+            expires: DateTime.UtcNow.AddMinutes(_config.AccessTokenExpirationMinutes), // ID token usually short lived, same as access token here
+            signingCredentials: creds);
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
     public async Task<string> GenerateAccessTokenAsync(NetworcoIdUserDto user, CancellationToken cancellationToken = default)
     {
-        var claims = new[]
+        var claims = new List<Claim>
         {
             new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new Claim(JwtRegisteredClaimNames.Email, user.Email),
             new Claim(JwtRegisteredClaimNames.GivenName, user.FirstName),
             new Claim(JwtRegisteredClaimNames.FamilyName, user.LastName),
-            new Claim("national_id", user.NationalId ?? ""),
-            new Claim("phone_number", user.PhoneNumber ?? ""),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
         };
+
+        if (!string.IsNullOrEmpty(user.NationalId))
+        {
+            claims.Add(new Claim("national_id", user.NationalId));
+        }
+
+        if (!string.IsNullOrEmpty(user.PhoneNumber))
+        {
+            claims.Add(new Claim("phone_number", user.PhoneNumber));
+        }
 
         var keys = await GetCachedKeysAsync(cancellationToken);
         var activeKeyEntity = keys.FirstOrDefault(k => k.Status == KeyStatus.Active) 
@@ -145,7 +198,7 @@ public class JwtService : IJwtService
                 var securityKey = new RsaSecurityKey(rsa) { KeyId = keyEntity.KeyId };
                 var jwk = JsonWebKeyConverter.ConvertFromRSASecurityKey(securityKey);
                 jwk.Use = "sig";
-                jwk.Alg = keyEntity.Algorithm;
+                jwk.Alg = !string.IsNullOrEmpty(keyEntity.Algorithm) ? keyEntity.Algorithm : "RS256";
                 jwk.Kid = keyEntity.KeyId;
                 jwks.Keys.Add(jwk);
             }

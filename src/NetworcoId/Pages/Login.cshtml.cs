@@ -29,12 +29,16 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
     [BindProperty(SupportsGet = true)]
     public string? code_challenge_method { get; set; }
 
+    [BindProperty(SupportsGet = true)]
+    public string? nonce { get; set; }
+
     public string? ClientId => client_id;
     public string? RedirectUri => redirect_uri;
     public string? State => state;
     public string? Scope => scope;
     public string? CodeChallenge => code_challenge;
     public string? CodeChallengeMethod => code_challenge_method;
+    public string? Nonce => nonce;
 
     [BindProperty(SupportsGet = true, Name = "registration")]
     public string? Registration { get; set; }
@@ -66,6 +70,7 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
         scope ??= Request.Query["scope"];
         code_challenge ??= Request.Query["code_challenge"];
         code_challenge_method ??= Request.Query["code_challenge_method"];
+        nonce ??= Request.Query["nonce"];
 
         // Log parameters for debugging
         logger.LogInformation("Login OnGet: ClientId={ClientId}, RedirectUri={RedirectUri}", ClientId, RedirectUri);
@@ -143,6 +148,9 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
 
             code_challenge_method ??= Request.Query["code_challenge_method"];
             if (string.IsNullOrEmpty(code_challenge_method) && Request.HasFormContentType) code_challenge_method = Request.Form["code_challenge_method"];
+
+            nonce ??= Request.Query["nonce"];
+            if (string.IsNullOrEmpty(nonce) && Request.HasFormContentType) nonce = Request.Form["nonce"];
 
             if (string.IsNullOrEmpty(Email) || string.IsNullOrEmpty(Password))
             {
@@ -232,7 +240,7 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
             }
 
             // Create authorization code
-            var code = authService.CreateAuthorizationCode(user.Email, RedirectUri, State, ClientId, CodeChallenge, CodeChallengeMethod);
+            var code = authService.CreateAuthorizationCode(user.Email, RedirectUri, State, ClientId, CodeChallenge, CodeChallengeMethod, Nonce);
 
             // Build redirect URL
             var redirectUrl = new UriBuilder(RedirectUri);

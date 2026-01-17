@@ -24,7 +24,7 @@ public interface IAuthService
     Task<NetworcoIdUserDto?> GetUserByEmailOrNationalIdAsync(string emailOrNationalId);
     Task<NetworcoIdUserDto?> ValidateAuthorizationCodeAsync(string code, string redirectUri, string? clientId = null, string? codeVerifier = null, bool isRegistration = false);
     Task<NetworcoIdUserDto?> RegisterUserAsync(string email, string password, string firstName, string lastName, string? nationalId, string? phoneNumber);
-    string CreateAuthorizationCode(string emailOrNationalId, string redirectUri, string? state, string? clientId = null, string? codeChallenge = null, string? codeChallengeMethod = null);
+    string CreateAuthorizationCode(string emailOrNationalId, string redirectUri, string? state, string? clientId = null, string? codeChallenge = null, string? codeChallengeMethod = null, string? nonce = null);
     Task StoreRefreshTokenAsync(Guid userId, string tokenHash, DateTimeOffset expiresAt);
     Task<NetworcoIdUserDto?> GetUserByRefreshTokenAsync(string tokenHash);
     Task<bool> ValidateRefreshTokenAsync(string tokenHash);
@@ -303,7 +303,7 @@ public class AuthService : IAuthService
         };
     }
 
-    public string CreateAuthorizationCode(string emailOrNationalId, string redirectUri, string? state, string? clientId = null, string? codeChallenge = null, string? codeChallengeMethod = null)
+    public string CreateAuthorizationCode(string emailOrNationalId, string redirectUri, string? state, string? clientId = null, string? codeChallenge = null, string? codeChallengeMethod = null, string? nonce = null)
     {
         // Stateless code: email|redirectUri|clientId|timestamp|challenge|method
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -317,6 +317,7 @@ public class AuthService : IAuthService
             state, 
             codeChallenge,
             codeChallengeMethod,
+            nonce,
             DateTimeOffset.UtcNow);
 
         _authCodes.TryAdd(codeId, session);
@@ -359,42 +360,54 @@ public class AuthService : IAuthService
                     return null;
                 }
 
-                // Verify PKCE
-                if (!string.IsNullOrEmpty(session.CodeChallenge))
+        if (string.IsNullOrEmpty(session.CodeChallenge))
+        {
+            // OIDCC Test: If PKCE was not used in the original request, but a code_verifier IS provided now, it must be ignored or rejected.
+            // The spec says: "If the code_verifier parameter is present, it MUST be ignored if the code_challenge parameter was not present in the Authorization Request."
+            // However, strict implementations might choose to reject it to detect client confusion.
+            // For now, we will just proceed without PKCE checks if the session didn't use it.
+            // (No change needed here as we only enter this block if session.CodeChallenge IS NOT NULL)
+        }
+        else // PKCE was used
+        {
+            if (string.IsNullOrEmpty(codeVerifier))
+            {
+                _logger.LogWarning("PKCE required but code_verifier missing");
+                return null;
+            }
+
+            if (session.CodeChallengeMethod == "S256")
+            {
+                using var sha256 = global::System.Security.Cryptography.SHA256.Create();
+                var challengeBytes = sha256.ComputeHash(Encoding.ASCII.GetBytes(codeVerifier));
+                var challenge = Convert.ToBase64String(challengeBytes)
+                    .Replace("+", "-")
+                    .Replace("/", "_")
+                    .TrimEnd('=');
+
+                if (challenge != session.CodeChallenge)
                 {
-                    if (string.IsNullOrEmpty(codeVerifier))
-                    {
-                        _logger.LogWarning("PKCE required but code_verifier missing");
-                        return null;
-                    }
-
-                    if (session.CodeChallengeMethod == "S256")
-                    {
-                        using var sha256 = global::System.Security.Cryptography.SHA256.Create();
-                        var challengeBytes = sha256.ComputeHash(Encoding.ASCII.GetBytes(codeVerifier));
-                        var challenge = Convert.ToBase64String(challengeBytes)
-                            .Replace("+", "-")
-                            .Replace("/", "_")
-                            .TrimEnd('=');
-
-                        if (challenge != session.CodeChallenge)
-                        {
-                            _logger.LogWarning("PKCE verification failed for S256");
-                            return null;
-                        }
-                    }
-                    else
-                    {
-                        // Plain (not recommended, but supported by spec)
-                        if (codeVerifier != session.CodeChallenge)
-                        {
-                            _logger.LogWarning("PKCE verification failed for plain");
-                            return null;
-                        }
-                    }
+                    _logger.LogWarning("PKCE verification failed for S256");
+                    return null;
                 }
+            }
+            else
+            {
+                // Plain (not recommended, but supported by spec)
+                if (codeVerifier != session.CodeChallenge)
+                {
+                    _logger.LogWarning("PKCE verification failed for plain");
+                    return null;
+                }
+            }
+        }
 
-                return await GetUserByEmailOrNationalIdAsync(session.EmailOrNationalId);
+                var validUser = await GetUserByEmailOrNationalIdAsync(session.EmailOrNationalId);
+                if (validUser != null)
+                {
+                    validUser.Nonce = session.Nonce;
+                }
+                return validUser;
             }
 
             // Handle NETWORCO ID authorization codes
@@ -779,5 +792,6 @@ public class AuthService : IAuthService
         string? State,
         string? CodeChallenge,
         string? CodeChallengeMethod,
+        string? Nonce,
         DateTimeOffset CreatedAt);
 }
