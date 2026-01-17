@@ -58,6 +58,7 @@ public class NetworcoIdUserDto
     public string? PhoneNumber { get; set; }
     public string? Password { get; set; }
     public bool MustChangePassword { get; set; }
+    public string? Nonce { get; set; }
 }
 
 /// <summary>
@@ -146,29 +147,11 @@ public class ResetPasswordRequest
 public class AuthorizationRequest
 {
     public required string ResponseType { get; set; }
+    [JsonPropertyName("client_id")]
     public required string ClientId { get; set; }
-    public string? RedirectUri { get; set; }
-    public string? State { get; set; }
-    [JsonPropertyName("scope")]
-    public string? Scope { get; set; }
-}
-
-/// <summary>
-/// OAuth2 authorization response.
-/// </summary>
-public class AuthorizationResponse
-{
-    public required string Code { get; set; }
-    public string? State { get; set; }
-}
-
-/// <summary>
-/// OAuth2 client configuration.
-/// </summary>
-public class OAuthClient
-{
-    public required string ClientId { get; set; }
+    [JsonPropertyName("client_secret")]
     public required string ClientSecret { get; set; }
+
     public string? SecondaryClientSecret { get; set; }
     public required string Name { get; set; }
     public List<string> RedirectUris { get; set; } = new();
@@ -195,6 +178,8 @@ public class TokenResponse
 {
     [JsonPropertyName("access_token")]
     public required string AccessToken { get; set; }
+    [JsonPropertyName("id_token")]
+    public string? IdToken { get; set; }
     [JsonPropertyName("token_type")]
     public required string TokenType { get; set; } = "Bearer";
     [JsonPropertyName("expires_in")]

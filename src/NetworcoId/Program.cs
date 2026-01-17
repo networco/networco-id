@@ -171,6 +171,10 @@ if (!app.Environment.IsDevelopment())
 app.UseStaticFiles();
 app.UseRouting();
 
+// Authentication & Authorization must be AFTER UseRouting and BEFORE UseEndpoints (in .NET 6+ Minimal APIs, mapped after)
+app.UseAuthentication();
+app.UseAuthorization();
+
 // Map endpoints
 app.MapRazorPages();
 app.MapOAuth();

@@ -310,16 +310,47 @@ public static class AuthEndpoints
     {
         // Extract user info from JWT token claims
         var userId = context.User.FindFirst("sub")?.Value;
-        var user = new NetworcoIdUserDto
+        
+        var claims = new Dictionary<string, object>
         {
-            Id = Guid.TryParse(userId, out var id) ? id : Guid.Empty,
-            Email = context.User.FindFirst("email")?.Value ?? "",
-            FirstName = context.User.FindFirst("given_name")?.Value ?? "",
-            LastName = context.User.FindFirst("family_name")?.Value ?? "",
-            NationalId = context.User.FindFirst("national_id")?.Value ?? "",
-            // Removed: Role - authorization handled by resource server
+            { "sub", userId ?? "" }
         };
 
-        return Results.Ok(user);
+        if (context.User.HasClaim(c => c.Type == "email"))
+        {
+            var email = context.User.FindFirst("email")?.Value;
+            if (!string.IsNullOrEmpty(email))
+                claims.Add("email", email);
+        }
+        
+        if (context.User.HasClaim(c => c.Type == "given_name"))
+        {
+            var givenName = context.User.FindFirst("given_name")?.Value;
+            if (!string.IsNullOrEmpty(givenName))
+                claims.Add("given_name", givenName);
+        }
+
+        if (context.User.HasClaim(c => c.Type == "family_name"))
+        {
+            var familyName = context.User.FindFirst("family_name")?.Value;
+            if (!string.IsNullOrEmpty(familyName))
+                claims.Add("family_name", familyName);
+        }
+            
+        if (context.User.HasClaim(c => c.Type == "national_id"))
+        {
+            var nationalId = context.User.FindFirst("national_id")?.Value;
+            if (!string.IsNullOrEmpty(nationalId))
+                claims.Add("national_id", nationalId);
+        }
+
+        if (context.User.HasClaim(c => c.Type == "phone_number"))
+        {
+            var phoneNumber = context.User.FindFirst("phone_number")?.Value;
+            if (!string.IsNullOrEmpty(phoneNumber))
+                claims.Add("phone_number", phoneNumber);
+        }
+
+        return Results.Json(claims);
     }
 }
