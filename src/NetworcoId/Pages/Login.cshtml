@@ -96,6 +96,8 @@
                 <input type="hidden" asp-for="RedirectUri" name="redirect_uri" />
                 <input type="hidden" asp-for="State" name="state" />
                 <input type="hidden" asp-for="Scope" name="scope" />
+                <input type="hidden" asp-for="CodeChallenge" name="code_challenge" />
+                <input type="hidden" asp-for="CodeChallengeMethod" name="code_challenge_method" />
 
                 <div>
                     <label asp-for="Email" class="block text-sm font-medium text-gray-700 mb-1">E-post</label>
@@ -113,6 +115,8 @@
                            asp-route-redirect_uri="@Model.redirect_uri"
                            asp-route-state="@Model.state"
                            asp-route-scope="@Model.scope"
+                           asp-route-code_challenge="@Model.code_challenge"
+                           asp-route-code_challenge_method="@Model.code_challenge_method"
                            class="text-xs text-indigo-600 hover:text-indigo-500">Glemt passord?</a>
                     </div>
                 </div>

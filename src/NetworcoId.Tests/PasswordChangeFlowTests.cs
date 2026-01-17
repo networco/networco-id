@@ -27,6 +27,7 @@ public class PasswordChangeFlowTests : IClassFixture<WebApplicationFactory<Progr
                 config.AddInMemoryCollection(new Dictionary<string, string?>
                 {
                     { "ConnectionStrings:DefaultConnection", "InMemory" }
+                    , { "Nats:ProvisionStreams", "false" }
                 });
             });
             builder.ConfigureServices(services =>
