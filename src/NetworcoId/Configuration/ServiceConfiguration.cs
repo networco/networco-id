@@ -49,12 +49,17 @@ public static class ServiceConfiguration
             config.InitialClientId ??= configuration["INITIAL_CLIENT_ID"];
             config.InitialClientSecret ??= configuration["INITIAL_CLIENT_SECRET"];
             
+            // Data Protection Config
+            config.DataProtectionCertificatePath ??= configuration["DATA_PROTECTION_CERT_PATH"];
+            config.DataProtectionCertificatePassword ??= configuration["DATA_PROTECTION_CERT_PASSWORD"];
+
             return config;
         });
 
         // Key management
         services.AddScoped<IKeyManagementService, KeyManagementService>();
         services.AddHostedService<KeyRotationWorker>();
+        services.AddHostedService<CacheInvalidationWorker>();
 
         // JWT service
         services.AddScoped<IJwtService, JwtService>();

@@ -44,6 +44,7 @@ public class JwksRotationTests : IClassFixture<WebApplicationFactory<Program>>
                 {
                     options.UseInMemoryDatabase(dbName);
                     options.EnableSensitiveDataLogging(); 
+                    options.ConfigureWarnings(x => x.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning));
                 });
 
                 // Ensure JwtService uses the correct context (re-register key manager to be safe)
@@ -66,6 +67,11 @@ public class JwksRotationTests : IClassFixture<WebApplicationFactory<Program>>
             var keyManager = scope.ServiceProvider.GetRequiredService<IKeyManagementService>();
             
             // Force create keys
+            // The KeyManagementService uses transactions which fail in InMemory DB.
+            // We need to suppress the warning or avoid using transactions in test.
+            // Since we can't change the service code just for test easily, 
+            // and InMemory transaction support is limited (it ignores them but warns).
+            // We'll configure warnings to ignore it in the setup.
             await keyManager.RotateKeysAsync();
         }
 

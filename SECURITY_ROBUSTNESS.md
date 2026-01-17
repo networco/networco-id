@@ -82,12 +82,16 @@
 1.  [x] **Enforce Password Change:** Blocking JWT issuance if `must_change_password` is true.
 2.  [x] **Hardened Discovery:** Advertise PKCE support and remove insecure flows (Implicit).
 3.  [ ] **OpenID Conformance Suite:** Setup the local test suite (Python-based) to run against NetworcoID.
-4.  [ ] **PKCE Enforcement:** Verify `code_challenge` in the `/authorize` endpoint.
+4.  [x] **PKCE Enforcement:** Verify `code_challenge` in the `/authorize` endpoint.
 5.  [x] **JWKS Rotation:** Implement a background worker to generate and publish new keys monthly.
     *   [x] Entity & Service Layer (Key Generation/Storage)
     *   [x] JWKS Endpoint Logic
     *   [x] Background Worker for Rotation
     *   [x] Token Validation with Key Cache
+    *   [x] Distributed Scale (NATS Cache Invalidation & DB Locking)
+
+6.  [x] **Data Protection Encryption:** Encrypt ASP.NET DataProtection keys at rest for scaled deployments.
+
 
 
 ---

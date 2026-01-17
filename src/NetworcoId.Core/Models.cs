@@ -33,4 +33,5 @@ public static class NetworcoIdSubjects
     public const string EmailOtp = "identity.email.otp";
     public const string PasswordReset = "identity.email.reset";
     public const string EmailNotification = "identity.email.notification";
+    public const string IdentityKeysRotated = "identity.keys.rotated";
 }
