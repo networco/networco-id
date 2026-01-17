@@ -359,6 +359,10 @@ public static class AuthEndpoints
         {
             claims.Add("preferred_username", claims["email"]);
         }
+        
+        // Add updated_at claim (OIDC standard: time the user info was last updated)
+        // Since we don't track this yet, we'll default to current time for compliance
+        claims.Add("updated_at", DateTimeOffset.UtcNow.ToUnixTimeSeconds());
             
         if (context.User.HasClaim(c => c.Type == "national_id"))
         {
