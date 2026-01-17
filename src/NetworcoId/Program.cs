@@ -180,9 +180,13 @@ using (var scope = app.Services.CreateScope())
     var bootstrap = scope.ServiceProvider.GetRequiredService<IBootstrapService>();
     await bootstrap.BootstrapAsync();
 
-    var nats = scope.ServiceProvider.GetRequiredService<INatsConnection>();
+    var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+    if (config.GetValue<bool>("Nats:ProvisionStreams", true))
+    {
+        var nats = scope.ServiceProvider.GetRequiredService<INatsConnection>();
     var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("NatsProvisioner");
     await nats.ProvisionStreamsAsync(logger);
+    }
 }
 
 app.Run();

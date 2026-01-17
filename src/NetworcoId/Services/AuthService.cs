@@ -22,9 +22,9 @@ public interface IAuthService
 {
     Task<NetworcoIdUserDto?> AuthenticateUserAsync(string emailOrNationalId, string password);
     Task<NetworcoIdUserDto?> GetUserByEmailOrNationalIdAsync(string emailOrNationalId);
-    Task<NetworcoIdUserDto?> ValidateAuthorizationCodeAsync(string code, string redirectUri, string? clientId = null, bool isRegistration = false);
+    Task<NetworcoIdUserDto?> ValidateAuthorizationCodeAsync(string code, string redirectUri, string? clientId = null, string? codeVerifier = null, bool isRegistration = false);
     Task<NetworcoIdUserDto?> RegisterUserAsync(string email, string password, string firstName, string lastName, string? nationalId, string? phoneNumber);
-    string CreateAuthorizationCode(string emailOrNationalId, string redirectUri, string? state, string? clientId = null);
+    string CreateAuthorizationCode(string emailOrNationalId, string redirectUri, string? state, string? clientId = null, string? codeChallenge = null, string? codeChallengeMethod = null);
     Task StoreRefreshTokenAsync(Guid userId, string tokenHash, DateTimeOffset expiresAt);
     Task<NetworcoIdUserDto?> GetUserByRefreshTokenAsync(string tokenHash);
     Task<bool> ValidateRefreshTokenAsync(string tokenHash);
@@ -142,9 +142,32 @@ public class AuthService : IAuthService
 
         await _auditService.LogAsync("LoginSuccess", $"User logged in: {user.Email}", user.Id);
 
-        // Reset failed attempts on success
-        if (user.Credential.FailedLoginAttempts > 0)
+        // Check for legacy password hash and upgrade if necessary
+        if (!_passwordHasher.IsArgon2id(user.Credential.PasswordHash))
         {
+            _logger.LogInformation("Upgrading password hash for user {UserId} from PBKDF2 to Argon2id", user.Id);
+            
+            var credToUpdate = await _context.UserCredentials.FirstOrDefaultAsync(c => c.Id == user.Id);
+            if (credToUpdate != null)
+            {
+                credToUpdate.PasswordHash = _passwordHasher.HashPassword(password);
+                credToUpdate.UpdatedAt = DateTimeOffset.UtcNow;
+                
+                // Also reset failed attempts if we are touching the record anyway
+                credToUpdate.FailedLoginAttempts = 0;
+                credToUpdate.LastFailedLoginAt = null;
+                credToUpdate.LockedUntil = null;
+                
+                _context.UserCredentials.Update(credToUpdate);
+                await _context.SaveChangesAsync();
+                
+                // Update the local user object's hash so we don't return stale data if used later
+                user.Credential.PasswordHash = credToUpdate.PasswordHash; 
+            }
+        }
+        else if (user.Credential.FailedLoginAttempts > 0)
+        {
+            // Reset failed attempts on success (only if we didn't already save above)
             var cred = await _context.UserCredentials.FindAsync(user.Id);
             if (cred != null)
             {
@@ -280,22 +303,100 @@ public class AuthService : IAuthService
         };
     }
 
-    public string CreateAuthorizationCode(string emailOrNationalId, string redirectUri, string? state, string? clientId = null)
+    public string CreateAuthorizationCode(string emailOrNationalId, string redirectUri, string? state, string? clientId = null, string? codeChallenge = null, string? codeChallengeMethod = null)
     {
-        // Stateless code: email|redirectUri|clientId|timestamp
+        // Stateless code: email|redirectUri|clientId|timestamp|challenge|method
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        var plainText = $"{emailOrNationalId}|{redirectUri}|{clientId ?? ""}|{timestamp}";
-        var bytes = Encoding.UTF8.GetBytes(plainText);
-        return Convert.ToBase64String(bytes)
-            .Replace("+", "-")
-            .Replace("/", "_")
-            .TrimEnd('=');
+        // Include PKCE params in the payload (or ideally, just store them in memory/database associated with a random ID)
+        // Since we are using a concurrent dictionary in memory (lines 55), let's use that instead of embedding everything in the string
+        
+        var codeId = Guid.NewGuid().ToString("N");
+        var session = new AuthCodeSession(
+            emailOrNationalId, 
+            redirectUri, 
+            state, 
+            codeChallenge,
+            codeChallengeMethod,
+            DateTimeOffset.UtcNow);
+
+        _authCodes.TryAdd(codeId, session);
+
+        // Clean up expired codes occasionally
+        if (_authCodes.Count > 1000)
+        {
+            foreach (var key in _authCodes.Keys)
+            {
+                if (_authCodes.TryGetValue(key, out var s) && (DateTimeOffset.UtcNow - s.CreatedAt) > CodeExpiration)
+                {
+                    _authCodes.TryRemove(key, out _);
+                }
+            }
+        }
+
+        return codeId;
     }
 
-    public async Task<NetworcoIdUserDto?> ValidateAuthorizationCodeAsync(string code, string redirectUri, string? clientId = null, bool isRegistration = false)
+    public async Task<NetworcoIdUserDto?> ValidateAuthorizationCodeAsync(string code, string redirectUri, string? clientId = null, string? codeVerifier = null, bool isRegistration = false)
     {
         try
         {
+            // Check in-memory store first (New Way)
+            if (_authCodes.TryRemove(code, out var session))
+            {
+                // Verify expiration
+                if ((DateTimeOffset.UtcNow - session.CreatedAt) > CodeExpiration)
+                {
+                    _logger.LogWarning("Authorization code expired");
+                    return null;
+                }
+
+                // Verify Redirect URI
+                var normalizedOriginal = session.RedirectUri.TrimEnd('/');
+                var normalizedActual = redirectUri.TrimEnd('/');
+                if (!string.Equals(normalizedOriginal, normalizedActual, StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogWarning("Redirect URI mismatch. Expected {Expected}, Got {Actual}", session.RedirectUri, redirectUri);
+                    return null;
+                }
+
+                // Verify PKCE
+                if (!string.IsNullOrEmpty(session.CodeChallenge))
+                {
+                    if (string.IsNullOrEmpty(codeVerifier))
+                    {
+                        _logger.LogWarning("PKCE required but code_verifier missing");
+                        return null;
+                    }
+
+                    if (session.CodeChallengeMethod == "S256")
+                    {
+                        using var sha256 = global::System.Security.Cryptography.SHA256.Create();
+                        var challengeBytes = sha256.ComputeHash(Encoding.ASCII.GetBytes(codeVerifier));
+                        var challenge = Convert.ToBase64String(challengeBytes)
+                            .Replace("+", "-")
+                            .Replace("/", "_")
+                            .TrimEnd('=');
+
+                        if (challenge != session.CodeChallenge)
+                        {
+                            _logger.LogWarning("PKCE verification failed for S256");
+                            return null;
+                        }
+                    }
+                    else
+                    {
+                        // Plain (not recommended, but supported by spec)
+                        if (codeVerifier != session.CodeChallenge)
+                        {
+                            _logger.LogWarning("PKCE verification failed for plain");
+                            return null;
+                        }
+                    }
+                }
+
+                return await GetUserByEmailOrNationalIdAsync(session.EmailOrNationalId);
+            }
+
             // Handle NETWORCO ID authorization codes
             if (code.StartsWith("dev_"))
             {
@@ -344,10 +445,10 @@ public class AuthService : IAuthService
             }
 
             // Verify redirect URI matches (case-insensitive for local development)
-            var normalizedOriginal = originalRedirectUri.TrimEnd('/');
-            var normalizedActual = redirectUri.TrimEnd('/');
+            var normalizedLegacyOriginal = originalRedirectUri.TrimEnd('/');
+            var normalizedLegacyActual = redirectUri.TrimEnd('/');
 
-            if (!string.Equals(normalizedOriginal, normalizedActual, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(normalizedLegacyOriginal, normalizedLegacyActual, StringComparison.OrdinalIgnoreCase))
             {
                 _logger.LogWarning("Authorization code validation failed: redirect_uri mismatch. Expected {Expected}, Got {Actual}", originalRedirectUri, redirectUri);
                 return null;
@@ -676,5 +777,7 @@ public class AuthService : IAuthService
         string EmailOrNationalId,
         string RedirectUri,
         string? State,
+        string? CodeChallenge,
+        string? CodeChallengeMethod,
         DateTimeOffset CreatedAt);
 }

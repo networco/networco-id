@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using NetworcoId.Core.Models;
 
 namespace NetworcoId.Models.Auth;
@@ -82,9 +83,13 @@ public class RegisterRequest
 /// </summary>
 public class AuthenticateResponse
 {
+    [JsonPropertyName("access_token")]
     public required string AccessToken { get; set; }
+    [JsonPropertyName("refresh_token")]
     public required string RefreshToken { get; set; }
+    [JsonPropertyName("expires_in")]
     public required int ExpiresIn { get; set; }
+    [JsonPropertyName("token_type")]
     public required string TokenType { get; set; } = "Bearer";
     public required NetworcoIdUserDto User { get; set; }
 }
@@ -94,6 +99,7 @@ public class AuthenticateResponse
 /// </summary>
 public class RefreshTokenRequest
 {
+    [JsonPropertyName("refresh_token")]
     public required string RefreshToken { get; set; }
 }
 
@@ -102,9 +108,13 @@ public class RefreshTokenRequest
 /// </summary>
 public class RefreshTokenResponse
 {
+    [JsonPropertyName("access_token")]
     public required string AccessToken { get; set; }
+    [JsonPropertyName("refresh_token")]
     public required string RefreshToken { get; set; }
+    [JsonPropertyName("expires_in")]
     public required int ExpiresIn { get; set; }
+    [JsonPropertyName("token_type")]
     public required string TokenType { get; set; } = "Bearer";
     public required NetworcoIdUserDto User { get; set; }
 }
@@ -135,6 +145,7 @@ public class AuthorizationRequest
     public required string ClientId { get; set; }
     public string? RedirectUri { get; set; }
     public string? State { get; set; }
+    [JsonPropertyName("scope")]
     public string? Scope { get; set; }
 }
 
@@ -178,10 +189,15 @@ public class TokenRequest
 /// </summary>
 public class TokenResponse
 {
+    [JsonPropertyName("access_token")]
     public required string AccessToken { get; set; }
+    [JsonPropertyName("token_type")]
     public required string TokenType { get; set; } = "Bearer";
+    [JsonPropertyName("expires_in")]
     public required int ExpiresIn { get; set; }
+    [JsonPropertyName("refresh_token")]
     public string? RefreshToken { get; set; }
+    [JsonPropertyName("scope")]
     public string? Scope { get; set; }
 }
 

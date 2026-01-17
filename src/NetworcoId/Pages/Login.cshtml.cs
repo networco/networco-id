@@ -23,10 +23,18 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
     [BindProperty(SupportsGet = true)]
     public string? scope { get; set; }
 
+    [BindProperty(SupportsGet = true)]
+    public string? code_challenge { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public string? code_challenge_method { get; set; }
+
     public string? ClientId => client_id;
     public string? RedirectUri => redirect_uri;
     public string? State => state;
     public string? Scope => scope;
+    public string? CodeChallenge => code_challenge;
+    public string? CodeChallengeMethod => code_challenge_method;
 
     [BindProperty(SupportsGet = true, Name = "registration")]
     public string? Registration { get; set; }
@@ -56,6 +64,8 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
         redirect_uri ??= Request.Query["redirect_uri"];
         state ??= Request.Query["state"];
         scope ??= Request.Query["scope"];
+        code_challenge ??= Request.Query["code_challenge"];
+        code_challenge_method ??= Request.Query["code_challenge_method"];
 
         // Log parameters for debugging
         logger.LogInformation("Login OnGet: ClientId={ClientId}, RedirectUri={RedirectUri}", ClientId, RedirectUri);
@@ -127,6 +137,12 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
 
             scope ??= Request.Query["scope"];
             if (string.IsNullOrEmpty(scope) && Request.HasFormContentType) scope = Request.Form["scope"];
+
+            code_challenge ??= Request.Query["code_challenge"];
+            if (string.IsNullOrEmpty(code_challenge) && Request.HasFormContentType) code_challenge = Request.Form["code_challenge"];
+
+            code_challenge_method ??= Request.Query["code_challenge_method"];
+            if (string.IsNullOrEmpty(code_challenge_method) && Request.HasFormContentType) code_challenge_method = Request.Form["code_challenge_method"];
 
             if (string.IsNullOrEmpty(Email) || string.IsNullOrEmpty(Password))
             {
@@ -209,12 +225,14 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
                     client_id = ClientId,
                     redirect_uri = RedirectUri,
                     state = State,
-                    scope = Scope
+                    scope = Scope,
+                    code_challenge = CodeChallenge,
+                    code_challenge_method = CodeChallengeMethod
                 });
             }
 
             // Create authorization code
-            var code = authService.CreateAuthorizationCode(user.Email, RedirectUri, State, ClientId);
+            var code = authService.CreateAuthorizationCode(user.Email, RedirectUri, State, ClientId, CodeChallenge, CodeChallengeMethod);
 
             // Build redirect URL
             var redirectUrl = new UriBuilder(RedirectUri);

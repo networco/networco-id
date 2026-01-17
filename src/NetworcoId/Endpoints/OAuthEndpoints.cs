@@ -134,12 +134,27 @@ public static class OAuthEndpoints
         [FromQuery] string? state,
         [FromQuery] string? scope,
         [FromQuery] string? registration,
+        [FromQuery] string? code_challenge,
+        [FromQuery] string? code_challenge_method,
         NetworcoId.Infrastructure.Database.AuthDbContext dbContext)
     {
         // Validate request
         if (response_type != "code")
         {
             return Results.BadRequest(new { error = "invalid_request", error_description = "response_type must be 'code'" });
+        }
+
+        // Validate PKCE
+        if (!string.IsNullOrEmpty(code_challenge) && code_challenge_method != "S256" && code_challenge_method != "plain")
+        {
+             return Results.BadRequest(new { error = "invalid_request", error_description = "code_challenge_method must be 'S256' or 'plain'" });
+        }
+
+        // Enforce PKCE for public clients (or all, ideally)
+        // For now, we'll just ensure that if method is provided, challenge is also provided
+        if (!string.IsNullOrEmpty(code_challenge_method) && string.IsNullOrEmpty(code_challenge))
+        {
+            return Results.BadRequest(new { error = "invalid_request", error_description = "code_challenge is required when code_challenge_method is present" });
         }
 
         if (string.IsNullOrEmpty(redirect_uri))
@@ -189,6 +204,10 @@ public static class OAuthEndpoints
         if (!string.IsNullOrEmpty(state)) query["state"] = state;
         if (!string.IsNullOrEmpty(scope)) query["scope"] = scope;
         if (!string.IsNullOrEmpty(registration)) query["registration"] = registration;
+        
+        // Pass PKCE params to login page so they can be preserved
+        if (!string.IsNullOrEmpty(code_challenge)) query["code_challenge"] = code_challenge;
+        if (!string.IsNullOrEmpty(code_challenge_method)) query["code_challenge_method"] = code_challenge_method;
 
         return Results.Redirect($"/Login?{query}");
     }
@@ -199,6 +218,7 @@ public static class OAuthEndpoints
         [FromForm] string redirect_uri,
         [FromForm] string client_id,
         [FromForm] string client_secret,
+        [FromForm] string? code_verifier,
         IAuthService authService,
         IJwtService jwtService,
         NetworcoId.Infrastructure.Database.AuthDbContext dbContext,
@@ -234,7 +254,7 @@ public static class OAuthEndpoints
         Console.WriteLine($"Client authenticated: {client.DisplayName}");
 
         // Validate authorization code
-        var user = await authService.ValidateAuthorizationCodeAsync(code, redirect_uri, client_id);
+        var user = await authService.ValidateAuthorizationCodeAsync(code, redirect_uri, client_id, code_verifier);
         if (user == null)
         {
             return Results.BadRequest(new
