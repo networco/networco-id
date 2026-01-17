@@ -99,6 +99,19 @@ public static class AuthEndpoints
             .WithSummary("Complete password reset")
             .Produces(200)
             .Produces(400);
+
+        // JWKS Endpoint
+        group.MapGet("/.well-known/jwks.json", GetJwks)
+            .WithName("GetJwks")
+            .WithSummary("Get JSON Web Key Set")
+            .WithDescription("Returns public keys for validating JWT tokens")
+            .Produces<Microsoft.IdentityModel.Tokens.JsonWebKeySet>(200);
+    }
+
+    private static async Task<IResult> GetJwks(IJwtService jwtService)
+    {
+        var keys = await jwtService.GetPublicKeysAsync();
+        return Results.Ok(keys);
     }
 
     private static async Task<IResult> ForgotPassword(
@@ -155,7 +168,7 @@ public static class AuthEndpoints
             return Results.Json(new { error = "must_change_password", message = "You must change your password before proceeding." }, statusCode: 403);
         }
 
-        var accessToken = jwtService.GenerateAccessToken(user);
+        var accessToken = await jwtService.GenerateAccessTokenAsync(user);
         var refreshToken = jwtService.GenerateRefreshToken();
 
         // Store refresh token
@@ -203,7 +216,7 @@ public static class AuthEndpoints
         }
 
         // Generate new tokens
-        var newAccessToken = jwtService.GenerateAccessToken(user);
+        var newAccessToken = await jwtService.GenerateAccessTokenAsync(user);
         var newRefreshToken = jwtService.GenerateRefreshToken();
 
         // Rotate refresh token
@@ -253,7 +266,7 @@ public static class AuthEndpoints
                 return Results.BadRequest(new { error = "Failed to create user account" });
             }
 
-            var accessToken = jwtService.GenerateAccessToken(user);
+            var accessToken = await jwtService.GenerateAccessTokenAsync(user);
             var refreshToken = jwtService.GenerateRefreshToken();
 
             // Store refresh token

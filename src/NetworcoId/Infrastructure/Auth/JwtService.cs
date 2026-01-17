@@ -5,7 +5,9 @@ using System.Text;
 using Microsoft.IdentityModel.Tokens;
 using NetworcoId.Models.Auth;
 using NetworcoId.Core.Models;
-using System.Text.Json;
+using NetworcoId.Models.Entities;
+using NetworcoId.Infrastructure.Database;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace NetworcoId.Infrastructure.Auth;
 
@@ -14,64 +16,73 @@ namespace NetworcoId.Infrastructure.Auth;
 /// </summary>
 public interface IJwtService
 {
-    string GenerateAccessToken(NetworcoIdUserDto user);
+    Task<string> GenerateAccessTokenAsync(NetworcoIdUserDto user, CancellationToken cancellationToken = default);
     string GenerateRefreshToken();
-    ClaimsPrincipal? ValidateToken(string token);
-    JsonWebKeySet GetPublicKeys();
+    Task<ClaimsPrincipal?> ValidateTokenAsync(string token, CancellationToken cancellationToken = default);
+    Task<JsonWebKeySet> GetPublicKeysAsync(CancellationToken cancellationToken = default);
 }
 
 /// <summary>
-/// JWT token service implementation.
+/// JWT token service implementation with JWKS rotation support.
 /// </summary>
 public class JwtService : IJwtService
 {
     private readonly NetworcoIdConfig _config;
-    private readonly RsaSecurityKey? _rsaKey;
-    private readonly string _kid;
+    private readonly IKeyManagementService _keyManagementService;
+    private readonly IMemoryCache _cache;
+    
+    private const string ValidKeysCacheKey = "valid_signing_keys";
 
-    public JwtService(NetworcoIdConfig config)
+    public JwtService(
+        NetworcoIdConfig config,
+        IKeyManagementService keyManagementService,
+        IMemoryCache cache)
     {
         _config = config;
-        _kid = _config.SigningKeyId ?? "networco-id-primary";
-
-        if (!string.IsNullOrEmpty(_config.SigningKeyPem))
-        {
-            try
-            {
-                var rsa = RSA.Create();
-                rsa.ImportFromPem(_config.SigningKeyPem);
-                _rsaKey = new RsaSecurityKey(rsa) { KeyId = _kid };
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error loading RSA key from PEM: {ex.Message}");
-            }
-        }
+        _keyManagementService = keyManagementService;
+        _cache = cache;
     }
 
-    public string GenerateAccessToken(NetworcoIdUserDto user)
+    private async Task<List<SigningKeyEntity>> GetCachedKeysAsync(CancellationToken cancellationToken)
+    {
+        return await _cache.GetOrCreateAsync(ValidKeysCacheKey, async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10); // Cache for 10 mins
+            return await _keyManagementService.GetValidKeysAsync(cancellationToken);
+        }) ?? new List<SigningKeyEntity>();
+    }
+
+    public async Task<string> GenerateAccessTokenAsync(NetworcoIdUserDto user, CancellationToken cancellationToken = default)
     {
         var claims = new[]
         {
-            new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()), // User ID as subject
+            new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new Claim(JwtRegisteredClaimNames.Email, user.Email),
             new Claim(JwtRegisteredClaimNames.GivenName, user.FirstName),
             new Claim(JwtRegisteredClaimNames.FamilyName, user.LastName),
-            new Claim("national_id", user.NationalId),
+            new Claim("national_id", user.NationalId ?? ""),
             new Claim("phone_number", user.PhoneNumber ?? ""),
-            // Removed: role claim - authorization handled by resource server
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
         };
 
+        var keys = await GetCachedKeysAsync(cancellationToken);
+        var activeKeyEntity = keys.FirstOrDefault(k => k.Status == KeyStatus.Active) 
+                              ?? keys.FirstOrDefault(); // Fallback to any key if active missing (shouldn't happen)
+
         SigningCredentials creds;
-        if (_rsaKey != null)
+
+        if (activeKeyEntity != null)
         {
-            creds = new SigningCredentials(_rsaKey, SecurityAlgorithms.RsaSha256);
+            var rsa = RSA.Create();
+            rsa.ImportFromPem(activeKeyEntity.PrivateKeyPem);
+            var securityKey = new RsaSecurityKey(rsa) { KeyId = activeKeyEntity.KeyId };
+            creds = new SigningCredentials(securityKey, SecurityAlgorithms.RsaSha256);
         }
         else
         {
+            // Fallback to static config secret (only if DB keys are missing entirely)
             var signingKey = _config.Secret 
-                ?? throw new InvalidOperationException("JWT signing key not configured. Set NetworcoId:Secret, Auth:Jwt:SigningKey, or JWT_SECRET.");
+                ?? throw new InvalidOperationException("No signing keys found in DB and no static secret configured.");
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey));
             creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
         }
@@ -86,19 +97,31 @@ public class JwtService : IJwtService
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    public JsonWebKeySet GetPublicKeys()
+    public async Task<JsonWebKeySet> GetPublicKeysAsync(CancellationToken cancellationToken = default)
     {
-        if (_rsaKey == null)
+        var keys = await GetCachedKeysAsync(cancellationToken);
+        var jwks = new JsonWebKeySet();
+
+        foreach (var keyEntity in keys)
         {
-            return new JsonWebKeySet();
+            try 
+            {
+                var rsa = RSA.Create();
+                rsa.ImportFromPem(keyEntity.PublicKeyPem);
+                var securityKey = new RsaSecurityKey(rsa) { KeyId = keyEntity.KeyId };
+                var jwk = JsonWebKeyConverter.ConvertFromRSASecurityKey(securityKey);
+                jwk.Use = "sig";
+                jwk.Alg = keyEntity.Algorithm;
+                jwk.Kid = keyEntity.KeyId;
+                jwks.Keys.Add(jwk);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error converting key {keyEntity.KeyId} to JWK: {ex.Message}");
+            }
         }
 
-        var jwk = JsonWebKeyConverter.ConvertFromRSASecurityKey(_rsaKey);
-        jwk.Kid = _kid;
-        jwk.Use = "sig";
-        jwk.Alg = SecurityAlgorithms.RsaSha256;
-
-        return new JsonWebKeySet { Keys = { jwk } };
+        return jwks;
     }
 
     public string GenerateRefreshToken()
@@ -109,52 +132,41 @@ public class JwtService : IJwtService
         return Convert.ToBase64String(randomBytes);
     }
 
-    public ClaimsPrincipal? ValidateToken(string token)
+    public async Task<ClaimsPrincipal?> ValidateTokenAsync(string token, CancellationToken cancellationToken = default)
     {
         var tokenHandler = new JwtSecurityTokenHandler();
+        var keys = await GetCachedKeysAsync(cancellationToken);
         
-        TokenValidationParameters validationParameters;
+        var securityKeys = new List<SecurityKey>();
 
-        if (_rsaKey != null)
+        // Add RSA keys
+        foreach (var keyEntity in keys)
         {
-            validationParameters = new TokenValidationParameters
-            {
-                ValidateIssuerSigningKey = true,
-                IssuerSigningKey = _rsaKey,
-                ValidateIssuer = true,
-                ValidIssuer = _config.Issuer,
-                ValidateAudience = true,
-                ValidAudience = _config.Audience,
-                ValidateLifetime = true,
-                ClockSkew = TimeSpan.Zero
-            };
-        }
-        else
-        {
-            var signingKey = _config.Secret 
-                ?? throw new InvalidOperationException("JWT signing key not configured.");
-            var key = Encoding.UTF8.GetBytes(signingKey);
-            validationParameters = new TokenValidationParameters
-            {
-                ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(key),
-                ValidateIssuer = true,
-                ValidIssuer = _config.Issuer,
-                ValidateAudience = true,
-                ValidAudience = _config.Audience,
-                ValidateLifetime = true,
-                ClockSkew = TimeSpan.Zero
-            };
+            var rsa = RSA.Create();
+            rsa.ImportFromPem(keyEntity.PublicKeyPem);
+            securityKeys.Add(new RsaSecurityKey(rsa) { KeyId = keyEntity.KeyId });
         }
 
-        try
+        // Add static secret fallback
+        if (!string.IsNullOrEmpty(_config.Secret))
         {
-            var principal = tokenHandler.ValidateToken(token, validationParameters, out _);
-            return principal;
+            securityKeys.Add(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config.Secret)));
         }
-        catch
+
+        var validationParameters = new TokenValidationParameters
         {
-            return null;
-        }
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKeys = securityKeys, // Supports multiple keys
+            ValidateIssuer = true,
+            ValidIssuer = _config.Issuer,
+            ValidateAudience = true,
+            ValidAudience = _config.Audience,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.Zero
+        };
+
+        // ValidateToken is synchronous but we wrapped it in async flow
+        var principal = tokenHandler.ValidateToken(token, validationParameters, out _);
+        return principal;
     }
 }

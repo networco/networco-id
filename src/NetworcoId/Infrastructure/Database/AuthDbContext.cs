@@ -23,6 +23,7 @@ public class AuthDbContext : DbContext, IDataProtectionKeyContext
     public DbSet<AuthSessionEntity> AuthSessions => Set<AuthSessionEntity>();
     public DbSet<OAuthClientEntity> OAuthClients => Set<OAuthClientEntity>();
     public DbSet<AuditLogEntity> AuditLogs => Set<AuditLogEntity>();
+    public DbSet<SigningKeyEntity> SigningKeys => Set<SigningKeyEntity>();
     
     // Data Protection keys for multi-instance deployments
     public DbSet<DataProtectionKey> DataProtectionKeys { get; set; } = null!;
@@ -40,6 +41,16 @@ public class AuthDbContext : DbContext, IDataProtectionKeyContext
             entity.HasKey(e => e.ClientId);
             entity.Property(e => e.ClientId).HasMaxLength(100);
             entity.Property(e => e.DisplayName).HasMaxLength(200);
+        });
+
+        // Configure SigningKeyEntity
+        modelBuilder.Entity<SigningKeyEntity>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.KeyId).IsUnique();
+            entity.Property(e => e.KeyId).HasMaxLength(100);
+            entity.Property(e => e.Algorithm).HasMaxLength(20);
+            entity.Property(e => e.Status).HasConversion<string>();
         });
 
         // Apply all configurations from this assembly
