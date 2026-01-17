@@ -97,6 +97,23 @@ public static class ServiceConfiguration
             .AddJwtBearer(options =>
             {
                 options.MapInboundClaims = false;
+                options.Events = new JwtBearerEvents
+                {
+                    // Allow reading the token from the body for OIDC conformance tests
+                    OnMessageReceived = context =>
+                    {
+                        if (string.IsNullOrEmpty(context.Token))
+                        {
+                            // Try to find access_token in the form body
+                            if (context.Request.HasFormContentType && context.Request.Form.ContainsKey("access_token"))
+                            {
+                                context.Token = context.Request.Form["access_token"];
+                            }
+                        }
+                        return Task.CompletedTask;
+                    }
+                };
+
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuer = true,
