@@ -14,27 +14,32 @@ public class PasswordValidator : IPasswordValidator
     {
         if (string.IsNullOrWhiteSpace(password))
         {
-            return (false, "Password is required");
+            return (false, "Password is required.");
         }
 
-        if (password.Length < 8)
+        if (password.Length < 12)
         {
-            return (false, "Passordet må være minst 8 tegn");
+            return (false, "Password must be at least 12 characters long.");
         }
 
         if (!password.Any(char.IsUpper))
         {
-            return (false, "Passordet må inneholde minst én stor bokstav");
+            return (false, "Password must contain at least one uppercase letter.");
         }
 
         if (!password.Any(char.IsLower))
         {
-            return (false, "Passordet må inneholde minst én liten bokstav");
+            return (false, "Password must contain at least one lowercase letter.");
         }
 
         if (!password.Any(char.IsDigit))
         {
-            return (false, "Passordet må inneholde minst ett tall");
+            return (false, "Password must contain at least one number.");
+        }
+
+        if (!password.Any(ch => !char.IsLetterOrDigit(ch)))
+        {
+            return (false, "Password must contain at least one special character.");
         }
 
         return (true, null);

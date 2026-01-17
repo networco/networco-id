@@ -150,6 +150,11 @@ public static class AuthEndpoints
             return Results.BadRequest(new { error = "Invalid credentials" });
         }
 
+        if (user.MustChangePassword)
+        {
+            return Results.Json(new { error = "must_change_password", message = "You must change your password before proceeding." }, statusCode: 403);
+        }
+
         var accessToken = jwtService.GenerateAccessToken(user);
         var refreshToken = jwtService.GenerateRefreshToken();
 
