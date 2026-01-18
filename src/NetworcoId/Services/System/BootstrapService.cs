@@ -43,7 +43,7 @@ public class BootstrapService(
                     changed = true;
                 }
             }
-
+            
             if (changed)
             {
                 logger.LogInformation("Updated system client scopes for '{ClientId}'.", clientId);

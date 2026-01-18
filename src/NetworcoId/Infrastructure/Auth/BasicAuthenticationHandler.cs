@@ -29,11 +29,13 @@ public static class BasicAuthenticationHandler
             {
                 clientId = Uri.UnescapeDataString(parts[0]);
                 clientSecret = Uri.UnescapeDataString(parts[1]);
+                Console.WriteLine($"[DEBUG] Basic Auth Extracted: ClientId={clientId}, SecretLength={clientSecret?.Length}");
                 return true;
             }
         }
-        catch
+        catch (Exception ex)
         {
+            Console.WriteLine($"[DEBUG] Basic Auth Parsing Failed: {ex.Message}");
             // Ignore parsing errors
         }
 
