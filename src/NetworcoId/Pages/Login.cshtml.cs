@@ -257,6 +257,15 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
                 new Claim("auth_time", authTime.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64) // Store auth_time
             };
 
+            // Add roles to cookie session so [AdminAuth] and other policies work
+            if (user.Roles != null)
+            {
+                foreach (var role in user.Roles)
+                {
+                    claims.Add(new Claim(ClaimTypes.Role, role));
+                }
+            }
+
             var claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
             var authProperties = new AuthenticationProperties
             {

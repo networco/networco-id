@@ -37,6 +37,11 @@ spec:
           value: "nats://nats.networco-id.svc.cluster.local:4222"
         - name: NETWORCO_EXTRA_ADMINS
           value: "andre@biseth.net"
+        - name: Admin__AccessKey
+          valueFrom:
+            secretKeyRef:
+              name: networcoid-secrets
+              key: admin-access-key
         ports:
         - containerPort: 8080
 ---

@@ -32,3 +32,7 @@ spec:
             secretKeyRef:
               name: networcoid-secrets
               key: brevo-api-key
+        - name: BREVO_SENDER_NAME
+          value: "NETWORCO"
+        - name: BREVO_SENDER_EMAIL
+          value: "networco@bogentech.no"

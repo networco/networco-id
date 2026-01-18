@@ -31,6 +31,9 @@ public class UserEntityConfiguration : IEntityTypeConfiguration<UserEntity>
             .HasMaxLength(100)
             .IsRequired();
 
+        builder.Property(u => u.Roles)
+            .HasColumnType("text[]");
+
         builder.Property(u => u.NationalId)
             .HasMaxLength(11); // Norwegian fødselsnummer format
 

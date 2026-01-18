@@ -19,8 +19,7 @@ public static class NatsExtensions
         var opts = new NatsOpts
         {
             Url = url,
-            Name = clientName,
-            SerializerRegistry = NatsJsonSerializerRegistry.Default
+            Name = clientName
         };
 
         services.AddSingleton<INatsConnection>(_ => new NatsConnection(opts));

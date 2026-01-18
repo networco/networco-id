@@ -161,7 +161,9 @@ public class KeyManagementService : IKeyManagementService
     {
         try
         {
-            await _nats.PublishAsync(NetworcoIdSubjects.IdentityKeysRotated, new { Timestamp = DateTime.UtcNow });
+            var eventData = new { Timestamp = DateTime.UtcNow };
+            var jsonBytes = global::System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(eventData);
+            await _nats.PublishAsync(NetworcoIdSubjects.IdentityKeysRotated, jsonBytes);
             _logger.LogInformation("Published key rotation event to NATS.");
         }
         catch (Exception ex)

@@ -103,17 +103,19 @@ public class EmailWorker(
 
     private async Task HandleVerificationEmail(EmailVerificationMessage data, CancellationToken ct)
     {
+        var baseUrl = data.BaseUrl?.TrimEnd('/') ?? "https://id.networco.no";
         var subject = data.Type == "OTP" ? "Your NetworcoID Login Code" : "Verify your NetworcoID account";
         var body = data.Type == "OTP"
             ? $"Your login code is: {data.Token}"
-            : $"Please verify your account using this token: {data.Token}\n\nLink: https://id.networco.no/verify?token={data.Token}";
+            : $"Please verify your account using this token: {data.Token}\n\nLink: {baseUrl}/verify?token={data.Token}";
 
         await brevoEmail.SendEmailAsync(data.Email, data.FirstName, subject, ToHtml(body), ct);
     }
 
     private async Task HandlePasswordResetEmail(PasswordResetMessage data, CancellationToken ct)
     {
-        var body = $"You requested a password reset. Please use the following link to reset your password:\n\nLink: https://id.networco.no/Auth/ResetPassword?token={data.Token}\n\nThis link expires in 2 hours.";
+        var baseUrl = data.BaseUrl?.TrimEnd('/') ?? "https://id.networco.no";
+        var body = $"You requested a password reset. Please use the following link to reset your password:\n\nLink: {baseUrl}/Auth/ResetPassword?token={data.Token}\n\nThis link expires in 2 hours.";
         await brevoEmail.SendEmailAsync(data.Email, data.FirstName, "Reset your NetworcoID password", ToHtml(body), ct);
     }
 

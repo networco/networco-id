@@ -36,7 +36,25 @@ public class AdminAuthAttribute : Attribute, IAsyncPageFilter
             }
         }
 
-        var env = context.HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>();
+        // Check if user is authenticated via OAuth and has the 'admin' role
+        var user = context.HttpContext.User;
+        if (user.Identity?.IsAuthenticated == true && user.IsInRole("admin"))
+        {
+            // Auto-grant the session cookie if they are a valid admin
+            var env = context.HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>();
+            context.HttpContext.Response.Cookies.Append(AdminSessionCookie, adminKey, new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = !env.IsDevelopment(),
+                SameSite = SameSiteMode.Strict,
+                Expires = DateTimeOffset.UtcNow.AddDays(1)
+            });
+
+            await next();
+            return;
+        }
+
+        var env2 = context.HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>();
 
         // Check for query param (to set cookie)
         if (context.HttpContext.Request.Query.TryGetValue("key", out var queryKey))
@@ -47,7 +65,7 @@ public class AdminAuthAttribute : Attribute, IAsyncPageFilter
                 context.HttpContext.Response.Cookies.Append(AdminSessionCookie, adminKey, new CookieOptions
                 {
                     HttpOnly = true,
-                    Secure = !env.IsDevelopment(),
+                    Secure = !env2.IsDevelopment(),
                     SameSite = SameSiteMode.Strict,
                     Expires = DateTimeOffset.UtcNow.AddDays(1)
                 });

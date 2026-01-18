@@ -148,6 +148,16 @@ public class JwtService : IJwtService
             claims.Add(new Claim("scope", string.Join(" ", scopeList)));
         }
 
+        // Always include roles if the user has any
+        if (user.Roles.Any())
+        {
+            foreach (var role in user.Roles)
+            {
+                claims.Add(new Claim(ClaimTypes.Role, role));
+                claims.Add(new Claim("roles", role));
+            }
+        }
+
         // Email claim - only if 'email' scope is requested
         if (scopeList.Contains("email"))
         {
@@ -163,6 +173,8 @@ public class JwtService : IJwtService
             claims.Add(new Claim("name", $"{user.FirstName} {user.LastName}"));
             claims.Add(new Claim("preferred_username", user.Email));
             claims.Add(new Claim("updated_at", DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64));
+            
+            // Add roles to the token (removed redundant check as we add them above)
             
             if (!string.IsNullOrEmpty(user.NationalId))
             {
