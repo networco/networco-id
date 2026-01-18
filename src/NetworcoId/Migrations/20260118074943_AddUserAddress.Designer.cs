@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NetworcoId.Infrastructure.Database;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace NetworcoId.Migrations
 {
     [DbContext(typeof(AuthDbContext))]
-    partial class AuthDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260118074943_AddUserAddress")]
+    partial class AddUserAddress
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -364,30 +367,6 @@ namespace NetworcoId.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
-                    b.Property<string>("AddressCountry")
-                        .HasColumnType("text")
-                        .HasColumnName("address_country");
-
-                    b.Property<string>("AddressFormatted")
-                        .HasColumnType("text")
-                        .HasColumnName("address_formatted");
-
-                    b.Property<string>("AddressLocality")
-                        .HasColumnType("text")
-                        .HasColumnName("address_locality");
-
-                    b.Property<string>("AddressPostalCode")
-                        .HasColumnType("text")
-                        .HasColumnName("address_postal_code");
-
-                    b.Property<string>("AddressRegion")
-                        .HasColumnType("text")
-                        .HasColumnName("address_region");
-
-                    b.Property<string>("AddressStreetAddress")
-                        .HasColumnType("text")
-                        .HasColumnName("address_street_address");
-
                     b.Property<DateTimeOffset>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -447,10 +426,6 @@ namespace NetworcoId.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasColumnName("phone_number");
-
-                    b.Property<bool>("PhoneNumberVerified")
-                        .HasColumnType("boolean")
-                        .HasColumnName("phone_number_verified");
 
                     b.HasKey("Id");
 
