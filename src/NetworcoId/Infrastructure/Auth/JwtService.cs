@@ -17,7 +17,7 @@ namespace NetworcoId.Infrastructure.Auth;
 /// </summary>
 public interface IJwtService
 {
-    Task<string> GenerateAccessTokenAsync(NetworcoIdUserDto user, CancellationToken cancellationToken = default);
+    Task<string> GenerateAccessTokenAsync(NetworcoIdUserDto user, IEnumerable<string>? scopes = null, CancellationToken cancellationToken = default);
     Task<string> GenerateIdTokenAsync(NetworcoIdUserDto user, string clientId, string? nonce = null, CancellationToken cancellationToken = default);
     string GenerateRefreshToken();
     Task<ClaimsPrincipal?> ValidateTokenAsync(string token, CancellationToken cancellationToken = default);
@@ -131,23 +131,44 @@ public class JwtService : IJwtService
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    public async Task<string> GenerateAccessTokenAsync(NetworcoIdUserDto user, CancellationToken cancellationToken = default)
+    public async Task<string> GenerateAccessTokenAsync(NetworcoIdUserDto user, IEnumerable<string>? scopes = null, CancellationToken cancellationToken = default)
     {
         var claims = new List<Claim>
         {
             new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new Claim(JwtRegisteredClaimNames.Email, user.Email),
-            new Claim(JwtRegisteredClaimNames.GivenName, user.FirstName),
-            new Claim(JwtRegisteredClaimNames.FamilyName, user.LastName),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
         };
-
-        if (!string.IsNullOrEmpty(user.NationalId))
+        
+        // Scope handling
+        var scopeList = scopes?.ToList() ?? new List<string>();
+        if (scopeList.Any())
         {
-            claims.Add(new Claim("national_id", user.NationalId));
+            claims.Add(new Claim("scope", string.Join(" ", scopeList)));
         }
 
-        if (!string.IsNullOrEmpty(user.PhoneNumber))
+        // Email claim - only if 'email' scope is requested
+        if (scopeList.Contains("email"))
+        {
+            claims.Add(new Claim(JwtRegisteredClaimNames.Email, user.Email));
+            claims.Add(new Claim("email_verified", "true", ClaimValueTypes.Boolean));
+        }
+
+        // Profile claims - only if 'profile' scope is requested
+        if (scopeList.Contains("profile"))
+        {
+            claims.Add(new Claim(JwtRegisteredClaimNames.GivenName, user.FirstName));
+            claims.Add(new Claim(JwtRegisteredClaimNames.FamilyName, user.LastName));
+            claims.Add(new Claim("name", $"{user.FirstName} {user.LastName}"));
+            claims.Add(new Claim("preferred_username", user.Email));
+            claims.Add(new Claim("updated_at", DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64));
+            
+            if (!string.IsNullOrEmpty(user.NationalId))
+            {
+                claims.Add(new Claim("national_id", user.NationalId));
+            }
+        }
+
+        if (!string.IsNullOrEmpty(user.PhoneNumber) && scopeList.Contains("phone"))
         {
             claims.Add(new Claim("phone_number", user.PhoneNumber));
         }

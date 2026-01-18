@@ -21,12 +21,12 @@ public class CallbackModel(
 
         // Validate the authorization code
         // For the admin portal, we expect the code to belong to the networco-admin client
-        var user = await authService.ValidateAuthorizationCodeAsync(
+        var result = await authService.ValidateAuthorizationCodeAsync(
             code, 
             "http://localhost:5200/admin/callback", 
             "networco-admin");
 
-        if (user == null)
+        if (result.User == null)
         {
             logger.LogWarning("Admin login failed: Invalid authorization code.");
             return RedirectToPage("/Admin/Login", new { error = "Session verification failed." });
@@ -48,7 +48,7 @@ public class CallbackModel(
             Expires = DateTimeOffset.UtcNow.AddDays(1)
         });
 
-        logger.LogInformation("Admin user {Email} logged in successfully via OAuth bootstrap.", user.Email);
+        logger.LogInformation("Admin user {Email} logged in successfully via OAuth bootstrap.", result.User.Email);
 
         return RedirectToPage("/Admin/Clients/Index");
     }

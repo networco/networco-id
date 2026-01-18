@@ -92,12 +92,13 @@
             </div>
 
             <form method="post" id="loginForm" class="space-y-4">
-                <input type="hidden" asp-for="ClientId" name="client_id" />
-                <input type="hidden" asp-for="RedirectUri" name="redirect_uri" />
-                <input type="hidden" asp-for="State" name="state" />
-                <input type="hidden" asp-for="Scope" name="scope" />
-                <input type="hidden" asp-for="CodeChallenge" name="code_challenge" />
-                <input type="hidden" asp-for="CodeChallengeMethod" name="code_challenge_method" />
+                <input type="hidden" asp-for="scope" name="scope" />
+                <input type="hidden" asp-for="nonce" name="nonce" />
+                <input type="hidden" asp-for="client_id" name="client_id" />
+                <input type="hidden" asp-for="redirect_uri" name="redirect_uri" />
+                <input type="hidden" asp-for="state" name="state" />
+                <input type="hidden" asp-for="code_challenge" name="code_challenge" />
+                <input type="hidden" asp-for="code_challenge_method" name="code_challenge_method" />
 
                 <div>
                     <label asp-for="Email" class="block text-sm font-medium text-gray-700 mb-1">E-post</label>

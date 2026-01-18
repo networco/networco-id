@@ -80,11 +80,11 @@ public static class OAuthEndpoints
     {
         // For OIDC, we usually clear the application session
         // In this implementation, we can clear cookies or just redirect
-        
+
         // If a redirect URI is provided, validate it (in a real system)
         // For now, we allow redirecting back to the provided URI or the home page
         var redirectUrl = post_logout_redirect_uri ?? "/";
-        
+
         if (!string.IsNullOrEmpty(state))
         {
             var uriBuilder = new UriBuilder(redirectUrl);
@@ -106,7 +106,7 @@ public static class OAuthEndpoints
     private static IResult OpenIdConfiguration(HttpContext context)
     {
         var baseUrl = $"{context.Request.Scheme}://{context.Request.Host}";
-        
+
         return Results.Ok(new
         {
             issuer = baseUrl,
@@ -121,7 +121,7 @@ public static class OAuthEndpoints
             id_token_signing_alg_values_supported = new[] { "HS256", "RS256" },
             scopes_supported = new[] { "openid", "profile", "email", "phone", "address", "offline_access" },
             token_endpoint_auth_methods_supported = new[] { "client_secret_post", "client_secret_basic" },
-            claims_supported = new[] { "sub", "iss", "aud", "exp", "iat", "email", "name", "family_name", "given_name", "phone_number", "role", "national_id" },
+            claims_supported = new[] { "sub", "iss", "aud", "exp", "iat", "email", "email_verified", "name", "family_name", "given_name", "phone_number", "role", "national_id" },
             grant_types_supported = new[] { "authorization_code", "refresh_token" },
             code_challenge_methods_supported = new[] { "S256" }
         });
@@ -141,7 +141,7 @@ public static class OAuthEndpoints
         NetworcoId.Infrastructure.Database.AuthDbContext dbContext)
     {
         // 1. Validate Client and Redirect URI first (so we know where to send errors)
-        
+
         if (string.IsNullOrEmpty(client_id))
         {
             return Results.BadRequest(new { error = "invalid_request", error_description = "client_id is required" });
@@ -181,28 +181,28 @@ public static class OAuthEndpoints
 
         if (string.IsNullOrEmpty(response_type))
         {
-             // Missing response_type -> Redirect back to client
-             var errorQuery = HttpUtility.ParseQueryString("");
-             errorQuery["error"] = "invalid_request";
-             errorQuery["error_description"] = "response_type is required";
-             if (!string.IsNullOrEmpty(state)) errorQuery["state"] = state;
-             
-             var builder = new UriBuilder(redirect_uri);
-             builder.Query = (string.IsNullOrEmpty(builder.Query) ? "" : builder.Query.TrimStart('?') + "&") + errorQuery.ToString();
-             return Results.Redirect(builder.ToString());
+            // Missing response_type -> Redirect back to client
+            var errorQuery = HttpUtility.ParseQueryString("");
+            errorQuery["error"] = "invalid_request";
+            errorQuery["error_description"] = "response_type is required";
+            if (!string.IsNullOrEmpty(state)) errorQuery["state"] = state;
+
+            var builder = new UriBuilder(redirect_uri);
+            builder.Query = (string.IsNullOrEmpty(builder.Query) ? "" : builder.Query.TrimStart('?') + "&") + errorQuery.ToString();
+            return Results.Redirect(builder.ToString());
         }
 
         if (response_type != "code")
         {
-             // Unsupported response_type -> Redirect back to client
-             var errorQuery = HttpUtility.ParseQueryString("");
-             errorQuery["error"] = "unsupported_response_type";
-             errorQuery["error_description"] = "response_type must be 'code'";
-             if (!string.IsNullOrEmpty(state)) errorQuery["state"] = state;
+            // Unsupported response_type -> Redirect back to client
+            var errorQuery = HttpUtility.ParseQueryString("");
+            errorQuery["error"] = "unsupported_response_type";
+            errorQuery["error_description"] = "response_type must be 'code'";
+            if (!string.IsNullOrEmpty(state)) errorQuery["state"] = state;
 
-             var builder = new UriBuilder(redirect_uri);
-             builder.Query = (string.IsNullOrEmpty(builder.Query) ? "" : builder.Query.TrimStart('?') + "&") + errorQuery.ToString();
-             return Results.Redirect(builder.ToString());
+            var builder = new UriBuilder(redirect_uri);
+            builder.Query = (string.IsNullOrEmpty(builder.Query) ? "" : builder.Query.TrimStart('?') + "&") + errorQuery.ToString();
+            return Results.Redirect(builder.ToString());
         }
 
         if (response_type != "code")
@@ -261,7 +261,7 @@ public static class OAuthEndpoints
                 var errorQuery = HttpUtility.ParseQueryString("");
                 errorQuery["error"] = "invalid_scope";
                 errorQuery["error_description"] = $"Invalid scopes: {string.Join(", ", invalidScopes)}";
-                
+
                 var builder = new UriBuilder(redirect_uri);
                 builder.Query = (string.IsNullOrEmpty(builder.Query) ? "" : builder.Query.TrimStart('?') + "&") + errorQuery.ToString();
                 return Results.Redirect(builder.ToString());
@@ -276,7 +276,7 @@ public static class OAuthEndpoints
         if (!string.IsNullOrEmpty(scope)) query["scope"] = scope;
         if (!string.IsNullOrEmpty(registration)) query["registration"] = registration;
         if (!string.IsNullOrEmpty(nonce)) query["nonce"] = nonce;
-        
+
         // Pass PKCE params to login page so they can be preserved
         if (!string.IsNullOrEmpty(code_challenge)) query["code_challenge"] = code_challenge;
         if (!string.IsNullOrEmpty(code_challenge_method)) query["code_challenge_method"] = code_challenge_method;
@@ -327,7 +327,7 @@ public static class OAuthEndpoints
 
         // Validate client credentials
         var clientEntity = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(dbContext.OAuthClients, c => c.ClientId == finalClientId);
-        
+
         var isPrimaryValid = clientEntity != null && passwordHasher.VerifyPassword(finalClientSecret, clientEntity.PrimaryClientSecretHash);
         var isSecondaryValid = clientEntity != null && clientEntity.SecondaryClientSecretHash != null && passwordHasher.VerifyPassword(finalClientSecret, clientEntity.SecondaryClientSecretHash);
 
@@ -344,7 +344,13 @@ public static class OAuthEndpoints
         Console.WriteLine($"Client authenticated: {clientEntity.DisplayName}");
 
         // Validate authorization code
-        var user = await authService.ValidateAuthorizationCodeAsync(code ?? string.Empty, redirect_uri ?? string.Empty, finalClientId, code_verifier);
+        var validationResult = await authService.ValidateAuthorizationCodeAsync(code ?? string.Empty, redirect_uri ?? string.Empty, finalClientId, code_verifier);
+        var user = validationResult.User;
+
+        Console.WriteLine($"[OAuth] ValidateCode Result - User: {user?.Email}, Scopes: {(validationResult.Scopes == null ? "NULL" : string.Join(",", validationResult.Scopes))}");
+
+        var scopes = validationResult.Scopes ?? new List<string> { "openid", "profile", "email", "phone", "address" }; // Fallback
+
         if (user == null)
         {
             return Results.BadRequest(new
@@ -367,7 +373,8 @@ public static class OAuthEndpoints
         Console.WriteLine($"Token exchange for user ID: {user.Id}, Email: {user.Email}");
 
         // Generate tokens
-        var accessToken = await jwtService.GenerateAccessTokenAsync(user);
+        // Scopes are now retrieved from the authorization code session
+        var accessToken = await jwtService.GenerateAccessTokenAsync(user, scopes);
         var idToken = await jwtService.GenerateIdTokenAsync(user, finalClientId, user.Nonce);
         var refreshToken = jwtService.GenerateRefreshToken();
 
