@@ -17,8 +17,7 @@ public static class AuthEndpoints
     {
         var group = app.MapGroup("/auth")
             .WithTags("🔑 Authentication")
-            .WithDescription("Direct authentication endpoints for development")
-            .AllowAnonymous();
+            .WithDescription("Direct authentication endpoints for development");
 
         group.MapPost("/register", Register)
             .WithName("Register")
@@ -37,7 +36,8 @@ public static class AuthEndpoints
                 - `phoneNumber` (optional): User's phone number
                 """)
             .Produces<ValidationProblemDetails>(400)
-            .Produces<AuthenticateResponse>(201);
+            .Produces<AuthenticateResponse>(201)
+            .AllowAnonymous();
 
         group.MapPost("/login", Login)
             .WithName("Login")
@@ -52,7 +52,8 @@ public static class AuthEndpoints
                 - `password` (required): User's password
                 """)
             .Produces<ValidationProblemDetails>(400)
-            .Produces<AuthenticateResponse>(200);
+            .Produces<AuthenticateResponse>(200)
+            .AllowAnonymous();
 
         group.MapPost("/refresh", Refresh)
             .WithName("Refresh")
@@ -64,7 +65,8 @@ public static class AuthEndpoints
                 - `refreshToken` (required): Valid refresh token
                 """)
             .Produces<ValidationProblemDetails>(400)
-            .Produces<RefreshTokenResponse>(200);
+            .Produces<RefreshTokenResponse>(200)
+            .AllowAnonymous();
 
         group.MapPost("/logout", Logout)
             .WithName("Logout")
@@ -75,7 +77,8 @@ public static class AuthEndpoints
                 ### Request Body
                 - `refreshToken` (required): Refresh token to revoke
                 """)
-            .Produces(204);
+            .Produces(204)
+            .AllowAnonymous();
 
         group.MapGet("/me", GetCurrentUser)
             .WithName("GetCurrentUser")
@@ -102,21 +105,24 @@ public static class AuthEndpoints
             .WithName("ForgotPassword")
             .RequireRateLimiting("auth-strict")
             .WithSummary("Initiate password reset")
-            .Produces(200);
+            .Produces(200)
+            .AllowAnonymous();
 
         group.MapPost("/reset-password", ResetPassword)
             .WithName("ResetPassword")
             .RequireRateLimiting("auth-strict")
             .WithSummary("Complete password reset")
             .Produces(200)
-            .Produces(400);
+            .Produces(400)
+            .AllowAnonymous();
 
         // JWKS Endpoint
         group.MapGet("/.well-known/jwks.json", GetJwks)
             .WithName("GetJwks")
             .WithSummary("Get JSON Web Key Set")
             .WithDescription("Returns public keys for validating JWT tokens")
-            .Produces<Microsoft.IdentityModel.Tokens.JsonWebKeySet>(200);
+            .Produces<Microsoft.IdentityModel.Tokens.JsonWebKeySet>(200)
+            .AllowAnonymous();
     }
 
     private static async Task<IResult> GetJwks(IJwtService jwtService)
@@ -322,62 +328,113 @@ public static class AuthEndpoints
         // Extract user info from JWT token claims
         var userId = context.User.FindFirst("sub")?.Value;
         
+        // DEBUG LOGGING
+        Console.WriteLine($"[GetCurrentUser] User ID: {userId}");
+        foreach (var claim in context.User.Claims)
+        {
+            Console.WriteLine($"[GetCurrentUser] Claim: {claim.Type} = {claim.Value}");
+        }
+
         var claims = new Dictionary<string, object>
         {
             { "sub", userId ?? "" }
         };
 
-        if (context.User.HasClaim(c => c.Type == "email"))
-        {
-            var email = context.User.FindFirst("email")?.Value;
-            if (!string.IsNullOrEmpty(email))
-                claims.Add("email", email);
-        }
+        // Determine authorized scopes from the token
+        var scopeClaim = context.User.FindFirst("scope")?.Value;
+        Console.WriteLine($"[GetCurrentUser] Scope Claim: {scopeClaim}");
         
-        if (context.User.HasClaim(c => c.Type == "given_name"))
+        var scopes = scopeClaim?.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToHashSet() 
+                     ?? new HashSet<string>();
+        
+        Console.WriteLine($"[GetCurrentUser] Parsed Scopes: {string.Join(", ", scopes)}");
+
+        if (scopes.Contains("email"))
         {
-            var givenName = context.User.FindFirst("given_name")?.Value;
-            if (!string.IsNullOrEmpty(givenName))
-                claims.Add("given_name", givenName);
+            Console.WriteLine("[GetCurrentUser] Scope 'email' present. Checking for claim...");
+            if (context.User.HasClaim(c => c.Type == "email"))
+            {
+                var email = context.User.FindFirst("email")?.Value;
+                Console.WriteLine($"[GetCurrentUser] Claim 'email' found: {email}");
+                if (!string.IsNullOrEmpty(email))
+                    claims.Add("email", email);
+            }
+            else
+            {
+                Console.WriteLine("[GetCurrentUser] Claim 'email' NOT found in Principal.");
+            }
+        }
+        else
+        {
+            Console.WriteLine("[GetCurrentUser] Scope 'email' NOT present.");
         }
 
-        if (context.User.HasClaim(c => c.Type == "family_name"))
+        if (scopes.Contains("email") && context.User.HasClaim(c => c.Type == "email_verified"))
         {
-            var familyName = context.User.FindFirst("family_name")?.Value;
-            if (!string.IsNullOrEmpty(familyName))
-                claims.Add("family_name", familyName);
+            var emailVerified = context.User.FindFirst("email_verified")?.Value;
+            if (bool.TryParse(emailVerified, out var isVerified))
+                claims.Add("email_verified", isVerified);
         }
 
-        // Add 'name' claim which is standard in OIDC profile scope
-        if (claims.ContainsKey("given_name") && claims.ContainsKey("family_name"))
+        if (scopes.Contains("profile"))
         {
-            claims.Add("name", $"{claims["given_name"]} {claims["family_name"]}");
-        }
-        
-        // Add preferred_username (usually email or a specific username field)
-        if (claims.ContainsKey("email"))
-        {
-            claims.Add("preferred_username", claims["email"]);
-        }
-        
-        // Add updated_at claim (OIDC standard: time the user info was last updated)
-        // Since we don't track this yet, we'll default to current time for compliance
-        claims.Add("updated_at", DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+            if (context.User.HasClaim(c => c.Type == "given_name"))
+            {
+                var givenName = context.User.FindFirst("given_name")?.Value;
+                if (!string.IsNullOrEmpty(givenName))
+                    claims.Add("given_name", givenName);
+            }
+
+            if (context.User.HasClaim(c => c.Type == "family_name"))
+            {
+                var familyName = context.User.FindFirst("family_name")?.Value;
+                if (!string.IsNullOrEmpty(familyName))
+                    claims.Add("family_name", familyName);
+            }
+
+            // Add 'name' claim if present in the token (meaning 'profile' scope was requested)
+            if (context.User.HasClaim(c => c.Type == "name"))
+            {
+                var name = context.User.FindFirst("name")?.Value;
+                if (!string.IsNullOrEmpty(name))
+                    claims.Add("name", name);
+            }
             
-        if (context.User.HasClaim(c => c.Type == "national_id"))
-        {
-            var nationalId = context.User.FindFirst("national_id")?.Value;
-            if (!string.IsNullOrEmpty(nationalId))
-                claims.Add("national_id", nationalId);
+            // Add preferred_username if present in token
+            if (context.User.HasClaim(c => c.Type == "preferred_username"))
+            {
+                var preferredUsername = context.User.FindFirst("preferred_username")?.Value;
+                if (!string.IsNullOrEmpty(preferredUsername))
+                    claims.Add("preferred_username", preferredUsername);
+            }
+
+            // Add updated_at claim if present in token
+            if (context.User.HasClaim(c => c.Type == "updated_at"))
+            {
+                var updatedAt = context.User.FindFirst("updated_at")?.Value;
+                // Try parse to long to ensure valid JSON number format if needed, though value usually string in Claim
+                if (long.TryParse(updatedAt, out var updatedAtLong))
+                    claims.Add("updated_at", updatedAtLong);
+            }
+
+            if (context.User.HasClaim(c => c.Type == "national_id"))
+            {
+                var nationalId = context.User.FindFirst("national_id")?.Value;
+                if (!string.IsNullOrEmpty(nationalId))
+                    claims.Add("national_id", nationalId);
+            }
         }
 
-        if (context.User.HasClaim(c => c.Type == "phone_number"))
+        if (scopes.Contains("phone") && context.User.HasClaim(c => c.Type == "phone_number"))
         {
             var phoneNumber = context.User.FindFirst("phone_number")?.Value;
             if (!string.IsNullOrEmpty(phoneNumber))
                 claims.Add("phone_number", phoneNumber);
         }
 
+        // Handle case where scope might be missing (e.g. client creds or old tokens)
+        // If no scopes are present, default to minimal claims (sub only), which is already set
+        
         return Results.Json(claims);
     }
 }

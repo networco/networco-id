@@ -113,7 +113,14 @@ public static class ServiceConfiguration
                         return Task.CompletedTask;
                     }
                 };
+            });
 
+        // Configure JwtBearerOptions with dependency injection to access IMemoryCache
+        services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+            .Configure<IMemoryCache, IOptions<NetworcoIdConfig>>((options, cache, configOptions) =>
+            {
+                var config = configOptions.Value;
+                
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuer = true,
@@ -124,30 +131,36 @@ public static class ServiceConfiguration
                     // Use the JWKS endpoint for validation
                     IssuerSigningKeyResolver = (token, securityToken, kid, validationParameters) =>
                     {
-                        // Sync wrapper for async key retrieval
-                        // In production, use a caching singleton for keys
-                        var client = new HttpClient();
-                        var response = client.GetAsync($"{config.Issuer}/.well-known/jwks.json").Result;
-                        if (response.IsSuccessStatusCode)
+                        var keys = new List<SecurityKey>();
+                        
+                        // 1. Try to get keys from cache (populated by KeyRotationWorker/JwtService)
+                        if (cache.TryGetValue("valid_signing_keys", out List<NetworcoId.Models.Entities.SigningKeyEntity>? cachedKeys) && cachedKeys != null)
                         {
-                            var json = response.Content.ReadAsStringAsync().Result;
-                            var jwks = new JsonWebKeySet(json);
-                            return jwks.GetSigningKeys();
+                            foreach (var keyEntity in cachedKeys)
+                            {
+                                try 
+                                {
+                                    var rsa = System.Security.Cryptography.RSA.Create();
+                                    rsa.ImportFromPem(keyEntity.PublicKeyPem);
+                                    keys.Add(new RsaSecurityKey(rsa) { KeyId = keyEntity.KeyId });
+                                }
+                                catch 
+                                { 
+                                    // Ignore invalid keys in cache
+                                }
+                            }
                         }
-                        return new List<SecurityKey>();
+
+                        // 2. Add static secret fallback if configured
+                        if (!string.IsNullOrEmpty(config.Secret))
+                        {
+                            keys.Add(new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(config.Secret)));
+                        }
+
+                        return keys;
                     }
                 };
             });
-
-        // Re-configure JwtBearer to use our custom validation logic if needed,
-        // but primarily we need to fix the "Validator" issue.
-        // Let's use a simpler configuration that doesn't fail on startup.
-        services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
-        {
-             var serviceProvider = services.BuildServiceProvider();
-             // We can't resolve scoped services here easily.
-             // Instead, let's just ensure the validation works by using the Configuration.
-        });
 
         return services;
     }

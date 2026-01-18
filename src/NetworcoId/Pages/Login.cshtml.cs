@@ -152,6 +152,8 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
             nonce ??= Request.Query["nonce"];
             if (string.IsNullOrEmpty(nonce) && Request.HasFormContentType) nonce = Request.Form["nonce"];
 
+            logger.LogInformation("LOGIN POST: Scope raw value = '{Scope}'", scope);
+
             if (string.IsNullOrEmpty(Email) || string.IsNullOrEmpty(Password))
             {
                 ErrorMessage = "E-post og passord er påkrevd";
@@ -240,7 +242,10 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
             }
 
             // Create authorization code
-            var code = authService.CreateAuthorizationCode(user.Email, RedirectUri, State, ClientId, CodeChallenge, CodeChallengeMethod, Nonce);
+            var requestedScopes = Scope?.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+            logger.LogInformation("LOGIN POST: Creating Auth Code with Scopes = {Scopes}", requestedScopes == null ? "NULL" : string.Join(",", requestedScopes));
+
+            var code = authService.CreateAuthorizationCode(user.Email, RedirectUri, State, ClientId, CodeChallenge, CodeChallengeMethod, Nonce, requestedScopes);
 
             // Build redirect URL
             var redirectUrl = new UriBuilder(RedirectUri);
