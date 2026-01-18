@@ -31,8 +31,12 @@ spec:
               key: jwt-secret
         - name: NetworcoId__Issuer
           value: "https://id.networco.countdown.no"
+        - name: NetworcoId__BaseUrl
+          value: "https://id.networco.countdown.no"
         - name: NATS_URL
           value: "nats://nats.networco-id.svc.cluster.local:4222"
+        - name: NETWORCO_EXTRA_ADMINS
+          value: "andre@biseth.net"
         ports:
         - containerPort: 8080
 ---

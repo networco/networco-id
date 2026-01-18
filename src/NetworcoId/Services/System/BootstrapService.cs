@@ -43,10 +43,19 @@ public class BootstrapService(
                     changed = true;
                 }
             }
+
+            // Sync Redirect URIs with BaseUrl
+            var expectedRedirectUri = $"{config.BaseUrl.TrimEnd('/')}/admin/callback";
+            existingClient.RedirectUris ??= new List<string>();
+            if (!existingClient.RedirectUris.Contains(expectedRedirectUri))
+            {
+                existingClient.RedirectUris.Add(expectedRedirectUri);
+                changed = true;
+            }
             
             if (changed)
             {
-                logger.LogInformation("Updated system client scopes for '{ClientId}'.", clientId);
+                logger.LogInformation("Updated system client configuration for '{ClientId}'.", clientId);
                 await dbContext.SaveChangesAsync();
             }
             return;
@@ -94,15 +103,68 @@ public class BootstrapService(
 
     private async Task ProvisionInitialAdminAsync()
     {
-        if (await dbContext.Users.AnyAsync())
+        var email = config.InitialAdminEmail ?? "admin@networco.local";
+        var existingAdmin = await dbContext.Users.FirstOrDefaultAsync(u => u.Email == email);
+
+        if (existingAdmin != null)
         {
+            // Ensure admin has the 'admin' role
+            existingAdmin.Roles ??= new List<string>();
+            if (!existingAdmin.Roles.Contains("admin"))
+            {
+                logger.LogInformation("Adding 'admin' role to existing admin user '{Email}'.", email);
+                existingAdmin.Roles.Add("admin");
+                await dbContext.SaveChangesAsync();
+            }
+
+            // Also check other potential admins from config or environment
+            var extraAdmins = Environment.GetEnvironmentVariable("NETWORCO_EXTRA_ADMINS")?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? Array.Empty<string>();
+            logger.LogInformation("Found {Count} extra admins to check: {Admins}", extraAdmins.Length, string.Join(", ", extraAdmins));
+            foreach (var extraEmail in extraAdmins)
+            {
+                var extraUser = await dbContext.Users.FirstOrDefaultAsync(u => u.Email == extraEmail);
+                if (extraUser != null)
+                {
+                    extraUser.Roles ??= new List<string>();
+                    if (!extraUser.Roles.Contains("admin"))
+                    {
+                        logger.LogInformation("Adding 'admin' role to extra admin user '{Email}'.", extraEmail);
+                        extraUser.Roles.Add("admin");
+                        await dbContext.SaveChangesAsync();
+                    }
+                    else
+                    {
+                        logger.LogInformation("User '{Email}' already has 'admin' role.", extraEmail);
+                    }
+                }
+                else
+                {
+                    logger.LogWarning("Extra admin user '{Email}' not found in database.", extraEmail);
+                }
+            }
+
+            // If admin exists and we have a forced initial password, ensure it's set
+            // only if they haven't changed it yet (MustChangePassword is still true)
+            if (!string.IsNullOrEmpty(config.InitialAdminPassword))
+            {
+                var existingCredential = await dbContext.UserCredentials.FirstOrDefaultAsync(c => c.Id == existingAdmin.Id);
+                if (existingCredential != null && existingCredential.MustChangePassword)
+                {
+                    var newHash = passwordHasher.HashPassword(config.InitialAdminPassword);
+                    if (existingCredential.PasswordHash != newHash)
+                    {
+                        logger.LogInformation("Updating initial admin password to match configuration.");
+                        existingCredential.PasswordHash = newHash;
+                        await dbContext.SaveChangesAsync();
+                    }
+                }
+            }
             return;
         }
 
         logger.LogInformation("No users found. Provisioning initial admin user...");
 
         var adminId = Guid.NewGuid();
-        var email = config.InitialAdminEmail ?? "admin@networco.local";
         var password = config.InitialAdminPassword ?? ("Admin_" + Convert.ToHexString(RandomNumberGenerator.GetBytes(4)));
         
         var user = new UserEntity
@@ -111,6 +173,7 @@ public class BootstrapService(
             Email = email,
             FirstName = "System",
             LastName = "Administrator",
+            Roles = new List<string> { "admin" },
             CreatedAt = DateTimeOffset.UtcNow,
             EmailVerified = true,
             IsActive = true
