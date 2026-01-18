@@ -4,6 +4,8 @@ using NetworcoId.Core.Security;
 using NetworcoId.Models.Auth;
 using NetworcoId.Services;
 using NetworcoId.Infrastructure.Auth;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 
 namespace NetworcoId.Endpoints;
 
@@ -88,7 +90,7 @@ public static class AuthEndpoints
                 Requires valid access token in Authorization header.
                 """)
             .Produces<NetworcoIdUserDto>(200)
-            .RequireAuthorization();
+            .RequireAuthorization(new AuthorizeAttribute { AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme });
 
         group.MapPost("/me", GetCurrentUser)
             .WithName("GetCurrentUserPost")
@@ -99,7 +101,7 @@ public static class AuthEndpoints
                 Supported for OIDC compliance.
                 """)
             .Produces<NetworcoIdUserDto>(200)
-            .RequireAuthorization();
+            .RequireAuthorization(new AuthorizeAttribute { AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme });
 
         group.MapPost("/forgot-password", ForgotPassword)
             .WithName("ForgotPassword")

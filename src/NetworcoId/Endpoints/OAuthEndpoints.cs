@@ -5,6 +5,9 @@ using NetworcoId.Core.Security;
 using NetworcoId.Models.Auth;
 using NetworcoId.Services;
 using NetworcoId.Infrastructure.Auth;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using System.Security.Claims;
 
 namespace NetworcoId.Endpoints;
 
@@ -138,7 +141,10 @@ public static class OAuthEndpoints
         [FromQuery] string? code_challenge,
         [FromQuery] string? code_challenge_method,
         [FromQuery] string? nonce,
-        NetworcoId.Infrastructure.Database.AuthDbContext dbContext)
+        [FromQuery] string? prompt,
+        [FromQuery] int? max_age,
+        NetworcoId.Infrastructure.Database.AuthDbContext dbContext,
+        IAuthService authService)
     {
         // 1. Validate Client and Redirect URI first (so we know where to send errors)
 
@@ -176,7 +182,90 @@ public static class OAuthEndpoints
             return Results.Redirect($"/Login?{errorQuery}");
         }
 
-        // 2. Now that we trust the redirect_uri, we can validate other parameters 
+        // 2. Check for existing session
+        var result = await context.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        var isAuthenticated = result?.Succeeded == true;
+        
+        // Try to retrieve the original auth_time from the cookie claims if available
+        DateTimeOffset? authTime = null;
+        if (isAuthenticated)
+        {
+            // Try to find "auth_time" claim in the cookie principal if we started persisting it there
+            // Or infer it from cookie issuance time if we don't have it explicitly.
+            // For now, let's look for "auth_time" claim.
+            var authTimeClaim = result?.Principal?.FindFirst("auth_time");
+            if (authTimeClaim != null && long.TryParse(authTimeClaim.Value, out var authTimeSeconds))
+            {
+                authTime = DateTimeOffset.FromUnixTimeSeconds(authTimeSeconds);
+            }
+            else if (result?.Properties?.IssuedUtc != null)
+            {
+                // Fallback to cookie issuance time
+                authTime = result.Properties.IssuedUtc;
+            }
+        }
+
+        // Check max_age validity
+        bool maxAgeSatisfied = true;
+        if (isAuthenticated && max_age.HasValue && authTime.HasValue)
+        {
+            var age = DateTimeOffset.UtcNow - authTime.Value;
+            if (age.TotalSeconds > max_age.Value)
+            {
+                maxAgeSatisfied = false;
+            }
+        }
+
+        // 3. Handle 'prompt=none'
+        // If prompt is 'none', we must return immediately without displaying any UI.
+        if (prompt == "none")
+        {
+            if (!isAuthenticated || !maxAgeSatisfied)
+            {
+                var errorQuery = HttpUtility.ParseQueryString("");
+                errorQuery["error"] = "login_required";
+                errorQuery["error_description"] = !isAuthenticated ? "Prompt is none but user is not logged in" : "Prompt is none but max_age is exceeded";
+                if (!string.IsNullOrEmpty(state)) errorQuery["state"] = state;
+
+                var builder = new UriBuilder(redirect_uri);
+                builder.Query = (string.IsNullOrEmpty(builder.Query) ? "" : builder.Query.TrimStart('?') + "&") + errorQuery.ToString();
+                return Results.Redirect(builder.ToString());
+            }
+            
+            // User is authenticated! Proceed to issue code immediately (silent login)
+            var email = result?.Principal?.FindFirst(ClaimTypes.Email)?.Value;
+            if (string.IsNullOrEmpty(email))
+            {
+                // Should not happen if cookie is valid
+                 var errorQuery = HttpUtility.ParseQueryString("");
+                errorQuery["error"] = "server_error";
+                errorQuery["error_description"] = "Authenticated user has no email claim";
+                if (!string.IsNullOrEmpty(state)) errorQuery["state"] = state;
+
+                var builder = new UriBuilder(redirect_uri);
+                builder.Query = (string.IsNullOrEmpty(builder.Query) ? "" : builder.Query.TrimStart('?') + "&") + errorQuery.ToString();
+                return Results.Redirect(builder.ToString());
+            }
+
+             // Create authorization code immediately
+             // Pass the PRESERVED auth_time to ensure silent re-auth doesn't update it to "now"
+            var requestedScopes = scope?.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+            var code = authService.CreateAuthorizationCode(email, redirect_uri, state, client_id, code_challenge, code_challenge_method, nonce, requestedScopes, authTime);
+
+            // Build redirect URL
+            var redirectUrl = new UriBuilder(redirect_uri);
+            var queryParams = HttpUtility.ParseQueryString(redirectUrl.Query);
+            queryParams["code"] = code;
+            if (!string.IsNullOrEmpty(state))
+            {
+                queryParams["state"] = state;
+            }
+            redirectUrl.Query = queryParams.ToString();
+
+            return Results.Redirect(redirectUrl.ToString());
+        }
+
+        // 4. Now that we trust the redirect_uri, we can validate other parameters 
         // and redirect back to the client on failure.
 
         if (string.IsNullOrEmpty(response_type))
@@ -268,6 +357,31 @@ public static class OAuthEndpoints
             }
         }
 
+        // 3b. Silent Success for max_age (Short Circuit)
+        // If user is authenticated, max_age is satisfied, and we are not forced to show UI.
+        bool isPromptLogin = prompt?.Contains("login") == true;
+        bool isPromptConsent = prompt?.Contains("consent") == true;
+        bool isPromptSelectAccount = prompt?.Contains("select_account") == true;
+
+        if (isAuthenticated && max_age.HasValue && maxAgeSatisfied && !isPromptLogin && !isPromptConsent && !isPromptSelectAccount)
+        {
+             // Proceed silently: Generate code using ORIGINAL authTime
+             var email = result?.Principal?.FindFirst(ClaimTypes.Email)?.Value;
+             if (!string.IsNullOrEmpty(email))
+             {
+                 var requestedScopes = scope?.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+                 var code = authService.CreateAuthorizationCode(email, redirect_uri, state, client_id, code_challenge, code_challenge_method, nonce, requestedScopes, authTime);
+
+                 var redirectUrl = new UriBuilder(redirect_uri);
+                 var queryParams = HttpUtility.ParseQueryString(redirectUrl.Query);
+                 queryParams["code"] = code;
+                 if (!string.IsNullOrEmpty(state)) queryParams["state"] = state;
+                 redirectUrl.Query = queryParams.ToString();
+
+                 return Results.Redirect(redirectUrl.ToString());
+             }
+        }
+
         // Redirect to Login page
         var query = HttpUtility.ParseQueryString("");
         query["client_id"] = client_id;
@@ -276,10 +390,22 @@ public static class OAuthEndpoints
         if (!string.IsNullOrEmpty(scope)) query["scope"] = scope;
         if (!string.IsNullOrEmpty(registration)) query["registration"] = registration;
         if (!string.IsNullOrEmpty(nonce)) query["nonce"] = nonce;
-
+        
         // Pass PKCE params to login page so they can be preserved
         if (!string.IsNullOrEmpty(code_challenge)) query["code_challenge"] = code_challenge;
         if (!string.IsNullOrEmpty(code_challenge_method)) query["code_challenge_method"] = code_challenge_method;
+
+        // Handle prompt logic
+        if (!maxAgeSatisfied)
+        {
+            // Force re-login if max_age exceeded
+            query["prompt"] = "login";
+        }
+        else if (!string.IsNullOrEmpty(prompt))
+        {
+            // Forward requested prompt
+            query["prompt"] = prompt;
+        }
 
         return Results.Redirect($"/Login?{query}");
     }
@@ -346,6 +472,7 @@ public static class OAuthEndpoints
         // Validate authorization code
         var validationResult = await authService.ValidateAuthorizationCodeAsync(code ?? string.Empty, redirect_uri ?? string.Empty, finalClientId, code_verifier);
         var user = validationResult.User;
+        var authTime = validationResult.AuthTime;
 
         Console.WriteLine($"[OAuth] ValidateCode Result - User: {user?.Email}, Scopes: {(validationResult.Scopes == null ? "NULL" : string.Join(",", validationResult.Scopes))}");
 
@@ -375,7 +502,8 @@ public static class OAuthEndpoints
         // Generate tokens
         // Scopes are now retrieved from the authorization code session
         var accessToken = await jwtService.GenerateAccessTokenAsync(user, scopes);
-        var idToken = await jwtService.GenerateIdTokenAsync(user, finalClientId, user.Nonce);
+        // Pass authTime to ID token generation to preserve original login time
+        var idToken = await jwtService.GenerateIdTokenAsync(user, finalClientId, user.Nonce, authTime);
         var refreshToken = jwtService.GenerateRefreshToken();
 
         // Store refresh token
