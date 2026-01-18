@@ -2,25 +2,23 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: networcoid-ingress
-  namespace: networcoid
+  namespace: networco-id
   annotations:
     kubernetes.io/ingress.class: traefik
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-    traefik.ingress.kubernetes.io/router.entrypoints: websecure
-    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+    traefik.ingress.kubernetes.io/router.tls.certresolver: letsencrypt
 spec:
   tls:
   - hosts:
-    - id.networco.no # Replace with your domain
-    secretName: networcoid-tls
+    - id.networco.countdown.no
   rules:
-  - host: id.networco.no # Replace with your domain
+  - host: id.networco.countdown.no
     http:
       paths:
       - path: /
         pathType: Prefix
         backend:
           service:
-            name: networcoid-api
+            name: networcoid
             port:
               number: 80

@@ -1,21 +1,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: networcoid-api
-  namespace: networcoid
+  name: networcoid
+  namespace: networco-id
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: networcoid-api
+      app: networcoid
   template:
     metadata:
       labels:
-        app: networcoid-api
+        app: networcoid
     spec:
+      imagePullSecrets:
+      - name: ghcr-secret
       containers:
       - name: api
-        image: networco/networco-id-api:latest # Replace with your registry
+        image: ghcr.io/networco/networco-id:latest
         env:
         - name: ConnectionStrings__DefaultConnection
           valueFrom:
@@ -27,19 +29,21 @@ spec:
             secretKeyRef:
               name: networcoid-secrets
               key: jwt-secret
+        - name: NetworcoId__Issuer
+          value: "https://id.networco.countdown.no"
         - name: NATS_URL
-          value: "nats://nats.networcoid.svc.cluster.local:4222"
+          value: "nats://nats.networco-id.svc.cluster.local:4222"
         ports:
         - containerPort: 8080
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: networcoid-api
-  namespace: networcoid
+  name: networcoid
+  namespace: networco-id
 spec:
   selector:
-    app: networcoid-api
+    app: networcoid
   ports:
   - port: 80
     targetPort: 8080
