@@ -702,7 +702,7 @@ public static class OAuthEndpoints
         var clientEntity = await ValidateClientAsync(dbContext, passwordHasher, clientId, clientSecret);
         if (clientEntity == null)
         {
-             return Results.Json(new { error = "invalid_client", error_description = "Invalid client credentials" }, statusCode: 400);
+             return Results.BadRequest(new { error = "invalid_client", error_description = "Invalid client credentials" });
         }
 
         // 2. Validate Refresh Token
@@ -728,13 +728,13 @@ public static class OAuthEndpoints
              }
              await dbContext.SaveChangesAsync();
 
-             return Results.Json(new { error = "invalid_grant", error_description = "Refresh token reused (security alert)" }, statusCode: 400);
+             return Results.BadRequest(new { error = "invalid_grant", error_description = "Refresh token reused (security alert)" });
         }
 
         // 4. Basic Validation
         if (storedToken == null || storedToken.ExpiresAt < DateTimeOffset.UtcNow)
         {
-             return Results.Json(new { error = "invalid_grant", error_description = "Invalid or expired refresh token" }, statusCode: 400);
+             return Results.BadRequest(new { error = "invalid_grant", error_description = "Invalid or expired refresh token" });
         }
 
         // 4b. Verify Client Binding
@@ -742,14 +742,14 @@ public static class OAuthEndpoints
         if (storedToken.ClientId != null && storedToken.ClientId != clientId)
         {
              Console.WriteLine($"[SECURITY] Refresh Token Client Mismatch! Token Client: {storedToken.ClientId}, Request Client: {clientId}");
-             return Results.Json(new { error = "invalid_grant", error_description = "Refresh token was issued to a different client" }, statusCode: 400);
+             return Results.BadRequest(new { error = "invalid_grant", error_description = "Refresh token was issued to a different client" });
         }
 
         // 5. Load User
         var user = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(dbContext.Users, u => u.Id == storedToken.UserId);
         if (user == null || !user.IsActive)
         {
-             return Results.Json(new { error = "invalid_grant", error_description = "User no longer active" }, statusCode: 400);
+             return Results.BadRequest(new { error = "invalid_grant", error_description = "User no longer active" });
         }
 
         // 6. Rotate Token (Issue New, Revoke Old)
