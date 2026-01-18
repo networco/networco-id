@@ -348,7 +348,8 @@ public class AuthService : IAuthService
             nonce,
             scopes?.ToList() ?? new List<string>(),
             authTime,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            null);
 
         _authCodes.TryAdd(codeId, session);
 
@@ -372,12 +373,25 @@ public class AuthService : IAuthService
         try
         {
             // Check in-memory store first (New Way)
-            if (_authCodes.TryRemove(code, out var session))
+            if (_authCodes.TryGetValue(code, out var session))
             {
+                // Check if code was already used (Reuse Detection)
+                if (session.UsedAt.HasValue)
+                {
+                    _logger.LogWarning("Security Alert: Authorization code reuse detected! Code: {Code}, User: {User}", code, session.EmailOrNationalId);
+                    
+                    // Revoke all tokens for this user
+                    await RevokeAllRefreshTokensForUserAsync(session.EmailOrNationalId);
+                    
+                    return (null, null, null);
+                }
+
                 // Verify expiration
                 if ((DateTimeOffset.UtcNow - session.CreatedAt) > CodeExpiration)
                 {
                     _logger.LogWarning("Authorization code expired");
+                    // Code is expired, remove it to clean up
+                    _authCodes.TryRemove(code, out _);
                     return (null, null, null);
                 }
 
@@ -390,47 +404,56 @@ public class AuthService : IAuthService
                     return (null, null, null);
                 }
 
-        if (string.IsNullOrEmpty(session.CodeChallenge))
-        {
-            // OIDCC Test: If PKCE was not used in the original request, but a code_verifier IS provided now, it must be ignored or rejected.
-            // The spec says: "If the code_verifier parameter is present, it MUST be ignored if the code_challenge parameter was not present in the Authorization Request."
-            // However, strict implementations might choose to reject it to detect client confusion.
-            // For now, we will just proceed without PKCE checks if the session didn't use it.
-            // (No change needed here as we only enter this block if session.CodeChallenge IS NOT NULL)
-        }
-        else // PKCE was used
-        {
-            if (string.IsNullOrEmpty(codeVerifier))
-            {
-                _logger.LogWarning("PKCE required but code_verifier missing");
-                return (null, null, null);
-            }
-
-            if (session.CodeChallengeMethod == "S256")
-            {
-                using var sha256 = global::System.Security.Cryptography.SHA256.Create();
-                var challengeBytes = sha256.ComputeHash(Encoding.ASCII.GetBytes(codeVerifier));
-                var challenge = Convert.ToBase64String(challengeBytes)
-                    .Replace("+", "-")
-                    .Replace("/", "_")
-                    .TrimEnd('=');
-
-                if (challenge != session.CodeChallenge)
+                if (string.IsNullOrEmpty(session.CodeChallenge))
                 {
-                    _logger.LogWarning("PKCE verification failed for S256");
-                    return (null, null, null);
+                    // OIDCC Test: If PKCE was not used in the original request, but a code_verifier IS provided now, it must be ignored or rejected.
+                    // The spec says: "If the code_verifier parameter is present, it MUST be ignored if the code_challenge parameter was not present in the Authorization Request."
+                    // However, strict implementations might choose to reject it to detect client confusion.
+                    // For now, we will just proceed without PKCE checks if the session didn't use it.
+                    // (No change needed here as we only enter this block if session.CodeChallenge IS NOT NULL)
                 }
-            }
-            else
-            {
-                // Plain (not recommended, but supported by spec)
-                if (codeVerifier != session.CodeChallenge)
+                else // PKCE was used
                 {
-                    _logger.LogWarning("PKCE verification failed for plain");
-                    return (null, null, null);
+                    if (string.IsNullOrEmpty(codeVerifier))
+                    {
+                        _logger.LogWarning("PKCE required but code_verifier missing");
+                        return (null, null, null);
+                    }
+
+                    if (session.CodeChallengeMethod == "S256")
+                    {
+                        using var sha256 = global::System.Security.Cryptography.SHA256.Create();
+                        var challengeBytes = sha256.ComputeHash(Encoding.ASCII.GetBytes(codeVerifier));
+                        var challenge = Convert.ToBase64String(challengeBytes)
+                            .Replace("+", "-")
+                            .Replace("/", "_")
+                            .TrimEnd('=');
+
+                        if (challenge != session.CodeChallenge)
+                        {
+                            _logger.LogWarning("PKCE verification failed for S256");
+                            return (null, null, null);
+                        }
+                    }
+                    else
+                    {
+                        // Plain (not recommended, but supported by spec)
+                        if (codeVerifier != session.CodeChallenge)
+                        {
+                            _logger.LogWarning("PKCE verification failed for plain");
+                            return (null, null, null);
+                        }
+                    }
                 }
-            }
-        }
+
+                // If valid, MARK AS USED
+                var usedSession = session with { UsedAt = DateTimeOffset.UtcNow };
+                if (!_authCodes.TryUpdate(code, usedSession, session))
+                {
+                     // Concurrency issue: someone else updated it. Treat as reuse failure.
+                     _logger.LogWarning("Failed to update auth code status. Potential concurrent use.");
+                     return (null, null, null);
+                }
 
                 var validUser = await GetUserByEmailOrNationalIdAsync(session.EmailOrNationalId);
                 if (validUser != null)
@@ -544,6 +567,35 @@ public class AuthService : IAuthService
         catch
         {
             return (null, null, null);
+        }
+    }
+
+    private async Task RevokeAllRefreshTokensForUserAsync(string emailOrNationalId)
+    {
+        try 
+        {
+            var user = await GetUserByEmailOrNationalIdAsync(emailOrNationalId);
+            if (user != null)
+            {
+                var tokens = await _context.RefreshTokens
+                    .Where(t => t.UserId == user.Id && t.RevokedAt == null)
+                    .ToListAsync();
+                    
+                foreach(var t in tokens)
+                {
+                    t.RevokedAt = DateTimeOffset.UtcNow;
+                }
+                
+                if (tokens.Any())
+                {
+                    await _context.SaveChangesAsync();
+                    _logger.LogWarning("Revoked {Count} refresh tokens for user {UserId} due to auth code reuse", tokens.Count, user.Id);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to revoke tokens for user {User}", emailOrNationalId);
         }
     }
 
@@ -841,5 +893,6 @@ public class AuthService : IAuthService
         string? Nonce,
         List<string> Scopes,
         DateTimeOffset? AuthTime,
-        DateTimeOffset CreatedAt);
+        DateTimeOffset CreatedAt,
+        DateTimeOffset? UsedAt);
 }
