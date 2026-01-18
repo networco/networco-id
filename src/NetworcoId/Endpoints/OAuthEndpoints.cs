@@ -379,23 +379,24 @@ public static class OAuthEndpoints
 
         if (response_type != "code")
         {
-            // Unsupported response_type -> Redirect back to client
+            // Unsupported response_type -> Redirect back to client if possible, else show error page
             var errorQuery = HttpUtility.ParseQueryString("");
             errorQuery["error"] = "unsupported_response_type";
             errorQuery["error_description"] = "response_type must be 'code'";
             if (!string.IsNullOrEmpty(state)) errorQuery["state"] = state;
 
-            var builder = new UriBuilder(redirect_uri);
-            builder.Query = (string.IsNullOrEmpty(builder.Query) ? "" : builder.Query.TrimStart('?') + "&") + errorQuery.ToString();
-            return Results.Redirect(builder.ToString());
-        }
+            if (!string.IsNullOrEmpty(redirect_uri) && !string.IsNullOrEmpty(client_id))
+            {
+                 var clientForError = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(dbContext.OAuthClients, c => c.ClientId == client_id);
+                 if (clientForError != null && clientForError.RedirectUris.Contains(redirect_uri))
+                 {
+                    var builder = new UriBuilder(redirect_uri);
+                    builder.Query = (string.IsNullOrEmpty(builder.Query) ? "" : builder.Query.TrimStart('?') + "&") + errorQuery.ToString();
+                    return Results.Redirect(builder.ToString());
+                 }
+            }
 
-        if (response_type != "code")
-        {
-            // If redirect_uri is known and valid, we could redirect with error.
-            // But for simplicity, return 400 here if it's completely unsupported.
-            // A robust implementation would validate client_id + redirect_uri first, then redirect.
-            return Results.BadRequest(new { error = "unsupported_response_type", error_description = "response_type must be 'code'" });
+            return Results.Redirect($"/Login?{errorQuery}");
         }
 
         // Enforce PKCE for all clients (Security Hardening)
