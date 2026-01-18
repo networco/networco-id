@@ -125,6 +125,37 @@ public static class ServiceConfiguration
                             }
                         }
                         return Task.CompletedTask;
+                    },
+                    OnTokenValidated = async context =>
+                    {
+                        // Check if token was issued before the last critical account update (e.g. revocation)
+                        if (context.Principal?.Identity?.IsAuthenticated == true)
+                        {
+                            var userIdStr = context.Principal.FindFirst("sub")?.Value;
+                            if (Guid.TryParse(userIdStr, out var userId))
+                            {
+                                var dbContext = context.HttpContext.RequestServices.GetRequiredService<NetworcoId.Infrastructure.Database.AuthDbContext>();
+                                
+                                // Check user credentials timestamp
+                                var creds = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+                                    Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AsNoTracking(dbContext.UserCredentials), 
+                                    c => c.Id == userId);
+                                    
+                                if (creds?.UpdatedAt != null)
+                                {
+                                    var iatClaim = context.Principal.FindFirst("iat");
+                                    if (iatClaim != null && long.TryParse(iatClaim.Value, out var iatSeconds))
+                                    {
+                                        var iatDate = DateTimeOffset.FromUnixTimeSeconds(iatSeconds);
+                                        // If token issued BEFORE update (minus 1s tolerance), reject it
+                                        if (iatDate < creds.UpdatedAt.Value.AddSeconds(-1))
+                                        {
+                                            context.Fail("Token invalidated due to account changes.");
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 };
             });

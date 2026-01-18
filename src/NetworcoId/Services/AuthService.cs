@@ -577,6 +577,7 @@ public class AuthService : IAuthService
             var user = await GetUserByEmailOrNationalIdAsync(emailOrNationalId);
             if (user != null)
             {
+                // 1. Revoke Refresh Tokens
                 var tokens = await _context.RefreshTokens
                     .Where(t => t.UserId == user.Id && t.RevokedAt == null)
                     .ToListAsync();
@@ -586,10 +587,20 @@ public class AuthService : IAuthService
                     t.RevokedAt = DateTimeOffset.UtcNow;
                 }
                 
-                if (tokens.Any())
+                // 2. Invalidate Access Tokens by updating User Credentials timestamp
+                var credentials = await _context.UserCredentials
+                    .FirstOrDefaultAsync(c => c.Id == user.Id);
+                    
+                if (credentials != null)
+                {
+                    credentials.UpdatedAt = DateTimeOffset.UtcNow;
+                    _context.UserCredentials.Update(credentials);
+                }
+                
+                if (tokens.Any() || credentials != null)
                 {
                     await _context.SaveChangesAsync();
-                    _logger.LogWarning("Revoked {Count} refresh tokens for user {UserId} due to auth code reuse", tokens.Count, user.Id);
+                    _logger.LogWarning("Revoked {Count} refresh tokens and invalidated access tokens for user {UserId} due to auth code reuse", tokens.Count, user.Id);
                 }
             }
         }
