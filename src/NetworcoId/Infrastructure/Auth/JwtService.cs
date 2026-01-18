@@ -23,6 +23,7 @@ public interface IJwtService
     Task<ClaimsPrincipal?> ValidateTokenAsync(string token, CancellationToken cancellationToken = default);
     Task<JsonWebKeySet> GetPublicKeysAsync(CancellationToken cancellationToken = default);
     Task ListenForKeyRotationEventsAsync(CancellationToken cancellationToken = default);
+    IDictionary<string, string> ParseUnsignedToken(string token);
 }
 
 /// <summary>
@@ -296,5 +297,14 @@ public class JwtService : IJwtService
         // ValidateToken is synchronous but we wrapped it in async flow
         var principal = tokenHandler.ValidateToken(token, validationParameters, out _);
         return principal;
+    }
+
+    public IDictionary<string, string> ParseUnsignedToken(string token)
+    {
+        var handler = new JwtSecurityTokenHandler();
+        if (!handler.CanReadToken(token)) return new Dictionary<string, string>();
+
+        var jwt = handler.ReadJwtToken(token);
+        return jwt.Payload.Claims.ToDictionary(c => c.Type, c => c.Value);
     }
 }
