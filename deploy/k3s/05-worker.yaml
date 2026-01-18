@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: networcoid-worker
-  namespace: networcoid
+  namespace: networco-id
 spec:
   replicas: 1
   selector:
@@ -13,11 +13,22 @@ spec:
       labels:
         app: networcoid-worker
     spec:
+      imagePullSecrets:
+      - name: ghcr-secret
       containers:
       - name: worker
-        image: networco/networco-id-worker:latest # Replace with your registry
+        image: ghcr.io/networco/networco-id-worker:latest
         env:
         - name: NATS_URL
-          value: "nats://nats.networcoid.svc.cluster.local:4222"
+          value: "nats://nats.networco-id.svc.cluster.local:4222"
         - name: SMTP_HOST
-          value: "smtp.example.com"
+          value: "smtp-relay.brevo.com"
+        - name: SMTP_PORT
+          value: "587"
+        - name: SMTP_USER
+          value: "networco@bogentech.no"
+        - name: BREVO_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: networcoid-secrets
+              key: brevo-api-key
