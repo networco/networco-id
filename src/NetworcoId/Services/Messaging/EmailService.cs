@@ -19,10 +19,11 @@ public class NatsEmailService(INatsConnection nats, ILogger<NatsEmailService> lo
     public async Task SendEmailAsync(string to, string subject, string body, string? firstName = null)
     {
         var message = new EmailNotificationMessage(to, subject, body, firstName);
+        var jsonBytes = global::System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(message);
         
         try
         {
-            await nats.PublishAsync(NetworcoIdSubjects.EmailNotification, message);
+            await nats.PublishAsync(NetworcoIdSubjects.EmailNotification, jsonBytes);
             logger.LogInformation("Published email notification to NATS: {To} - {Subject}", to, subject);
         }
         catch (Exception ex)

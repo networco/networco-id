@@ -108,4 +108,30 @@ public class IndexModel : PageModel
 
         return RedirectToPage();
     }
+
+    public async Task<IActionResult> OnPostToggleAdminAsync(Guid id)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == id);
+        if (user != null)
+        {
+            user.Roles ??= new List<string>();
+            if (user.Roles.Contains("admin"))
+            {
+                user.Roles.Remove("admin");
+            }
+            else
+            {
+                user.Roles.Add("admin");
+            }
+            
+            _context.Users.Update(user);
+            await _context.SaveChangesAsync();
+            
+            await _auditService.LogAsync("UserRoleChanged", $"User role toggled: {user.Email}", id);
+            
+            TempData["StatusMessage"] = $"Admin role toggled for {user.Email}.";
+        }
+
+        return RedirectToPage();
+    }
 }

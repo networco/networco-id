@@ -19,17 +19,23 @@ public class CallbackModel(
             return RedirectToPage("/Index");
         }
 
+        var config = configuration.GetSection("NetworcoId").Get<NetworcoId.Models.Auth.NetworcoIdConfig>();
+        var redirectUri = $"{config?.BaseUrl.TrimEnd('/')}/admin/callback";
+
         // Validate the authorization code
         // For the admin portal, we expect the code to belong to the networco-admin client
         var result = await authService.ValidateAuthorizationCodeAsync(
             code, 
-            "http://localhost:5200/admin/callback", 
+            redirectUri, 
             "networco-admin");
 
-        if (result.User == null)
+        if (result.User == null || !(result.User.Roles?.Contains("admin") ?? false))
         {
-            logger.LogWarning("Admin login failed: Invalid authorization code.");
-            return RedirectToPage("/Admin/Login", new { error = "Session verification failed." });
+            logger.LogWarning("Admin login failed: Invalid authorization code or missing admin role. User: {User}, UserRoles: {UserRoles}, SessionScopes: {SessionScopes}", 
+                result.User?.Email ?? "NULL", 
+                string.Join(", ", result.User?.Roles ?? new List<string>()),
+                string.Join(", ", result.Scopes ?? new List<string>()));
+            return RedirectToPage("/Admin/Login", new { error = "Unauthorized access." });
         }
 
         // In this architecture, the admin panel uses the Admin:AccessKey for session authorization.

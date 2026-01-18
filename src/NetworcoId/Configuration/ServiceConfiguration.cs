@@ -40,8 +40,9 @@ public static class ServiceConfiguration
         // Build the config object eagerly to use it for setup
         var config = new NetworcoIdConfig 
         { 
-            Issuer = "http://localhost:5001", 
-            Audience = "networco-api" 
+            Issuer = configuration["NetworcoId:Issuer"] ?? "http://localhost:5001", 
+            Audience = "networco-api",
+            BaseUrl = configuration["NetworcoId:BaseUrl"] ?? "http://localhost:5200"
         };
         configuration.GetSection("NetworcoId").Bind(config);
         

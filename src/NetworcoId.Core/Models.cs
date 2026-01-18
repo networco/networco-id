@@ -20,9 +20,9 @@ public record NetworcoIdUser
     public string? Password { get; init; }
 }
 
-public record EmailVerificationMessage(string Email, string Token, string FirstName, string Type = "Verification");
+public record EmailVerificationMessage(string Email, string Token, string FirstName, string? BaseUrl = null, string Type = "Verification");
 
-public record PasswordResetMessage(string Email, string Token, string FirstName);
+public record PasswordResetMessage(string Email, string Token, string FirstName, string? BaseUrl = null);
 
 public record EmailNotificationMessage(string Email, string Subject, string Body, string? FirstName = null);
 

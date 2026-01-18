@@ -1,0 +1,12 @@
+**/.DS_Store
+**/bin
+**/obj
+**/.git
+**/.vscode
+**/.idea
+**/node_modules
+**/.env
+**/*.pfx
+VERSION
+scripts
+deploy

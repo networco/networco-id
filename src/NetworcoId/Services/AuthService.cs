@@ -186,6 +186,7 @@ public class AuthService : IAuthService
             FirstName = user.FirstName,
             LastName = user.LastName,
             Email = user.Email,
+            Roles = user.Roles,
             PhoneNumber = user.PhoneNumber,
             EmailVerified = user.EmailVerified,
             PhoneNumberVerified = user.PhoneNumberVerified,
@@ -274,6 +275,7 @@ public class AuthService : IAuthService
             FirstName = user.FirstName,
             LastName = user.LastName,
             Email = user.Email,
+            Roles = user.Roles,
             PhoneNumber = user.PhoneNumber,
             EmailVerified = user.EmailVerified,
             PhoneNumberVerified = user.PhoneNumberVerified,
@@ -317,6 +319,7 @@ public class AuthService : IAuthService
             FirstName = user.FirstName,
             LastName = user.LastName,
             Email = user.Email,
+            Roles = user.Roles,
             PhoneNumber = user.PhoneNumber,
             EmailVerified = user.EmailVerified,
             PhoneNumberVerified = user.PhoneNumberVerified,
@@ -706,6 +709,7 @@ public class AuthService : IAuthService
             FirstName = user.FirstName,
             LastName = user.LastName,
             Email = user.Email,
+            Roles = user.Roles,
             PhoneNumber = user.PhoneNumber,
             Password = null
         };
@@ -854,7 +858,7 @@ public class AuthService : IAuthService
         await _context.SaveChangesAsync();
 
         // Publish to NATS using the specialized message type for better worker handling
-        var resetMessage = new PasswordResetMessage(user.Email, token, user.FirstName);
+        var resetMessage = new PasswordResetMessage(user.Email, token, user.FirstName, _config.BaseUrl);
         var jsonBytes = global::System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(resetMessage);
         
         _logger.LogInformation("Publishing password reset message to NATS: {Email} ({ByteCount} bytes)", user.Email, jsonBytes.Length);

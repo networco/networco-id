@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using NetworcoId.Services;
 using NetworcoId.Infrastructure.Database;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 
 namespace NetworcoId.Endpoints;
 
@@ -12,31 +14,10 @@ public static class AdminEndpoints
     public static void MapAdmin(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/admin")
-            .AddEndpointFilter(async (context, next) =>
-            {
-                var config = context.HttpContext.RequestServices.GetRequiredService<IConfiguration>();
-                var adminKey = config["Admin:AccessKey"];
-
-                if (string.IsNullOrEmpty(adminKey))
-                {
-                    return Results.Content("Admin access not configured.", statusCode: 403);
-                }
-
-                // Check Header (for CLI/Postman)
-                if (context.HttpContext.Request.Headers.TryGetValue(AdminKeyHeader, out var headerValue) &&
-                    headerValue == adminKey)
-                {
-                    return await next(context);
-                }
-
-                // Check Cookie (for Admin UI fetch calls)
-                if (context.HttpContext.Request.Cookies.TryGetValue("Networco_Admin_Session", out var cookieValue) &&
-                    cookieValue == adminKey)
-                {
-                    return await next(context);
-                }
-
-                return Results.Json(new { error = "Unauthorized" }, statusCode: 401);
+            .RequireAuthorization(new AuthorizeAttribute 
+            { 
+                AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme,
+                Roles = "admin" 
             });
 
         group.MapGet("/clients", async (IClientManagementService clientService, [FromQuery] int page = 1, [FromQuery] int pageSize = 10, [FromQuery] string? search = null) =>

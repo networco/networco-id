@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using NATS.Client.Core;
 using NetworcoId.Core.Models;
 using NetworcoId.Models.Auth;
+using Microsoft.Extensions.Options;
 
 using NetworcoId.Services.Messaging;
 
@@ -18,8 +19,10 @@ public class RegisterModel(
     IEmailService emailService,
     IPasswordHasher passwordHasher,
     IPasswordValidator passwordValidator,
+    IOptions<NetworcoIdConfig> config,
     ILogger<RegisterModel> logger) : PageModel
 {
+    private readonly NetworcoIdConfig _config = config.Value;
     public string? ErrorMessage { get; set; }
     public string ReturnUrl { get; set; } = string.Empty;
     public bool RegistrationSuccess { get; set; }
@@ -37,13 +40,14 @@ public class RegisterModel(
         string confirmPassword,
         string? return_url)
     {
-        logger.LogInformation("Registration attempt - FirstName: {FirstName}, LastName: {LastName}, Email: {Email}, ReturnUrl: {ReturnUrl}", 
-            firstName, lastName, email, return_url);
+        email = email?.Trim() ?? string.Empty;
 
         if (string.IsNullOrEmpty(firstName) || string.IsNullOrEmpty(lastName) || 
             string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password))
         {
-            logger.LogWarning("Registration failed - Missing required fields");
+            logger.LogWarning("Registration failed - Missing required fields: {F} {L} {E} {P}", 
+                string.IsNullOrEmpty(firstName), string.IsNullOrEmpty(lastName), 
+                string.IsNullOrEmpty(email), string.IsNullOrEmpty(password));
             ErrorMessage = "Alle felt er påkrevd";
             ReturnUrl = return_url ?? "http://localhost:3000";
             return Page();
@@ -68,6 +72,7 @@ public class RegisterModel(
 
         try
         {
+            logger.LogInformation("Processing registration for {Email}", email);
             // Check if user already exists
             var existingUser = await dbContext.Users
                 .FirstOrDefaultAsync(u => u.Email == email);
@@ -113,7 +118,7 @@ public class RegisterModel(
             await emailService.SendEmailAsync(
                 email,
                 "Verify your NetworcoID account",
-                $"Please verify your account using this link: https://id.networco.no/verify?token={verificationToken}",
+                $"Please verify your account using this link: {_config.BaseUrl.TrimEnd('/')}/verify?token={verificationToken}",
                 firstName);
 
             logger.LogInformation("User {Email} registered, verification email queued", email);
