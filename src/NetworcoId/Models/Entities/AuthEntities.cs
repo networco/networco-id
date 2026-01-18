@@ -68,6 +68,7 @@ public class RefreshTokenEntity
 {
     public Guid Id { get; set; }
     public Guid UserId { get; set; }
+    public string? ClientId { get; set; } // Added for client binding
     public required string TokenHash { get; set; }
     public DateTimeOffset ExpiresAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
