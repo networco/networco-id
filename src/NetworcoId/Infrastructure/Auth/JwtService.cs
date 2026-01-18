@@ -150,7 +150,7 @@ public class JwtService : IJwtService
         if (scopeList.Contains("email"))
         {
             claims.Add(new Claim(JwtRegisteredClaimNames.Email, user.Email));
-            claims.Add(new Claim("email_verified", "true", ClaimValueTypes.Boolean));
+            claims.Add(new Claim("email_verified", user.EmailVerified.ToString().ToLower(), ClaimValueTypes.Boolean));
         }
 
         // Profile claims - only if 'profile' scope is requested
@@ -171,6 +171,25 @@ public class JwtService : IJwtService
         if (!string.IsNullOrEmpty(user.PhoneNumber) && scopeList.Contains("phone"))
         {
             claims.Add(new Claim("phone_number", user.PhoneNumber));
+            claims.Add(new Claim("phone_number_verified", user.PhoneNumberVerified.ToString().ToLower(), ClaimValueTypes.Boolean));
+        }
+
+        if (scopeList.Contains("address"))
+        {
+             // OIDC spec requires address to be a JSON object.
+             // We now have address fields on the user entity, so we can construct a proper object.
+             var address = new 
+             {
+                 formatted = user.AddressFormatted ?? "",
+                 street_address = user.AddressStreetAddress ?? "",
+                 locality = user.AddressLocality ?? "",
+                 region = user.AddressRegion ?? "",
+                 postal_code = user.AddressPostalCode ?? "",
+                 country = user.AddressCountry ?? ""
+             };
+             
+             // Serialize to JSON string for the claim
+             claims.Add(new Claim("address", System.Text.Json.JsonSerializer.Serialize(address), "json"));
         }
 
         var keys = await GetCachedKeysAsync(cancellationToken);

@@ -26,6 +26,32 @@ public class BootstrapService(
 
     private async Task ProvisionSystemClientAsync()
     {
+        var clientId = config.InitialClientId ?? "networco-admin";
+        var existingClient = await dbContext.OAuthClients.FirstOrDefaultAsync(c => c.ClientId == clientId);
+
+        if (existingClient != null)
+        {
+            var requiredScopes = new[] { "openid", "profile", "email", "address", "phone", "admin" };
+            var changed = false;
+            
+            existingClient.AllowedScopes ??= new List<string>();
+            foreach (var scope in requiredScopes)
+            {
+                if (!existingClient.AllowedScopes.Contains(scope))
+                {
+                    existingClient.AllowedScopes.Add(scope);
+                    changed = true;
+                }
+            }
+
+            if (changed)
+            {
+                logger.LogInformation("Updated system client scopes for '{ClientId}'.", clientId);
+                await dbContext.SaveChangesAsync();
+            }
+            return;
+        }
+
         if (await dbContext.OAuthClients.AnyAsync())
         {
             return;
@@ -33,7 +59,6 @@ public class BootstrapService(
 
         logger.LogInformation("First run detected: No OAuth2 clients found. Provisioning system client...");
 
-        var clientId = config.InitialClientId ?? "networco-admin";
         var clientSecret = config.InitialClientSecret ?? Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
         var secretHash = passwordHasher.HashPassword(clientSecret);
 
@@ -43,7 +68,7 @@ public class BootstrapService(
             DisplayName = "Networco ID Management Portal",
             PrimaryClientSecretHash = secretHash,
             RedirectUris = new List<string> { $"{config.BaseUrl.TrimEnd('/')}/admin/callback" },
-            AllowedScopes = new List<string> { "openid", "profile", "email", "admin" },
+            AllowedScopes = new List<string> { "openid", "profile", "email", "address", "phone", "admin" },
             IsTrustedForExchange = true,
             IsActive = true,
             CreatedAt = DateTimeOffset.UtcNow

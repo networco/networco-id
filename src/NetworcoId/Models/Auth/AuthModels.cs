@@ -59,6 +59,18 @@ public class NetworcoIdUserDto
     public string? Password { get; set; }
     public bool MustChangePassword { get; set; }
     public string? Nonce { get; set; }
+    
+    // Verification status
+    public bool EmailVerified { get; set; }
+    public bool PhoneNumberVerified { get; set; }
+    
+    // Address (OIDC Standard Claims)
+    public string? AddressFormatted { get; set; }
+    public string? AddressStreetAddress { get; set; }
+    public string? AddressLocality { get; set; }
+    public string? AddressRegion { get; set; }
+    public string? AddressPostalCode { get; set; }
+    public string? AddressCountry { get; set; }
 }
 
 /// <summary>

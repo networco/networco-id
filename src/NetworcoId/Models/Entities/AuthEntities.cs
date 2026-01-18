@@ -14,6 +14,14 @@ public class UserEntity
     public string? NationalId { get; set; } // Mock fødselsnummer for testing
     public string? PhoneNumber { get; set; }
     
+    // Address (OIDC Standard Claims)
+    public string? AddressFormatted { get; set; }
+    public string? AddressStreetAddress { get; set; }
+    public string? AddressLocality { get; set; }
+    public string? AddressRegion { get; set; }
+    public string? AddressPostalCode { get; set; }
+    public string? AddressCountry { get; set; }
+    
     // Email verification
     public string? EmailVerificationToken { get; set; }
     public DateTimeOffset? EmailVerificationTokenExpiresAt { get; set; }
@@ -22,6 +30,9 @@ public class UserEntity
     // Password reset
     public string? PasswordResetToken { get; set; }
     public DateTimeOffset? PasswordResetTokenExpiresAt { get; set; }
+    
+    // Phone verification
+    public bool PhoneNumberVerified { get; set; } = false;
     
     public bool IsActive { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; }

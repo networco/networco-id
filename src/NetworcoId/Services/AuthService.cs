@@ -187,9 +187,19 @@ public class AuthService : IAuthService
             LastName = user.LastName,
             Email = user.Email,
             PhoneNumber = user.PhoneNumber,
+            EmailVerified = user.EmailVerified,
+            PhoneNumberVerified = user.PhoneNumberVerified,
             // Removed: Role - authorization handled by resource server
             Password = null,
-            MustChangePassword = user.Credential.MustChangePassword
+            MustChangePassword = user.Credential.MustChangePassword,
+            
+            // Map Address Fields
+            AddressFormatted = user.AddressFormatted,
+            AddressStreetAddress = user.AddressStreetAddress,
+            AddressLocality = user.AddressLocality,
+            AddressRegion = user.AddressRegion,
+            AddressPostalCode = user.AddressPostalCode,
+            AddressCountry = user.AddressCountry
         };
     }
 
@@ -265,8 +275,18 @@ public class AuthService : IAuthService
             LastName = user.LastName,
             Email = user.Email,
             PhoneNumber = user.PhoneNumber,
+            EmailVerified = user.EmailVerified,
+            PhoneNumberVerified = user.PhoneNumberVerified,
             // Removed: Role - authorization handled by resource server
-            Password = null
+            Password = null,
+            
+            // Map Address Fields
+            AddressFormatted = user.AddressFormatted,
+            AddressStreetAddress = user.AddressStreetAddress,
+            AddressLocality = user.AddressLocality,
+            AddressRegion = user.AddressRegion,
+            AddressPostalCode = user.AddressPostalCode,
+            AddressCountry = user.AddressCountry
         };
     }
 
@@ -298,8 +318,18 @@ public class AuthService : IAuthService
             LastName = user.LastName,
             Email = user.Email,
             PhoneNumber = user.PhoneNumber,
+            EmailVerified = user.EmailVerified,
+            PhoneNumberVerified = user.PhoneNumberVerified,
             // Removed: Role - authorization handled by resource server
-            Password = null
+            Password = null,
+            
+            // Map Address Fields
+            AddressFormatted = user.AddressFormatted,
+            AddressStreetAddress = user.AddressStreetAddress,
+            AddressLocality = user.AddressLocality,
+            AddressRegion = user.AddressRegion,
+            AddressPostalCode = user.AddressPostalCode,
+            AddressCountry = user.AddressCountry
         };
     }
 

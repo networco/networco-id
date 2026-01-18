@@ -425,13 +425,100 @@ public static class AuthEndpoints
             }
         }
 
-        if (scopes.Contains("phone") && context.User.HasClaim(c => c.Type == "phone_number"))
+        if (scopes.Contains("phone"))
         {
-            var phoneNumber = context.User.FindFirst("phone_number")?.Value;
-            if (!string.IsNullOrEmpty(phoneNumber))
-                claims.Add("phone_number", phoneNumber);
+            if (context.User.HasClaim(c => c.Type == "phone_number"))
+            {
+                var phoneNumber = context.User.FindFirst("phone_number")?.Value;
+                if (!string.IsNullOrEmpty(phoneNumber))
+                    claims.Add("phone_number", phoneNumber);
+            }
+            
+            if (context.User.HasClaim(c => c.Type == "phone_number_verified"))
+            {
+                var phoneVerified = context.User.FindFirst("phone_number_verified")?.Value;
+                if (bool.TryParse(phoneVerified, out var isVerified))
+                    claims.Add("phone_number_verified", isVerified);
+            }
         }
 
+        if (scopes.Contains("address"))
+        {
+            // OIDC spec requires address to be a JSON object.
+            // Even if we don't have address data, we must return the claim key if the scope is granted.
+            // The value should be a JSON object, even if empty.
+            // Since we added it as a claim in JwtService with value "{}" and type "json",
+            // we should pass it through here.
+            
+            // Check if we have the claim from the token
+            if (context.User.HasClaim(c => c.Type == "address"))
+            {
+                 var addressJson = context.User.FindFirst("address")?.Value;
+                 // We need to return it as a raw JSON object in the response, not a stringified JSON string.
+                 // Results.Json will serialize the dictionary values.
+                 // If we put a string "{}" here, it will be serialized to "\"{}\"".
+                 // So we should try to deserialize it back to an object or use a dictionary.
+                 try 
+                 {
+                     if (!string.IsNullOrEmpty(addressJson))
+                     {
+                             // Basic parsing to avoid full serializer dependency if simple
+                         if (addressJson.Trim() == "{}")
+                         {
+                             claims.Add("address", new 
+                             {
+                                 formatted = "",
+                                 street_address = "",
+                                 locality = "",
+                                 region = "",
+                                 postal_code = "",
+                                 country = ""
+                             });
+                         }
+                         else
+                         {
+                             // Fallback for more complex json if we had it
+                             var deserialized = System.Text.Json.JsonSerializer.Deserialize<object>(addressJson);
+                             if (deserialized != null)
+                             {
+                                 claims.Add("address", deserialized);
+                             }
+                             else
+                             {
+                                 claims.Add("address", new { });
+                             }
+                         }
+                     }
+                 }
+                 catch
+                 {
+                     // Fallback if parsing fails
+                     claims.Add("address", new 
+                             {
+                                 formatted = "",
+                                 street_address = "",
+                                 locality = "",
+                                 region = "",
+                                 postal_code = "",
+                                 country = ""
+                             });
+                 }
+            }
+            else 
+            {
+                // Fallback if claim is missing but scope is present (shouldn't happen with updated JwtService)
+                claims.Add("address", new 
+                             {
+                                 formatted = "",
+                                 street_address = "",
+                                 locality = "",
+                                 region = "",
+                                 postal_code = "",
+                                 country = ""
+                             });
+            }
+        }
+        
         // Handle case where scope might be missing (e.g. client creds or old tokens)
         // If no scopes are present, default to minimal claims (sub only), which is already set
         
