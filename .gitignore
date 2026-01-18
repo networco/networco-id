@@ -483,3 +483,4 @@ $RECYCLE.BIN/
 
 bin/Debug/
 openid-conformance-suite/
+src/NetworcoId/Endpoints/OAuthEndpoints.cs

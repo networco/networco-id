@@ -22,9 +22,9 @@ public interface IAuthService
 {
     Task<NetworcoIdUserDto?> AuthenticateUserAsync(string emailOrNationalId, string password);
     Task<NetworcoIdUserDto?> GetUserByEmailOrNationalIdAsync(string emailOrNationalId);
-    Task<(NetworcoIdUserDto? User, List<string>? Scopes)> ValidateAuthorizationCodeAsync(string code, string redirectUri, string? clientId = null, string? codeVerifier = null, bool isRegistration = false);
+    Task<(NetworcoIdUserDto? User, List<string>? Scopes, DateTimeOffset? AuthTime)> ValidateAuthorizationCodeAsync(string code, string redirectUri, string? clientId = null, string? codeVerifier = null, bool isRegistration = false);
     Task<NetworcoIdUserDto?> RegisterUserAsync(string email, string password, string firstName, string lastName, string? nationalId, string? phoneNumber);
-    string CreateAuthorizationCode(string emailOrNationalId, string redirectUri, string? state, string? clientId = null, string? codeChallenge = null, string? codeChallengeMethod = null, string? nonce = null, IEnumerable<string>? scopes = null);
+    string CreateAuthorizationCode(string emailOrNationalId, string redirectUri, string? state, string? clientId = null, string? codeChallenge = null, string? codeChallengeMethod = null, string? nonce = null, IEnumerable<string>? scopes = null, DateTimeOffset? authTime = null);
     Task StoreRefreshTokenAsync(Guid userId, string tokenHash, DateTimeOffset expiresAt);
     Task<NetworcoIdUserDto?> GetUserByRefreshTokenAsync(string tokenHash);
     Task<bool> ValidateRefreshTokenAsync(string tokenHash);
@@ -333,12 +333,10 @@ public class AuthService : IAuthService
         };
     }
 
-    public string CreateAuthorizationCode(string emailOrNationalId, string redirectUri, string? state, string? clientId = null, string? codeChallenge = null, string? codeChallengeMethod = null, string? nonce = null, IEnumerable<string>? scopes = null)
+    public string CreateAuthorizationCode(string emailOrNationalId, string redirectUri, string? state, string? clientId = null, string? codeChallenge = null, string? codeChallengeMethod = null, string? nonce = null, IEnumerable<string>? scopes = null, DateTimeOffset? authTime = null)
     {
         // Stateless code: email|redirectUri|clientId|timestamp|challenge|method
-        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        // Include PKCE params in the payload (or ideally, just store them in memory/database associated with a random ID)
-        // Since we are using a concurrent dictionary in memory (lines 55), let's use that instead of embedding everything in the string
+        // We use a concurrent dictionary in memory instead of embedding everything in the string
         
         var codeId = Guid.NewGuid().ToString("N");
         var session = new AuthCodeSession(
@@ -349,6 +347,7 @@ public class AuthService : IAuthService
             codeChallengeMethod,
             nonce,
             scopes?.ToList() ?? new List<string>(),
+            authTime,
             DateTimeOffset.UtcNow);
 
         _authCodes.TryAdd(codeId, session);
@@ -368,7 +367,7 @@ public class AuthService : IAuthService
         return codeId;
     }
 
-    public async Task<(NetworcoIdUserDto? User, List<string>? Scopes)> ValidateAuthorizationCodeAsync(string code, string redirectUri, string? clientId = null, string? codeVerifier = null, bool isRegistration = false)
+    public async Task<(NetworcoIdUserDto? User, List<string>? Scopes, DateTimeOffset? AuthTime)> ValidateAuthorizationCodeAsync(string code, string redirectUri, string? clientId = null, string? codeVerifier = null, bool isRegistration = false)
     {
         try
         {
@@ -379,7 +378,7 @@ public class AuthService : IAuthService
                 if ((DateTimeOffset.UtcNow - session.CreatedAt) > CodeExpiration)
                 {
                     _logger.LogWarning("Authorization code expired");
-                    return (null, null);
+                    return (null, null, null);
                 }
 
                 // Verify Redirect URI
@@ -388,7 +387,7 @@ public class AuthService : IAuthService
                 if (!string.Equals(normalizedOriginal, normalizedActual, StringComparison.OrdinalIgnoreCase))
                 {
                     _logger.LogWarning("Redirect URI mismatch. Expected {Expected}, Got {Actual}", session.RedirectUri, redirectUri);
-                    return (null, null);
+                    return (null, null, null);
                 }
 
         if (string.IsNullOrEmpty(session.CodeChallenge))
@@ -404,7 +403,7 @@ public class AuthService : IAuthService
             if (string.IsNullOrEmpty(codeVerifier))
             {
                 _logger.LogWarning("PKCE required but code_verifier missing");
-                return (null, null);
+                return (null, null, null);
             }
 
             if (session.CodeChallengeMethod == "S256")
@@ -419,7 +418,7 @@ public class AuthService : IAuthService
                 if (challenge != session.CodeChallenge)
                 {
                     _logger.LogWarning("PKCE verification failed for S256");
-                    return (null, null);
+                    return (null, null, null);
                 }
             }
             else
@@ -428,7 +427,7 @@ public class AuthService : IAuthService
                 if (codeVerifier != session.CodeChallenge)
                 {
                     _logger.LogWarning("PKCE verification failed for plain");
-                    return (null, null);
+                    return (null, null, null);
                 }
             }
         }
@@ -438,7 +437,7 @@ public class AuthService : IAuthService
                 {
                     validUser.Nonce = session.Nonce;
                 }
-                return (validUser, session.Scopes);
+                return (validUser, session.Scopes, session.AuthTime);
             }
 
             // Handle NETWORCO ID authorization codes
@@ -449,13 +448,13 @@ public class AuthService : IAuthService
                 {
                     // For registration, create a new user with NETWORCO ID data
                     var simulatedUser = await CreateSimulatedUserForRegistrationAsync();
-                    return (simulatedUser, new List<string> { "openid", "profile", "email" });
+                    return (simulatedUser, new List<string> { "openid", "profile", "email" }, null);
                 }
                 else
                 {
                     // For login, this would normally validate against existing users
                     // For now, return null to indicate no existing user found
-                    return (null, null);
+                    return (null, null, null);
                 }
             }
 
@@ -469,7 +468,7 @@ public class AuthService : IAuthService
             var parts = plainText.Split('|');
 
             if (parts.Length < 3)
-                return (null, null);
+                return (null, null, null);
 
             var emailOrNationalId = parts[0];
             var originalRedirectUri = parts[1];
@@ -511,7 +510,7 @@ public class AuthService : IAuthService
             if (!string.Equals(normalizedLegacyOriginal, normalizedLegacyActual, StringComparison.OrdinalIgnoreCase))
             {
                 _logger.LogWarning("Authorization code validation failed: redirect_uri mismatch. Expected {Expected}, Got {Actual}", originalRedirectUri, redirectUri);
-                return (null, null);
+                return (null, null, null);
             }
 
             // Verify client ID matches (if provided)
@@ -527,7 +526,7 @@ public class AuthService : IAuthService
                 if (exchangingClient == null || !exchangingClient.IsTrustedForExchange)
                 {
                     _logger.LogWarning("Authorization code validation failed: client_id mismatch and client {Actual} is not trusted for exchange. Expected {Expected}", clientId, originalClientId);
-                    return (null, null);
+                    return (null, null, null);
                 }
                 
                 _logger.LogInformation("Trusted API client {ApiClient} is exchanging code for client {OriginalClient}", clientId, originalClientId);
@@ -536,15 +535,15 @@ public class AuthService : IAuthService
             // Check expiration
             var codeAge = DateTimeOffset.UtcNow.ToUnixTimeSeconds() - timestamp;
             if (codeAge > CodeExpiration.TotalSeconds)
-                return (null, null);
+                return (null, null, null);
 
             // Get user from database
             var user = await GetUserByEmailOrNationalIdAsync(emailOrNationalId);
-            return (user, legacyScopes); 
+            return (user, legacyScopes, null); 
         }
         catch
         {
-            return (null, null);
+            return (null, null, null);
         }
     }
 
@@ -841,5 +840,6 @@ public class AuthService : IAuthService
         string? CodeChallengeMethod,
         string? Nonce,
         List<string> Scopes,
+        DateTimeOffset? AuthTime,
         DateTimeOffset CreatedAt);
 }

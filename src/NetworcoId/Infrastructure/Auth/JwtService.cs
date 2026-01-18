@@ -18,7 +18,7 @@ namespace NetworcoId.Infrastructure.Auth;
 public interface IJwtService
 {
     Task<string> GenerateAccessTokenAsync(NetworcoIdUserDto user, IEnumerable<string>? scopes = null, CancellationToken cancellationToken = default);
-    Task<string> GenerateIdTokenAsync(NetworcoIdUserDto user, string clientId, string? nonce = null, CancellationToken cancellationToken = default);
+    Task<string> GenerateIdTokenAsync(NetworcoIdUserDto user, string clientId, string? nonce = null, DateTimeOffset? authTime = null, CancellationToken cancellationToken = default);
     string GenerateRefreshToken();
     Task<ClaimsPrincipal?> ValidateTokenAsync(string token, CancellationToken cancellationToken = default);
     Task<JsonWebKeySet> GetPublicKeysAsync(CancellationToken cancellationToken = default);
@@ -87,7 +87,7 @@ public class JwtService : IJwtService
         }
     }
 
-    public async Task<string> GenerateIdTokenAsync(NetworcoIdUserDto user, string clientId, string? nonce = null, CancellationToken cancellationToken = default)
+    public async Task<string> GenerateIdTokenAsync(NetworcoIdUserDto user, string clientId, string? nonce = null, DateTimeOffset? authTime = null, CancellationToken cancellationToken = default)
     {
         var claims = new List<Claim>
         {
@@ -95,7 +95,7 @@ public class JwtService : IJwtService
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             // ID Token specific claims
             new Claim(JwtRegisteredClaimNames.Iat, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
-            new Claim(JwtRegisteredClaimNames.AuthTime, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64)
+            new Claim(JwtRegisteredClaimNames.AuthTime, (authTime ?? DateTimeOffset.UtcNow).ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64)
         };
 
         if (!string.IsNullOrEmpty(nonce)) claims.Add(new Claim(JwtRegisteredClaimNames.Nonce, nonce));
