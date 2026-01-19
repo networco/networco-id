@@ -6,120 +6,142 @@
 }
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <div class="md:grid md:grid-cols-3 md:gap-6">
-        <div class="md:col-span-1">
-            <div class="px-4 sm:px-0">
-                <h3 class="text-lg font-medium leading-6 text-gray-900">Security Policies</h3>
-                <p class="mt-1 text-sm text-gray-600">
-                    Configure password complexity requirements and account lockout policies for all users.
-                </p>
-                
-                @if (TempData["StatusMessage"] != null)
-                {
-                    <div class="mt-4 p-4 rounded-md bg-green-50 border border-green-200">
-                        <div class="flex">
-                            <div class="flex-shrink-0">
-                                <svg class="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                                </svg>
-                            </div>
-                            <div class="ml-3">
-                                <p class="text-sm font-medium text-green-800">@TempData["StatusMessage"]</p>
-                            </div>
-                        </div>
-                    </div>
-                }
-            </div>
+    <div class="mb-8 flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">System Settings</h1>
+            <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">Configure core identity provider policies and security defaults.</p>
         </div>
         
-        <div class="mt-5 md:mt-0 md:col-span-2">
-            <form method="post">
-                <div class="shadow sm:rounded-md sm:overflow-hidden">
-                    <div class="px-4 py-5 bg-white space-y-6 sm:p-6">
-                        <div class="grid grid-cols-6 gap-6">
-                            <div class="col-span-6 sm:col-span-3">
-                                <label asp-for="Input.MinPasswordLength" class="block text-sm font-medium text-gray-700"></label>
-                                <input asp-for="Input.MinPasswordLength" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                                <span asp-validation-for="Input.MinPasswordLength" class="text-red-500 text-xs"></span>
-                            </div>
+        @if (TempData["StatusMessage"] != null)
+        {
+            <div class="p-4 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/30 flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <p class="text-sm font-medium text-green-800 dark:text-green-300">@TempData["StatusMessage"]</p>
+            </div>
+        }
+    </div>
 
-                            <div class="col-span-6 sm:col-span-3">
-                                <label asp-for="Input.MaxFailedLoginAttempts" class="block text-sm font-medium text-gray-700"></label>
-                                <input asp-for="Input.MaxFailedLoginAttempts" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                                <span asp-validation-for="Input.MaxFailedLoginAttempts" class="text-red-500 text-xs"></span>
-                            </div>
-
-                             <div class="col-span-6 sm:col-span-3">
-                                 <label asp-for="Input.LockoutDurationMinutes" class="block text-sm font-medium text-gray-700"></label>
-                                 <input asp-for="Input.LockoutDurationMinutes" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                                 <span asp-validation-for="Input.LockoutDurationMinutes" class="text-red-500 text-xs"></span>
-                             </div>
-
-                             <div class="col-span-6 sm:col-span-3">
-                                 <label asp-for="Input.AccessTokenExpirationMinutes" class="block text-sm font-medium text-gray-700"></label>
-                                 <input asp-for="Input.AccessTokenExpirationMinutes" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                                 <span asp-validation-for="Input.AccessTokenExpirationMinutes" class="text-red-500 text-xs"></span>
-                             </div>
-
-                             <div class="col-span-6 sm:col-span-3">
-                                 <label asp-for="Input.RefreshTokenExpirationDays" class="block text-sm font-medium text-gray-700"></label>
-                                 <input asp-for="Input.RefreshTokenExpirationDays" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                                 <span asp-validation-for="Input.RefreshTokenExpirationDays" class="text-red-500 text-xs"></span>
-                             </div>
+    <form method="post" class="space-y-8">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <!-- Sidebar Info -->
+            <div class="md:col-span-1">
+                <div class="sticky top-24">
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-white">Security Policies</h3>
+                    <p class="mt-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                        Configure password complexity requirements and account lockout policies for all users across the system.
+                    </p>
+                    
+                    <div class="mt-6 p-4 rounded-xl bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-800/30">
+                        <div class="flex gap-3">
+                            <svg class="h-5 w-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            <p class="text-xs text-indigo-700 dark:text-indigo-400">These settings are applied globally. Changes take effect immediately for new operations.</p>
                         </div>
-
-
-                        <fieldset>
-                            <legend class="text-base font-medium text-gray-900">Complexity Requirements</legend>
-                            <div class="mt-4 space-y-4">
-                                <div class="flex items-start">
-                                    <div class="flex items-center h-5">
-                                        <input asp-for="Input.RequireDigit" type="checkbox" class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded">
-                                    </div>
-                                    <div class="ml-3 text-sm">
-                                        <label asp-for="Input.RequireDigit" class="font-medium text-gray-700">Require Numbers</label>
-                                        <p class="text-gray-500">Passwords must contain at least one digit (0-9).</p>
-                                    </div>
-                                </div>
-                                <div class="flex items-start">
-                                    <div class="flex items-center h-5">
-                                        <input asp-for="Input.RequireUppercase" type="checkbox" class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded">
-                                    </div>
-                                    <div class="ml-3 text-sm">
-                                        <label asp-for="Input.RequireUppercase" class="font-medium text-gray-700">Require Uppercase</label>
-                                        <p class="text-gray-500">Passwords must contain at least one uppercase letter (A-Z).</p>
-                                    </div>
-                                </div>
-                                <div class="flex items-start">
-                                    <div class="flex items-center h-5">
-                                        <input asp-for="Input.RequireLowercase" type="checkbox" class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded">
-                                    </div>
-                                    <div class="ml-3 text-sm">
-                                        <label asp-for="Input.RequireLowercase" class="font-medium text-gray-700">Require Lowercase</label>
-                                        <p class="text-gray-500">Passwords must contain at least one lowercase letter (a-z).</p>
-                                    </div>
-                                </div>
-                                <div class="flex items-start">
-                                    <div class="flex items-center h-5">
-                                        <input asp-for="Input.RequireNonAlphanumeric" type="checkbox" class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded">
-                                    </div>
-                                    <div class="ml-3 text-sm">
-                                        <label asp-for="Input.RequireNonAlphanumeric" class="font-medium text-gray-700">Require Special Characters</label>
-                                        <p class="text-gray-500">Passwords must contain at least one special character (e.g., !, $, #, %).</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </fieldset>
-                    </div>
-                    <div class="px-4 py-3 bg-gray-50 text-right sm:px-6">
-                        <button type="submit" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all">
-                            Save Configuration
-                        </button>
                     </div>
                 </div>
-            </form>
+            </div>
+            
+            <!-- Main Content -->
+            <div class="md:col-span-2 space-y-6">
+                <!-- Thresholds Card -->
+                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+                    <div class="px-6 py-5 border-b border-gray-50 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-900/20">
+                        <h4 class="text-sm font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Lockout & Expirations</h4>
+                    </div>
+                    <div class="p-6 grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div>
+                            <label asp-for="Input.MinPasswordLength" class="block text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2"></label>
+                            <input asp-for="Input.MinPasswordLength" class="block w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all sm:text-sm">
+                            <span asp-validation-for="Input.MinPasswordLength" class="text-red-500 text-xs mt-1"></span>
+                        </div>
+
+                        <div>
+                            <label asp-for="Input.MaxFailedLoginAttempts" class="block text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2"></label>
+                            <input asp-for="Input.MaxFailedLoginAttempts" class="block w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all sm:text-sm">
+                            <span asp-validation-for="Input.MaxFailedLoginAttempts" class="text-red-500 text-xs mt-1"></span>
+                        </div>
+
+                        <div>
+                             <label asp-for="Input.LockoutDurationMinutes" class="block text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2"></label>
+                             <input asp-for="Input.LockoutDurationMinutes" class="block w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all sm:text-sm">
+                             <span asp-validation-for="Input.LockoutDurationMinutes" class="text-red-500 text-xs mt-1"></span>
+                        </div>
+
+                        <div>
+                             <label asp-for="Input.AccessTokenExpirationMinutes" class="block text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2"></label>
+                             <input asp-for="Input.AccessTokenExpirationMinutes" class="block w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all sm:text-sm">
+                             <span asp-validation-for="Input.AccessTokenExpirationMinutes" class="text-red-500 text-xs mt-1"></span>
+                        </div>
+
+                        <div>
+                             <label asp-for="Input.RefreshTokenExpirationDays" class="block text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2"></label>
+                             <input asp-for="Input.RefreshTokenExpirationDays" class="block w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all sm:text-sm">
+                             <span asp-validation-for="Input.RefreshTokenExpirationDays" class="text-red-500 text-xs mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Complexity Card -->
+                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+                    <div class="px-6 py-5 border-b border-gray-50 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-900/20">
+                        <h4 class="text-sm font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Password Complexity</h4>
+                    </div>
+                    <div class="p-6 space-y-4">
+                        <label class="flex items-start gap-4 p-4 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-900/40 transition-colors cursor-pointer group">
+                            <div class="flex items-center h-6">
+                                <input asp-for="Input.RequireDigit" type="checkbox" class="w-5 h-5 text-indigo-600 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-indigo-500 dark:bg-gray-700 transition-all">
+                            </div>
+                            <div class="flex-grow">
+                                <span class="block text-sm font-bold text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Require Numbers</span>
+                                <span class="text-xs text-gray-500 dark:text-gray-400">Passwords must contain at least one digit (0-9).</span>
+                            </div>
+                        </label>
+
+                        <label class="flex items-start gap-4 p-4 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-900/40 transition-colors cursor-pointer group">
+                            <div class="flex items-center h-6">
+                                <input asp-for="Input.RequireUppercase" type="checkbox" class="w-5 h-5 text-indigo-600 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-indigo-500 dark:bg-gray-700 transition-all">
+                            </div>
+                            <div class="flex-grow">
+                                <span class="block text-sm font-bold text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Require Uppercase</span>
+                                <span class="text-xs text-gray-500 dark:text-gray-400">Passwords must contain at least one uppercase letter (A-Z).</span>
+                            </div>
+                        </label>
+
+                        <label class="flex items-start gap-4 p-4 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-900/40 transition-colors cursor-pointer group">
+                            <div class="flex items-center h-6">
+                                <input asp-for="Input.RequireLowercase" type="checkbox" class="w-5 h-5 text-indigo-600 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-indigo-500 dark:bg-gray-700 transition-all">
+                            </div>
+                            <div class="flex-grow">
+                                <span class="block text-sm font-bold text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Require Lowercase</span>
+                                <span class="text-xs text-gray-500 dark:text-gray-400">Passwords must contain at least one lowercase letter (a-z).</span>
+                            </div>
+                        </label>
+
+                        <label class="flex items-start gap-4 p-4 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-900/40 transition-colors cursor-pointer group">
+                            <div class="flex items-center h-6">
+                                <input asp-for="Input.RequireNonAlphanumeric" type="checkbox" class="w-5 h-5 text-indigo-600 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-indigo-500 dark:bg-gray-700 transition-all">
+                            </div>
+                            <div class="flex-grow">
+                                <span class="block text-sm font-bold text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Require Special Characters</span>
+                                <span class="text-xs text-gray-500 dark:text-gray-400">Passwords must contain at least one special character (e.g., !, $, #, %).</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Action Button -->
+                <div class="flex justify-end pt-4">
+                    <button type="submit" class="inline-flex items-center gap-2 px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 dark:shadow-none hover:scale-[1.02] active:scale-[0.98] transition-all duration-200">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                        Save Configuration
+                    </button>
+                </div>
+            </div>
         </div>
-    </div>
+    </form>
 </div>
 
 @section Scripts {

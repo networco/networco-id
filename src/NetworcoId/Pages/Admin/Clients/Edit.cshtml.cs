@@ -43,6 +43,9 @@ public class EditModel(IClientManagementService clientService, IAuditService aud
 
     public bool HasSecondarySecret { get; set; }
 
+    [BindProperty]
+    public bool IsActive { get; set; }
+
     public async Task<IActionResult> OnGetAsync(string id)
     {
         var client = await clientService.GetClientAsync(id);
@@ -57,6 +60,7 @@ public class EditModel(IClientManagementService clientService, IAuditService aud
         Scopes = string.Join(", ", client.AllowedScopes);
         SelectedScopes = client.AllowedScopes;
         IsTrustedForExchange = client.IsTrustedForExchange;
+        IsActive = client.IsActive;
         HasSecondarySecret = !string.IsNullOrEmpty(client.SecondaryClientSecretHash);
 
         return Page();
@@ -76,6 +80,12 @@ public class EditModel(IClientManagementService clientService, IAuditService aud
         var scopeList = SelectedScopes.Any() 
             ? SelectedScopes 
             : Scopes.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList();
+
+        // Update active status
+        if (IsActive != client.IsActive)
+        {
+            await clientService.ToggleClientStatusAsync(ClientId);
+        }
 
         await clientService.UpdateClientAsync(ClientId, DisplayName, redirectUriList, scopeList, IsTrustedForExchange);
         
