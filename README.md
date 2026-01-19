@@ -55,3 +55,5 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 ## Background Processing
 
 The service uses NATS JetStream for background tasks like sending verification emails and OTP codes. Ensure the `networco-id` stream is provisioned in NATS.
+
+OpenCode shared session: https://opncd.ai/share/r1vjvrP0
