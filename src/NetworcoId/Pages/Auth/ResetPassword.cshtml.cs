@@ -2,10 +2,14 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using NetworcoId.Services;
 
+using NetworcoId.Models.Auth;
+
 namespace NetworcoId.Pages.Auth;
 
-public class ResetPasswordModel(IAuthService authService) : PageModel
+public class ResetPasswordModel(IAuthService authService, NetworcoIdConfig config) : PageModel
 {
+    public int MinPasswordLength => config.MinPasswordLength;
+
     [BindProperty(SupportsGet = true)]
     public string? Token { get; set; }
 

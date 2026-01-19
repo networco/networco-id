@@ -23,6 +23,7 @@ public class RegisterModel(
     ILogger<RegisterModel> logger) : PageModel
 {
     private readonly NetworcoIdConfig _config = config.Value;
+    public int MinPasswordLength => _config.MinPasswordLength;
     public string? ErrorMessage { get; set; }
     public string ReturnUrl { get; set; } = string.Empty;
     public bool RegistrationSuccess { get; set; }

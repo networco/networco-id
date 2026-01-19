@@ -6,6 +6,8 @@ using NetworcoId.Services.Audit;
 using NetworcoId.Infrastructure.Auth;
 using NetworcoId.Core.Security;
 
+using NetworcoId.Models.Auth;
+
 namespace NetworcoId.Pages.Admin.Users;
 
 [AdminAuth]
@@ -14,13 +16,17 @@ public class CreateModel : PageModel
     private readonly AuthDbContext _context;
     private readonly IAuditService _auditService;
     private readonly IPasswordHasher _passwordHasher;
+    private readonly NetworcoIdConfig _config;
 
-    public CreateModel(AuthDbContext context, IAuditService auditService, IPasswordHasher passwordHasher)
+    public CreateModel(AuthDbContext context, IAuditService auditService, IPasswordHasher passwordHasher, NetworcoIdConfig config)
     {
         _context = context;
         _auditService = auditService;
         _passwordHasher = passwordHasher;
+        _config = config;
     }
+
+    public int MinPasswordLength => _config.MinPasswordLength;
 
     [BindProperty]
     public UserEntity UserData { get; set; } = new() { Email = "", FirstName = "", LastName = "" };
