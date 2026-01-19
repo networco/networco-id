@@ -20,7 +20,7 @@ public class CreateModel(IClientManagementService clientManagementService) : Pag
     public string RedirectUris { get; set; } = string.Empty;
 
     [BindProperty]
-    public string Scopes { get; set; } = "openid,profile,email,offline_access";
+    public string Scopes { get; set; } = string.Empty;
 
     [BindProperty]
     public List<string> SelectedScopes { get; set; } = new() { "openid", "profile", "email", "offline_access" };
@@ -49,9 +49,16 @@ public class CreateModel(IClientManagementService clientManagementService) : Pag
 
         var redirectUriList = RedirectUris.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
         
-        var scopeList = SelectedScopes.Any() 
-            ? SelectedScopes 
-            : Scopes.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+        // Combine selected checkboxes with manual scopes
+        var scopeList = SelectedScopes ?? new List<string>();
+        if (!string.IsNullOrWhiteSpace(Scopes))
+        {
+            var manualScopes = Scopes.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            foreach (var s in manualScopes)
+            {
+                if (!scopeList.Contains(s)) scopeList.Add(s);
+            }
+        }
 
         var (client, secret) = await clientManagementService.CreateClientAsync(DisplayName, redirectUriList, scopeList, IsTrustedForExchange);
 

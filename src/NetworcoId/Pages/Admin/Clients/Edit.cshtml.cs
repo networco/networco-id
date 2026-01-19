@@ -76,10 +76,16 @@ public class EditModel(IClientManagementService clientService, IAuditService aud
 
         var redirectUriList = RedirectUris.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).ToList();
         
-        // Use SelectedScopes if provided, otherwise fallback to Scopes text field
-        var scopeList = SelectedScopes.Any() 
-            ? SelectedScopes 
-            : Scopes.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList();
+        // Combine selected checkboxes with manual scopes
+        var scopeList = SelectedScopes ?? new List<string>();
+        if (!string.IsNullOrWhiteSpace(Scopes))
+        {
+            var manualScopes = Scopes.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim());
+            foreach (var s in manualScopes)
+            {
+                if (!scopeList.Contains(s)) scopeList.Add(s);
+            }
+        }
 
         // Update active status
         if (IsActive != client.IsActive)
