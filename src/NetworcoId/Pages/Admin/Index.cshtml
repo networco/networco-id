@@ -1,0 +1,132 @@
+@page
+@model NetworcoId.Pages.Admin.IndexModel
+@{
+    ViewData["Title"] = "Dashboard";
+    Layout = "_Layout";
+}
+
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="mb-8">
+        <h1 class="text-2xl font-bold text-gray-900">System Overview</h1>
+        <p class="text-gray-600">Quick statistics and recent activity across the identity platform.</p>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="grid grid-cols-1 gap-5 sm:grid-cols-3 mb-8">
+        <div class="bg-white overflow-hidden shadow rounded-2xl border border-gray-100 p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0 bg-indigo-50 rounded-xl p-3">
+                    <svg class="h-6 w-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                </div>
+                <div class="ml-5 w-0 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500 truncate">Total Users</dt>
+                        <dd class="flex items-baseline">
+                            <div class="text-2xl font-bold text-gray-900">@Model.TotalUsers</div>
+                            <div class="ml-2 flex items-baseline text-sm font-semibold text-green-600">
+                                @Model.ActiveUsers active
+                            </div>
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white overflow-hidden shadow rounded-2xl border border-gray-100 p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0 bg-purple-50 rounded-xl p-3">
+                    <svg class="h-6 w-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                </div>
+                <div class="ml-5 w-0 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500 truncate">OAuth Clients</dt>
+                        <dd class="flex items-baseline">
+                            <div class="text-2xl font-bold text-gray-900">@Model.TotalClients</div>
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white overflow-hidden shadow rounded-2xl border border-gray-100 p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0 bg-amber-50 rounded-xl p-3">
+                    <svg class="h-6 w-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.040L3 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622l-1.382-3.016z" />
+                    </svg>
+                </div>
+                <div class="ml-5 w-0 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500 truncate">System Health</dt>
+                        <dd class="flex items-baseline">
+                            <div class="text-2xl font-bold text-gray-900">Healthy</div>
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 gap-8 lg:grid-cols-2">
+        <!-- Recent Activity -->
+        <div class="bg-white shadow rounded-2xl border border-gray-100 overflow-hidden">
+            <div class="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+                <h3 class="text-lg font-bold text-gray-900">Recent Activity</h3>
+                <a href="/Admin/Logs" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">View all</a>
+            </div>
+            <div class="px-6 py-2">
+                <ul role="list" class="divide-y divide-gray-100">
+                    @foreach (var log in Model.RecentLogs)
+                    {
+                        <li class="py-4">
+                            <div class="flex space-x-3">
+                                <div class="flex-1 space-y-1">
+                                    <div class="flex items-center justify-between">
+                                        <h3 class="text-sm font-medium text-gray-900">@log.EventType</h3>
+                                        <p class="text-sm text-gray-500">@log.Timestamp.ToString("HH:mm")</p>
+                                    </div>
+                                    <p class="text-sm text-gray-500">@log.Description</p>
+                                    @if (log.User != null)
+                                    {
+                                        <p class="text-xs text-indigo-600">User: @log.User.Email</p>
+                                    }
+                                </div>
+                            </div>
+                        </li>
+                    }
+                </ul>
+            </div>
+        </div>
+
+        <!-- New Users -->
+        <div class="bg-white shadow rounded-2xl border border-gray-100 overflow-hidden">
+            <div class="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+                <h3 class="text-lg font-bold text-gray-900">Newest Users</h3>
+                <a href="/Admin/Users/Index" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">Manage users</a>
+            </div>
+            <div class="px-6 py-2">
+                <ul role="list" class="divide-y divide-gray-100">
+                    @foreach (var user in Model.NewestUsers)
+                    {
+                        <li class="py-4 flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="h-10 w-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-700 font-bold">
+                                    @user.FirstName[0]@user.LastName[0]
+                                </div>
+                                <div>
+                                    <p class="text-sm font-medium text-gray-900">@user.FirstName @user.LastName</p>
+                                    <p class="text-xs text-gray-500">@user.Email</p>
+                                </div>
+                            </div>
+                            <span class="text-xs text-gray-400">@user.CreatedAt.ToString("MMM dd")</span>
+                        </li>
+                    }
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>

@@ -21,9 +21,10 @@
                     <span class="text-xl font-bold text-gray-900">NETWORCO ID Admin</span>
                 </div>
                 <nav class="flex gap-6">
-                    <a href="/Admin/Clients/Index" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors">Clients</a>
-                    <a href="/Admin/Users/Index" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors">Users</a>
-                    <a href="/Admin/Logs" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors">Logs</a>
+                    <a href="/Admin/Index" class="@(ViewContext.HttpContext.Request.Path == "/Admin/Index" || ViewContext.HttpContext.Request.Path == "/Admin" ? "text-indigo-600 font-bold" : "text-gray-600 hover:text-indigo-600 font-medium") transition-colors">Dashboard</a>
+                    <a href="/Admin/Clients/Index" class="@(ViewContext.HttpContext.Request.Path.StartsWithSegments("/Admin/Clients") ? "text-indigo-600 font-bold" : "text-gray-600 hover:text-indigo-600 font-medium") transition-colors">Clients</a>
+                    <a href="/Admin/Users/Index" class="@(ViewContext.HttpContext.Request.Path.StartsWithSegments("/Admin/Users") ? "text-indigo-600 font-bold" : "text-gray-600 hover:text-indigo-600 font-medium") transition-colors">Users</a>
+                    <a href="/Admin/Logs" class="@(ViewContext.HttpContext.Request.Path.StartsWithSegments("/Admin/Logs") ? "text-indigo-600 font-bold" : "text-gray-600 hover:text-indigo-600 font-medium") transition-colors">Logs</a>
                 </nav>
                 <div class="flex items-center gap-4">
                     <div class="relative" id="profile-dropdown">
