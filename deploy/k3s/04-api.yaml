@@ -19,20 +19,43 @@ spec:
       - name: api
         image: ghcr.io/networco/networco-id:latest
         env:
-        - name: ConnectionStrings__DefaultConnection
+        - name: POSTGRES_HOST
           valueFrom:
             secretKeyRef:
               name: networcoid-secrets
-              key: database-url
+              key: db-host
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: networcoid-secrets
+              key: db-name
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: networcoid-secrets
+              key: db-user
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: networcoid-secrets
+              key: db-password
         - name: NetworcoId__Secret
           valueFrom:
             secretKeyRef:
               name: networcoid-secrets
               key: jwt-secret
         - name: NetworcoId__Issuer
-          value: "https://id.networco.countdown.no"
+          valueFrom:
+            secretKeyRef:
+              name: networcoid-secrets
+              key: issuer
         - name: NetworcoId__BaseUrl
-          value: "https://id.networco.countdown.no"
+          valueFrom:
+            secretKeyRef:
+              name: networcoid-secrets
+              key: base-url
         - name: NATS_URL
           value: "nats://nats.networco-id.svc.cluster.local:4222"
         - name: NETWORCO_EXTRA_ADMINS
