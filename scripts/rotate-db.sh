@@ -16,6 +16,38 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 ENV_FILE="$REPO_ROOT/.env.prod"
 NAMESPACE="networco-id"
+KUBECONFIG_PATH="$REPO_ROOT/.kubeconfig"
+
+# Handle Kubeconfig
+if [ -f "$KUBECONFIG_PATH" ]; then
+    export KUBECONFIG="$KUBECONFIG_PATH"
+fi
+
+# Pre-flight check: Is the cluster reachable?
+check_connectivity() {
+    kubectl cluster-info > /dev/null 2>&1
+}
+
+TUNNEL_PID=""
+if ! check_connectivity; then
+    echo -e "${YELLOW}🌐 Cluster not reachable. Attempting to start SSH tunnel...${NC}"
+    "$SCRIPT_DIR/k3s.sh" tunnel > /dev/null 2>&1 &
+    TUNNEL_PID=$!
+    
+    MAX_RETRIES=5
+    COUNT=0
+    while ! check_connectivity && [ $COUNT -lt $MAX_RETRIES ]; do
+        sleep 2
+        ((COUNT++))
+    done
+
+    if ! check_connectivity; then
+        echo -e "${RED}❌ Error: Failed to establish SSH tunnel.${NC}"
+        [ -n "$TUNNEL_PID" ] && kill $TUNNEL_PID
+        exit 1
+    fi
+    trap 'kill $TUNNEL_PID 2>/dev/null || true' EXIT
+fi
 
 if [ ! -f "$ENV_FILE" ]; then
     echo -e "${RED}❌ Error: $ENV_FILE not found.${NC}"
@@ -37,7 +69,7 @@ echo -e "${BLUE}=== Rotating Database Password for $POSTGRES_USER ===${NC}"
 
 # 1. Update password on host via SSH
 echo -e "${YELLOW}Updating password on database host ($POSTGRES_HOST)...${NC}"
-ssh root@$POSTGRES_HOST "sudo -u postgres psql -c \"DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '$POSTGRES_USER') THEN CREATE ROLE $POSTGRES_USER WITH LOGIN PASSWORD '$NEW_DATABASE_PASSWORD'; ELSE ALTER ROLE $POSTGRES_USER WITH PASSWORD '$NEW_DATABASE_PASSWORD'; END IF; END \$\$;\""
+ssh root@$POSTGRES_HOST "LC_ALL=C sudo -u postgres psql -c \"DO \\\$QL\\\$ BEGIN IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '$POSTGRES_USER') THEN CREATE ROLE $POSTGRES_USER WITH LOGIN PASSWORD '$NEW_DATABASE_PASSWORD'; ELSE ALTER ROLE $POSTGRES_USER WITH PASSWORD '$NEW_DATABASE_PASSWORD'; END IF; END \\\$QL\\\$;\""
 
 # 2. Update .env.prod
 echo -e "${YELLOW}Updating local .env.prod...${NC}"

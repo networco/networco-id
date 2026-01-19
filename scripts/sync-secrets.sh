@@ -69,6 +69,7 @@ if [ "$1" == "--pull" ]; then
         "brevo-api-key:BREVO_API_KEY"
         "issuer:ISSUER"
         "base-url:BASE_URL"
+        "NATS_URL:NATS_URL"
     )
 
     # Check if secret exists
@@ -102,8 +103,14 @@ fi
 # --- Push Mode (Default) ---
 
 if [ ! -f "$ENV_FILE" ]; then
-    echo -e "${RED}❌ Error: $ENV_FILE not found. Use --pull to download from cluster if available.${NC}"
-    exit 1
+    echo -e "${YELLOW}⚠️  $ENV_FILE not found. Attempting to pull secrets from cluster...${NC}"
+    if kubectl get secret networcoid-secrets -n "$NAMESPACE" &> /dev/null; then
+        "$0" --pull
+    else
+        echo -e "${RED}❌ Error: $ENV_FILE not found and secret 'networcoid-secrets' does not exist in cluster.${NC}"
+        echo -e "${YELLOW}Please create $ENV_FILE manually or ensure cluster access is correct.${NC}"
+        exit 1
+    fi
 fi
 
 echo -e "${BLUE}=== Synchronizing Secrets to Kubernetes ($NAMESPACE) ===${NC}"
@@ -115,6 +122,10 @@ set +a
 
 # Update networcoid-secrets in networco-id namespace
 echo -e "${YELLOW}Updating networcoid-secrets...${NC}"
+
+# Internal defaults if not set in .env.prod
+NATS_URL=${NATS_URL:-"nats://nats.networco-id.svc.cluster.local:4222"}
+
 kubectl create secret generic networcoid-secrets \
     --namespace "$NAMESPACE" \
     --from-literal=db-host="$POSTGRES_HOST" \
@@ -126,6 +137,7 @@ kubectl create secret generic networcoid-secrets \
     --from-literal=brevo-api-key="$BREVO_API_KEY" \
     --from-literal=issuer="$ISSUER" \
     --from-literal=base-url="$BASE_URL" \
+    --from-literal=NATS_URL="$NATS_URL" \
     --dry-run=client -o yaml | kubectl apply -f -
 
 echo -e "${GREEN}✓ Secrets synchronized successfully.${NC}"

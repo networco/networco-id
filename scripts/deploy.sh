@@ -83,7 +83,14 @@ echo -e "${BLUE}=== NetworcoID Deployment ===${NC}"
 
 # 1. Sync Secrets from .env.prod
 echo -e "${YELLOW}Step 1: Synchronizing secrets...${NC}"
-"$SCRIPT_DIR/sync-secrets.sh"
+if ! "$SCRIPT_DIR/sync-secrets.sh"; then
+    echo -e "${RED}❌ Warning: Secret synchronization failed. Deployment may fail if secrets are missing.${NC}"
+    read -p "Continue anyway? (y/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        exit 1
+    fi
+fi
 
 # 2. Build and push images using existing script
 if [ "$SKIP_BUILD" = false ]; then
@@ -97,7 +104,7 @@ fi
 echo -e "${YELLOW}Step 3: Applying Kubernetes manifests...${NC}"
 kubectl apply -f "$DEPLOY_DIR/00-namespace.yaml"
 kubectl apply -f "$DEPLOY_DIR/01-nats.yaml"
-kubectl apply -f "$DEPLOY_DIR/03-secrets.yaml"
+# Skip 03-secrets.yaml as it's handled by sync-secrets.sh in Step 1
 kubectl apply -f "$DEPLOY_DIR/04-api.yaml"
 kubectl apply -f "$DEPLOY_DIR/05-worker.yaml"
 kubectl apply -f "$DEPLOY_DIR/06-ingress.yaml"
