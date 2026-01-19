@@ -70,6 +70,38 @@
             </div>
         </div>
 
+        <!-- Section: Address Information -->
+        <div class="rounded-2xl bg-white/70 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/50 backdrop-blur-xl shadow-sm overflow-hidden">
+            <div class="px-6 py-5 border-b border-gray-200/50 dark:border-gray-700/50 bg-gray-50/30 dark:bg-gray-900/30">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Address</h3>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">OIDC address claims used for identity verification.</p>
+            </div>
+            <div class="p-6 space-y-6">
+                <div>
+                    <label asp-for="UserData.AddressStreetAddress" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Street Address</label>
+                    <input asp-for="UserData.AddressStreetAddress" class="block w-full rounded-xl border-gray-200/60 dark:border-gray-700/60 bg-white/50 dark:bg-gray-900/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200" />
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label asp-for="UserData.AddressPostalCode" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Postal Code</label>
+                        <input asp-for="UserData.AddressPostalCode" class="block w-full rounded-xl border-gray-200/60 dark:border-gray-700/60 bg-white/50 dark:bg-gray-900/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200" />
+                    </div>
+                    <div>
+                        <label asp-for="UserData.AddressLocality" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Locality (City)</label>
+                        <input asp-for="UserData.AddressLocality" class="block w-full rounded-xl border-gray-200/60 dark:border-gray-700/60 bg-white/50 dark:bg-gray-900/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200" />
+                    </div>
+                    <div>
+                        <label asp-for="UserData.AddressRegion" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Region (State/Province)</label>
+                        <input asp-for="UserData.AddressRegion" class="block w-full rounded-xl border-gray-200/60 dark:border-gray-700/60 bg-white/50 dark:bg-gray-900/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200" />
+                    </div>
+                    <div>
+                        <label asp-for="UserData.AddressCountry" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Country</label>
+                        <input asp-for="UserData.AddressCountry" class="block w-full rounded-xl border-gray-200/60 dark:border-gray-700/60 bg-white/50 dark:bg-gray-900/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200" />
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Section: Initial Security -->
         <div class="rounded-2xl bg-white/70 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/50 backdrop-blur-xl shadow-sm overflow-hidden">
             <div class="px-6 py-5 border-b border-gray-200/50 dark:border-gray-700/50 bg-gray-50/30 dark:bg-gray-900/30">
