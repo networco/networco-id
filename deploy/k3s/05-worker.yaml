@@ -19,6 +19,28 @@ spec:
       - name: worker
         image: ghcr.io/networco/networco-id-worker:latest
         env:
+        - name: POSTGRES_HOST
+          valueFrom:
+            secretKeyRef:
+              name: networcoid-secrets
+              key: db-host
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: networcoid-secrets
+              key: db-name
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: networcoid-secrets
+              key: db-user
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: networcoid-secrets
+              key: db-password
         - name: NATS_URL
           value: "nats://nats.networco-id.svc.cluster.local:4222"
         - name: SMTP_HOST

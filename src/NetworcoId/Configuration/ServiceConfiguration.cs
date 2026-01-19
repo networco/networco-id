@@ -38,22 +38,35 @@ public static class ServiceConfiguration
         services.Configure<NetworcoIdConfig>(configuration.GetSection("NetworcoId"));
         
         // Build the config object eagerly to use it for setup
+        // Priority: Environment Variable (ISSUER) > appsettings.json > Default
+        var issuer = configuration["ISSUER"] 
+                    ?? configuration["NetworcoId:Issuer"] 
+                    ?? "http://localhost:5001";
+        
+        var baseUrl = configuration["BASE_URL"]
+                    ?? configuration["NetworcoId:BaseUrl"]
+                    ?? "http://localhost:5200";
+
         var config = new NetworcoIdConfig 
         { 
-            Issuer = configuration["NetworcoId:Issuer"] ?? "http://localhost:5001", 
+            Issuer = issuer, 
             Audience = "networco-api",
-            BaseUrl = configuration["NetworcoId:BaseUrl"] ?? "http://localhost:5200"
+            BaseUrl = baseUrl
         };
         configuration.GetSection("NetworcoId").Bind(config);
         
-        // Override from env if set
-        var envIssuer = configuration["ISSUER"];
-        if (!string.IsNullOrEmpty(envIssuer)) config.Issuer = envIssuer;
+        // Ensure values are set correctly after binding (if not overridden by env)
+        config.Issuer = issuer;
+        config.BaseUrl = baseUrl;
 
         services.AddSingleton(provider =>
         {
             var optionsConfig = provider.GetRequiredService<IOptions<NetworcoIdConfig>>().Value;
             
+            // Re-apply to options to be safe
+            optionsConfig.Issuer = issuer;
+            optionsConfig.BaseUrl = baseUrl;
+
             // Fallback for signing key
             if (string.IsNullOrEmpty(optionsConfig.Secret))
             {
@@ -67,9 +80,6 @@ public static class ServiceConfiguration
             optionsConfig.InitialClientId ??= configuration["INITIAL_CLIENT_ID"];
             optionsConfig.InitialClientSecret ??= configuration["INITIAL_CLIENT_SECRET"];
 
-            // Ensure Issuer matches what we bound earlier (in case it wasn't refreshed)
-            if (!string.IsNullOrEmpty(envIssuer)) optionsConfig.Issuer = envIssuer;
-            
             // Data Protection Config
             optionsConfig.DataProtectionCertificatePath ??= configuration["DATA_PROTECTION_CERT_PATH"];
             optionsConfig.DataProtectionCertificatePassword ??= configuration["DATA_PROTECTION_CERT_PASSWORD"];

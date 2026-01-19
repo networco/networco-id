@@ -106,9 +106,9 @@ public static class OAuthEndpoints
         return Results.Ok(keys);
     }
 
-    private static IResult OpenIdConfiguration(HttpContext context)
+    private static IResult OpenIdConfiguration(NetworcoIdConfig config)
     {
-        var baseUrl = $"{context.Request.Scheme}://{context.Request.Host}";
+        var baseUrl = config.Issuer.TrimEnd('/');
 
         return Results.Ok(new
         {
