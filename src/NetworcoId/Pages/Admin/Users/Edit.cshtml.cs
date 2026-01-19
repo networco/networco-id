@@ -25,6 +25,14 @@ public class EditModel : PageModel
 
     public int ActiveAdminCount { get; set; }
 
+    public List<string> AvailableRoles { get; set; } = new() { "admin", "candidate", "employer", "municipal_admin" };
+
+    [BindProperty]
+    public List<string> SelectedRoles { get; set; } = new();
+
+    [BindProperty]
+    public string? Roles { get; set; }
+
     public async Task<IActionResult> OnGetAsync(Guid id)
     {
         var user = await _context.Users
@@ -37,6 +45,8 @@ public class EditModel : PageModel
         }
 
         UserData = user;
+        SelectedRoles = user.Roles.Intersect(AvailableRoles).ToList();
+        Roles = string.Join(",", user.Roles.Except(AvailableRoles));
         ActiveAdminCount = await _context.Users.CountAsync(u => u.IsActive && u.Roles.Contains("admin"));
 
         return Page();
@@ -66,6 +76,26 @@ public class EditModel : PageModel
             }
         }
 
+        // Merge roles from checkboxes and tags
+        var customRoles = (Roles ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(r => r.ToLowerInvariant())
+            .ToList();
+        
+        var allRoles = SelectedRoles.Concat(customRoles).Distinct().ToList();
+
+        // Security: Prevent removing the last admin role
+        if (user.Roles != null && user.Roles.Contains("admin") && !allRoles.Contains("admin"))
+        {
+            var adminCount = await _context.Users.CountAsync(u => u.IsActive && u.Roles.Contains("admin"));
+            if (adminCount <= 1 && user.IsActive)
+            {
+                ModelState.AddModelError("Roles", "Cannot remove the last remaining active administrator role.");
+                UserData = user;
+                ActiveAdminCount = adminCount;
+                return Page();
+            }
+        }
+
         // Update basic info
         user.FirstName = UserData.FirstName;
         user.LastName = UserData.LastName;
@@ -73,30 +103,14 @@ public class EditModel : PageModel
         user.NationalId = UserData.NationalId;
         user.PhoneNumber = UserData.PhoneNumber;
         user.IsActive = UserData.IsActive;
+        user.Roles = allRoles;
 
-        // Roles management (simple toggle for admin in this case)
-        var isAdminRequested = Request.Form["IsAdmin"] == "true";
-        if (isAdminRequested != user.Roles?.Contains("admin"))
-        {
-            user.Roles ??= new List<string>();
-            if (isAdminRequested)
-            {
-                user.Roles.Add("admin");
-            }
-            else
-            {
-                // Security: Prevent removing the last admin role
-                var adminCount = await _context.Users.CountAsync(u => u.IsActive && u.Roles.Contains("admin"));
-                if (adminCount <= 1 && user.IsActive)
-                {
-                    ModelState.AddModelError("UserData.Roles", "Cannot remove the last remaining active administrator role.");
-                    UserData = user;
-                    ActiveAdminCount = adminCount;
-                    return Page();
-                }
-                user.Roles.Remove("admin");
-            }
-        }
+        // Update Address
+        user.AddressStreetAddress = UserData.AddressStreetAddress;
+        user.AddressPostalCode = UserData.AddressPostalCode;
+        user.AddressLocality = UserData.AddressLocality;
+        user.AddressCountry = UserData.AddressCountry;
+        user.AddressFormatted = $"{UserData.AddressStreetAddress}, {UserData.AddressPostalCode} {UserData.AddressLocality}, {UserData.AddressCountry}".Trim(',', ' ');
 
         _context.Users.Update(user);
         await _context.SaveChangesAsync();

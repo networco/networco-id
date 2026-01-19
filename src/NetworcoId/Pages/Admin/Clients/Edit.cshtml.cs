@@ -25,10 +25,10 @@ public class EditModel(IClientManagementService clientService, IAuditService aud
     public string RedirectUris { get; set; } = string.Empty;
 
     [BindProperty]
-    public string Scopes { get; set; } = string.Empty;
+    public string? Scopes { get; set; } = string.Empty;
 
     [BindProperty]
-    public List<string> SelectedScopes { get; set; } = new();
+    public List<string>? SelectedScopes { get; set; } = new();
 
     public List<string> AvailableScopes { get; set; } = new()
     {
