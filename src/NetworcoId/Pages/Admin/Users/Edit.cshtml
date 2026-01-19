@@ -48,6 +48,8 @@
     </div>
 
     <form method="post" class="space-y-8">
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="UserData.Id" />
         <div asp-validation-summary="All" class="rounded-xl bg-red-50/50 dark:bg-red-900/10 p-4 border border-red-200/50 dark:border-red-800/30 text-sm text-red-600 dark:text-red-400 backdrop-blur-sm"></div>
 
         <!-- Section: Profile Information -->
@@ -73,9 +75,37 @@
                     <label asp-for="UserData.PhoneNumber" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Phone Number</label>
                     <input asp-for="UserData.PhoneNumber" class="block w-full rounded-xl border-gray-200/60 dark:border-gray-700/60 bg-white/50 dark:bg-gray-900/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200" />
                 </div>
-                <div>
+                <div class="md:col-span-2">
                     <label asp-for="UserData.NationalId" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">National ID</label>
-                    <input asp-for="UserData.NationalId" class="block w-full rounded-xl border-gray-200/60 dark:border-gray-700/60 bg-white/50 dark:bg-gray-900/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200" />
+                    <input asp-for="UserData.NationalId" class="block w-full rounded-xl border-gray-200/60 dark:border-gray-700/60 bg-white/50 dark:bg-gray-900/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200 font-mono" />
+                </div>
+            </div>
+        </div>
+
+        <!-- Section: Address Information -->
+        <div class="rounded-2xl bg-white/70 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/50 backdrop-blur-xl shadow-sm overflow-hidden">
+            <div class="px-6 py-5 border-b border-gray-200/50 dark:border-gray-700/50 bg-gray-50/30 dark:bg-gray-900/30">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Address</h3>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">OIDC address claims used for identity verification.</p>
+            </div>
+            <div class="p-6 space-y-6">
+                <div>
+                    <label asp-for="UserData.AddressStreetAddress" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Street Address</label>
+                    <input asp-for="UserData.AddressStreetAddress" class="block w-full rounded-xl border-gray-200/60 dark:border-gray-700/60 bg-white/50 dark:bg-gray-900/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200" />
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                        <label asp-for="UserData.AddressPostalCode" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Postal Code</label>
+                        <input asp-for="UserData.AddressPostalCode" class="block w-full rounded-xl border-gray-200/60 dark:border-gray-700/60 bg-white/50 dark:bg-gray-900/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200" />
+                    </div>
+                    <div>
+                        <label asp-for="UserData.AddressLocality" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Locality (City)</label>
+                        <input asp-for="UserData.AddressLocality" class="block w-full rounded-xl border-gray-200/60 dark:border-gray-700/60 bg-white/50 dark:bg-gray-900/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200" />
+                    </div>
+                    <div>
+                        <label asp-for="UserData.AddressCountry" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Country</label>
+                        <input asp-for="UserData.AddressCountry" class="block w-full rounded-xl border-gray-200/60 dark:border-gray-700/60 bg-white/50 dark:bg-gray-900/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200" />
+                    </div>
                 </div>
             </div>
         </div>
@@ -136,50 +166,49 @@
                 </div>
             </div>
 
-            <!-- Roles -->
-            <div class="rounded-2xl bg-white/70 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/50 backdrop-blur-xl shadow-sm overflow-hidden">
-                <div class="px-6 py-5 border-b border-gray-200/50 dark:border-gray-700/50 bg-gray-50/30 dark:bg-gray-900/30">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Roles & Permissions</h3>
+        <!-- Section: Roles -->
+        <div class="rounded-2xl bg-white/70 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/50 backdrop-blur-xl shadow-sm overflow-hidden">
+            <div class="px-6 py-5 border-b border-gray-200/50 dark:border-gray-700/50 bg-gray-50/30 dark:bg-gray-900/30">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Roles & Permissions</h3>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Manage user access levels and system roles.</p>
+            </div>
+            <div class="p-6 space-y-6">
+                <!-- Standard Roles Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-xl border border-gray-200/50 dark:border-gray-700/50 bg-gray-50/30 dark:bg-gray-900/30">
+                    @foreach (var role in Model.AvailableRoles)
+                    {
+                        var isRoleOnlyAdmin = role == "admin" && isOnlyAdmin;
+                        <label class="relative flex items-center justify-between p-3 rounded-lg hover:bg-white/50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer group">
+                            <div class="flex items-center gap-3">
+                                <div class="h-8 w-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-600">
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <span class="text-sm font-semibold text-gray-900 dark:text-white">@System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(role.Replace("_", " "))</span>
+                                </div>
+                            </div>
+                            <div class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none">
+                                <input type="checkbox" name="SelectedRoles" value="@role" @(Model.SelectedRoles.Contains(role) ? "checked" : "") @(isRoleOnlyAdmin ? "disabled" : "") class="peer sr-only" />
+                                <div class="peer-checked:bg-indigo-600 bg-gray-200 dark:bg-gray-700 absolute inset-0 rounded-full transition-colors duration-200"></div>
+                                <div class="peer-checked:translate-x-5 translate-x-0 pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"></div>
+                                @if (isRoleOnlyAdmin) { <input type="hidden" name="SelectedRoles" value="admin" /> }
+                            </div>
+                        </label>
+                    }
                 </div>
-                <div class="p-6">
-                    <div class="flex items-center justify-between p-4 rounded-xl border border-indigo-500/20 bg-indigo-500/5">
-                        <div class="flex items-center">
-                            <div class="h-10 w-10 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-600">
-                                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                                </svg>
-                            </div>
-                            <div class="ml-4">
-                                <p class="text-sm font-semibold text-gray-900 dark:text-white">Administrator</p>
-                                <p class="text-xs text-gray-500 dark:text-gray-400">Full access to system management.</p>
-                            </div>
-                        </div>
-                        <div class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2">
-                            @if (isOnlyAdmin)
-                            {
-                                <input type="checkbox" name="IsAdmin" value="true" checked disabled class="peer sr-only" />
-                            }
-                            else
-                            {
-                                <input type="checkbox" name="IsAdmin" value="true" @(isAdmin ? "checked" : "") class="peer sr-only" />
-                            }
-                            @if(isAdmin) { <input type="hidden" name="IsAdmin" value="false" /> }
-                            <div class="peer-checked:bg-indigo-600 bg-gray-200 dark:bg-gray-700 absolute inset-0 rounded-full transition-colors duration-200"></div>
-                            <div class="peer-checked:translate-x-5 translate-x-0 pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"></div>
-                        </div>
+
+                <!-- Tag-based Custom Roles -->
+                <div class="space-y-2">
+                    <label asp-for="Roles" class="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Custom Roles</label>
+                    <div id="role-tags-container" class="min-h-[46px] p-2 rounded-xl border border-gray-200/60 dark:border-gray-700/60 bg-white/50 dark:bg-gray-900/50 flex flex-wrap gap-2 focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all duration-200">
+                        <input type="text" id="role-input" 
+                               class="flex-1 min-w-[120px] bg-transparent border-none focus:ring-0 text-sm font-mono text-gray-900 dark:text-white p-1" 
+                               placeholder="Type role and press Enter..." />
                     </div>
-                    
-                    <div class="mt-4 flex items-center gap-2 p-4 rounded-xl border border-gray-200/50 bg-gray-50/30 dark:bg-gray-900/30 opacity-60">
-                         <div class="h-10 w-10 rounded-lg bg-gray-500/20 flex items-center justify-center text-gray-500">
-                                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                </svg>
-                            </div>
-                            <div class="ml-4">
-                                <p class="text-sm font-semibold text-gray-900 dark:text-white">Standard User</p>
-                                <p class="text-xs text-gray-500 dark:text-gray-400">Default role for all identities.</p>
-                            </div>
-                    </div>
+                    <input type="hidden" asp-for="Roles" id="roles-hidden" />
+                    <p class="text-[10px] text-gray-400 dark:text-gray-500 italic">Press Enter or comma to add a custom role. Click a tag to remove it.</p>
                 </div>
             </div>
         </div>
@@ -192,3 +221,57 @@
         </div>
     </form>
 </div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const container = document.getElementById('role-tags-container');
+            const input = document.getElementById('role-input');
+            const hidden = document.getElementById('roles-hidden');
+            
+            const availableRoles = [@Html.Raw(string.Join(",", Model.AvailableRoles.Select(s => $"\"{s}\"")))];
+            let tags = hidden.value ? hidden.value.split(',').map(s => s.trim()).filter(s => s && !availableRoles.includes(s)) : [];
+
+            function updateTags() {
+                container.querySelectorAll('.role-tag').forEach(t => t.remove());
+                tags.forEach(tag => {
+                    const pill = document.createElement('span');
+                    pill.className = 'role-tag inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 text-xs font-mono group cursor-pointer hover:bg-amber-500/20 transition-all';
+                    pill.innerHTML = `${tag}<svg class="w-3 h-3 text-amber-400 group-hover:text-amber-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>`;
+                    pill.onclick = () => removeTag(tag);
+                    container.insertBefore(pill, input);
+                });
+                hidden.value = tags.join(',');
+            }
+
+            function addTag(tag) {
+                tag = tag.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
+                if (tag && !tags.includes(tag) && !availableRoles.includes(tag)) {
+                    tags.push(tag);
+                    updateTags();
+                }
+                input.value = '';
+            }
+
+            function removeTag(tag) {
+                tags = tags.filter(t => t !== tag);
+                updateTags();
+            }
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ',') {
+                    e.preventDefault();
+                    addTag(input.value);
+                } else if (e.key === 'Backspace' && !input.value && tags.length > 0) {
+                    removeTag(tags[tags.length - 1]);
+                }
+            });
+
+            input.addEventListener('blur', () => {
+                if (input.value) addTag(input.value);
+            });
+
+            updateTags();
+        });
+    </script>
+}

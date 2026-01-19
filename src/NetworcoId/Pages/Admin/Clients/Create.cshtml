@@ -98,7 +98,7 @@
                                 @foreach (var scope in Model.AvailableScopes)
                                 {
                                     <label class="relative flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer group">
-                                        <input type="checkbox" name="SelectedScopes" value="@scope" @(Model.SelectedScopes.Contains(scope) ? "checked" : "")
+                                        <input type="checkbox" name="SelectedScopes" value="@scope" @(Model.SelectedScopes?.Contains(scope) == true ? "checked" : "")
                                                class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 transition-colors" />
                                         <span class="text-xs font-mono text-gray-600 dark:text-gray-400 group-hover:text-indigo-600 transition-colors">@scope</span>
                                     </label>
