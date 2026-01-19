@@ -74,30 +74,29 @@
         <input type="hidden" asp-for="IsActive" id="is-active-hidden" />
 
         <!-- Section: General Information -->
-        <div class="rounded-2xl bg-white/70 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/50 backdrop-blur-xl shadow-sm overflow-hidden">
-            <div class="px-6 py-5 border-b border-gray-200/50 dark:border-gray-700/50 bg-gray-50/30 dark:bg-gray-900/30">
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Configuration</h3>
-                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">OIDC and OAuth 2.0 client identification and endpoints.</p>
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+            <div class="px-6 py-5 border-b border-gray-50 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-900/20">
+                <h4 class="text-sm font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Configuration</h4>
             </div>
             <div class="p-6 space-y-6">
                 <div>
-                    <label asp-for="DisplayName" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Display Name</label>
-                    <input asp-for="DisplayName" class="block w-full rounded-xl border-gray-200/60 dark:border-gray-700/60 bg-white/50 dark:bg-gray-900/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200" required />
+                    <label asp-for="DisplayName" class="block text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">Display Name</label>
+                    <input asp-for="DisplayName" class="block w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all sm:text-sm" required />
                 </div>
 
                 <div>
-                    <label asp-for="RedirectUris" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Redirect URIs (one per line)</label>
-                    <textarea asp-for="RedirectUris" class="block w-full rounded-xl border-gray-200/60 dark:border-gray-700/60 bg-white/50 dark:bg-gray-900/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200 font-mono text-sm h-32" required></textarea>
+                    <label asp-for="RedirectUris" class="block text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">Redirect URIs (one per line)</label>
+                    <textarea asp-for="RedirectUris" class="block w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all sm:text-sm font-mono h-32" required></textarea>
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Allowed Scopes</label>
+                    <label class="block text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-4">Allowed Scopes</label>
                     <div class="space-y-4">
                         <!-- Standard Scopes Grid -->
-                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 rounded-xl border border-gray-200/50 dark:border-gray-700/50 bg-gray-50/30 dark:bg-gray-900/30">
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
                             @foreach (var scope in Model.AvailableScopes)
                             {
-                                <label class="relative flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer group">
+                                <label class="relative flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white dark:hover:bg-gray-800 transition-colors cursor-pointer group">
                                     <input type="checkbox" name="SelectedScopes" value="@scope" @(Model.SelectedScopes?.Contains(scope) == true ? "checked" : "")
                                            class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 transition-colors" />
                                     <span class="text-xs font-mono text-gray-600 dark:text-gray-400 group-hover:text-indigo-600 transition-colors">@scope</span>
@@ -107,8 +106,8 @@
 
                         <!-- Tag-based Custom Scopes -->
                         <div class="space-y-2">
-                            <label asp-for="Scopes" class="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Custom Scopes</label>
-                            <div id="scope-tags-container" class="min-h-[46px] p-2 rounded-xl border border-gray-200/60 dark:border-gray-700/60 bg-white/50 dark:bg-gray-900/50 flex flex-wrap gap-2 focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all duration-200">
+                            <label asp-for="Scopes" class="block text-xs font-bold uppercase tracking-wide text-gray-400 dark:text-gray-500">Custom Scopes</label>
+                            <div id="scope-tags-container" class="min-h-[46px] p-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex flex-wrap gap-2 focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500 transition-all duration-200">
                                 <input type="text" id="scope-input" 
                                        class="flex-1 min-w-[120px] bg-transparent border-none focus:ring-0 text-sm font-mono text-gray-900 dark:text-white p-1" 
                                        placeholder="Type scope and press Enter..." />
@@ -127,7 +126,7 @@
                             </svg>
                         </div>
                         <div class="ml-4">
-                            <p class="text-sm font-semibold text-gray-900 dark:text-white">Trusted for Exchange (BFF/API)</p>
+                            <p class="text-sm font-bold text-gray-900 dark:text-white">Trusted for Exchange (BFF/API)</p>
                             <p class="text-xs text-gray-500 dark:text-gray-400">Allows client to exchange codes for other clients (BFF pattern).</p>
                         </div>
                     </div>
@@ -141,15 +140,14 @@
         </div>
 
         <!-- Section: Secrets -->
-        <div class="rounded-2xl bg-white/70 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/50 backdrop-blur-xl shadow-sm overflow-hidden">
-            <div class="px-6 py-5 border-b border-gray-200/50 dark:border-gray-700/50 bg-gray-50/30 dark:bg-gray-900/30">
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Security Secrets</h3>
-                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Manage client credentials for authenticated flows.</p>
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+            <div class="px-6 py-5 border-b border-gray-50 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-900/20">
+                <h4 class="text-sm font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Security Secrets</h4>
             </div>
             <div class="p-6 space-y-4">
-                <div class="flex items-center justify-between p-4 rounded-xl border border-gray-200/50 bg-white/50 dark:bg-gray-900/50">
+                <div class="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
                     <div>
-                        <p class="text-sm font-semibold text-gray-900 dark:text-white">Primary Secret</p>
+                        <p class="text-sm font-bold text-gray-900 dark:text-white">Primary Secret</p>
                         <p class="text-xs text-gray-500 dark:text-gray-400">Active credential for system authentication.</p>
                     </div>
                     <button type="submit" asp-page-handler="RotatePrimary" asp-route-id="@Model.ClientId" class="px-4 py-2 text-xs font-bold text-indigo-600 dark:text-indigo-400 border border-indigo-600/30 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/30 transition-colors" onclick="return confirm('Immediately invalidate current primary secret?')">
@@ -157,9 +155,9 @@
                     </button>
                 </div>
 
-                <div class="flex items-center justify-between p-4 rounded-xl border border-gray-200/50 bg-white/50 dark:bg-gray-900/50">
+                <div class="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
                     <div>
-                        <p class="text-sm font-semibold text-gray-900 dark:text-white">Secondary Secret</p>
+                        <p class="text-sm font-bold text-gray-900 dark:text-white">Secondary Secret</p>
                         <p class="text-xs text-gray-500 dark:text-gray-400">@(Model.HasSecondarySecret ? "Active. Useful for rolling rotations." : "Not configured.")</p>
                     </div>
                     <div class="flex gap-2">
@@ -179,7 +177,7 @@
 
         <div class="flex items-center justify-end gap-4 pt-4">
             <a asp-page="./Index" class="px-6 py-2.5 rounded-xl text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">Cancel</a>
-            <button type="submit" class="px-6 py-2.5 rounded-xl bg-indigo-600 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition-all duration-200">
+            <button type="submit" class="px-6 py-2.5 rounded-xl bg-indigo-600 text-sm font-bold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition-all duration-200">
                 Save Changes
             </button>
         </div>
