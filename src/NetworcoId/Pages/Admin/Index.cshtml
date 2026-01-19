@@ -7,25 +7,25 @@
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <div class="mb-8">
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">System Overview</h1>
-        <p class="text-gray-600 dark:text-gray-400">Quick statistics and recent activity across the identity platform.</p>
+        <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">System Dashboard</h1>
+        <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">Real-time statistics and overview of your identity infrastructure.</p>
     </div>
 
     <!-- Stats Grid -->
-    <div class="grid grid-cols-1 gap-5 sm:grid-cols-3 mb-8">
-        <div class="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-2xl border border-gray-100 dark:border-gray-700 p-6">
+    <div class="grid grid-cols-1 gap-6 sm:grid-cols-3 mb-10">
+        <div class="bg-white dark:bg-gray-800 overflow-hidden rounded-2xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm">
             <div class="flex items-center">
-                <div class="flex-shrink-0 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl p-3">
+                <div class="flex-shrink-0 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-3">
                     <svg class="h-6 w-6 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                     </svg>
                 </div>
                 <div class="ml-5 w-0 flex-1">
                     <dl>
-                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Total Users</dt>
-                        <dd class="flex items-baseline">
-                            <div class="text-2xl font-bold text-gray-900 dark:text-white">@Model.TotalUsers</div>
-                            <div class="ml-2 flex items-baseline text-sm font-semibold text-green-600 dark:text-green-400">
+                        <dt class="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 truncate">Total Users</dt>
+                        <dd class="flex items-baseline mt-1">
+                            <div class="text-2xl font-extrabold text-gray-900 dark:text-white">@Model.TotalUsers</div>
+                            <div class="ml-2 flex items-baseline text-xs font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-0.5 rounded-full">
                                 @Model.ActiveUsers active
                             </div>
                         </dd>
@@ -34,36 +34,37 @@
             </div>
         </div>
 
-        <div class="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-2xl border border-gray-100 dark:border-gray-700 p-6">
+        <div class="bg-white dark:bg-gray-800 overflow-hidden rounded-2xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm">
             <div class="flex items-center">
-                <div class="flex-shrink-0 bg-purple-50 dark:bg-purple-900/30 rounded-xl p-3">
+                <div class="flex-shrink-0 bg-purple-50 dark:bg-purple-900/20 rounded-xl p-3">
                     <svg class="h-6 w-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                     </svg>
                 </div>
                 <div class="ml-5 w-0 flex-1">
                     <dl>
-                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">OAuth Clients</dt>
-                        <dd class="flex items-baseline">
-                            <div class="text-2xl font-bold text-gray-900 dark:text-white">@Model.TotalClients</div>
+                        <dt class="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 truncate">OAuth Clients</dt>
+                        <dd class="mt-1">
+                            <div class="text-2xl font-extrabold text-gray-900 dark:text-white">@Model.TotalClients</div>
                         </dd>
                     </dl>
                 </div>
             </div>
         </div>
 
-        <div class="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-2xl border border-gray-100 dark:border-gray-700 p-6">
+        <div class="bg-white dark:bg-gray-800 overflow-hidden rounded-2xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm">
             <div class="flex items-center">
-                <div class="flex-shrink-0 bg-amber-50 dark:bg-amber-900/30 rounded-xl p-3">
-                    <svg class="h-6 w-6 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="flex-shrink-0 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-3">
+                    <svg class="h-6 w-6 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.040L3 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622l-1.382-3.016z" />
                     </svg>
                 </div>
                 <div class="ml-5 w-0 flex-1">
                     <dl>
-                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">System Health</dt>
-                        <dd class="flex items-baseline">
-                            <div class="text-2xl font-bold text-gray-900 dark:text-white">Healthy</div>
+                        <dt class="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 truncate">System Health</dt>
+                        <dd class="flex items-baseline mt-1">
+                            <div class="text-2xl font-extrabold text-gray-900 dark:text-white">Stable</div>
+                            <div class="ml-2 h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
                         </dd>
                     </dl>
                 </div>
@@ -73,26 +74,31 @@
 
     <div class="grid grid-cols-1 gap-8 lg:grid-cols-2">
         <!-- Recent Activity -->
-        <div class="bg-white dark:bg-gray-800 shadow rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden">
-            <div class="px-6 py-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Recent Activity</h3>
-                <a href="/Admin/Logs" class="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-500">View all</a>
+        <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden shadow-sm">
+            <div class="px-6 py-5 border-b border-gray-50 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/20 flex items-center justify-between">
+                <h3 class="text-sm font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Recent Activity</h3>
+                <a href="/Admin/AuditLogs/Index" class="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 uppercase tracking-wide">View all logs</a>
             </div>
             <div class="px-6 py-2">
-                <ul role="list" class="divide-y divide-gray-100 dark:divide-gray-700">
+                <ul role="list" class="divide-y divide-gray-50 dark:divide-gray-700">
                     @foreach (var log in Model.RecentLogs)
                     {
-                        <li class="py-4">
+                        <li class="py-4 group">
                             <div class="flex space-x-3">
                                 <div class="flex-1 space-y-1">
                                     <div class="flex items-center justify-between">
-                                        <h3 class="text-sm font-medium text-gray-900 dark:text-white">@log.EventType</h3>
-                                        <p class="text-sm text-gray-500 dark:text-gray-400">@log.Timestamp.ToString("HH:mm")</p>
+                                        <h3 class="text-sm font-bold text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">@log.EventType</h3>
+                                        <p class="text-xs font-medium text-gray-400 dark:text-gray-500">@log.Timestamp.ToString("HH:mm")</p>
                                     </div>
-                                    <p class="text-sm text-gray-500 dark:text-gray-400">@log.Description</p>
+                                    <p class="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">@log.Description</p>
                                     @if (log.User != null)
                                     {
-                                        <p class="text-xs text-indigo-600 dark:text-indigo-400">User: @log.User.Email</p>
+                                        <div class="flex items-center gap-1.5 mt-2">
+                                            <div class="h-4 w-4 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+                                                <svg class="h-2.5 w-2.5 text-indigo-600 dark:text-indigo-400" fill="currentColor" viewBox="0 0 20 20"><path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" /></svg>
+                                            </div>
+                                            <p class="text-xs font-bold text-indigo-600 dark:text-indigo-400">@log.User.Email</p>
+                                        </div>
                                     }
                                 </div>
                             </div>
@@ -103,26 +109,26 @@
         </div>
 
         <!-- New Users -->
-        <div class="bg-white dark:bg-gray-800 shadow rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden">
-            <div class="px-6 py-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Newest Users</h3>
-                <a href="/Admin/Users/Index" class="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-500">Manage users</a>
+        <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden shadow-sm">
+            <div class="px-6 py-5 border-b border-gray-50 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/20 flex items-center justify-between">
+                <h3 class="text-sm font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Newest Users</h3>
+                <a href="/Admin/Users/Index" class="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 uppercase tracking-wide">Manage all</a>
             </div>
             <div class="px-6 py-2">
-                <ul role="list" class="divide-y divide-gray-100 dark:divide-gray-700">
+                <ul role="list" class="divide-y divide-gray-50 dark:divide-gray-700">
                     @foreach (var user in Model.NewestUsers)
                     {
-                        <li class="py-4 flex items-center justify-between">
+                        <li class="py-4 flex items-center justify-between group">
                             <div class="flex items-center gap-3">
-                                <div class="h-10 w-10 rounded-full bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-700 dark:text-indigo-400 font-bold">
+                                <div class="h-10 w-10 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-700 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-extrabold shadow-sm group-hover:scale-105 transition-transform">
                                     @user.FirstName[0]@user.LastName[0]
                                 </div>
                                 <div>
-                                    <p class="text-sm font-medium text-gray-900 dark:text-white">@user.FirstName @user.LastName</p>
-                                    <p class="text-xs text-gray-500 dark:text-gray-400">@user.Email</p>
+                                    <p class="text-sm font-bold text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">@user.FirstName @user.LastName</p>
+                                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400">@user.Email</p>
                                 </div>
                             </div>
-                            <span class="text-xs text-gray-400 dark:text-gray-500">@user.CreatedAt.ToString("MMM dd")</span>
+                            <span class="text-xs font-bold text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-900/40 px-2 py-1 rounded-lg">@user.CreatedAt.ToString("MMM dd")</span>
                         </li>
                     }
                 </ul>

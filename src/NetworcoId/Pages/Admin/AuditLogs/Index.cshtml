@@ -11,95 +11,98 @@
         <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">Comprehensive history of security events, system changes, and user activities.</p>
     </div>
 
-    <div class="mb-6 flex flex-wrap gap-4 items-center">
-        <form method="get" class="flex-1 min-w-[300px] relative">
-            <input type="text" name="SearchTerm" value="@Model.SearchTerm" placeholder="Search logs by description, user or IP..." 
-                   class="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm transition-all" />
-            <div class="absolute left-3 top-2.5 text-gray-400">
-                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-            </div>
-            <input type="hidden" name="EventType" value="@Model.EventType" />
-        </form>
+    <!-- Filters Card -->
+    <div class="mb-8 p-6 rounded-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm">
+        <div class="flex flex-col md:flex-row gap-4 items-center">
+            <form method="get" class="flex-1 min-w-0 relative w-full">
+                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </div>
+                <input type="text" name="SearchTerm" value="@Model.SearchTerm" placeholder="Search logs by description, user or IP..." 
+                       class="block w-full pl-11 pr-4 py-3 rounded-xl border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-500 focus:ring-2 focus:ring-indigo-500 transition-all sm:text-sm" />
+                <input type="hidden" name="EventType" value="@Model.EventType" />
+            </form>
 
-        <form method="get" class="flex items-center gap-3">
-            <input type="hidden" name="SearchTerm" value="@Model.SearchTerm" />
-            <select name="EventType" onchange="this.form.submit()" 
-                    class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white py-2 pl-4 pr-10 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm text-sm font-medium transition-all">
-                <option value="">All Event Types</option>
-                @foreach (var type in Model.EventTypes)
+            <form method="get" class="flex items-center gap-3 w-full md:w-auto">
+                <input type="hidden" name="SearchTerm" value="@Model.SearchTerm" />
+                <select name="EventType" onchange="this.form.submit()" 
+                        class="block w-full md:w-auto rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white py-3 pl-4 pr-10 focus:ring-2 focus:ring-indigo-500 transition-all sm:text-sm font-bold uppercase tracking-wide">
+                    <option value="">All Events</option>
+                    @foreach (var type in Model.EventTypes)
+                    {
+                        <option value="@type" selected="@(Model.EventType == type)">@type</option>
+                    }
+                </select>
+                
+                @if (!string.IsNullOrEmpty(Model.EventType) || !string.IsNullOrEmpty(Model.SearchTerm))
                 {
-                    <option value="@type" selected="@(Model.EventType == type)">@type</option>
+                    <a asp-page="./Index" class="inline-flex items-center px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors">
+                        Clear
+                    </a>
                 }
-            </select>
-            
-            @if (!string.IsNullOrEmpty(Model.EventType) || !string.IsNullOrEmpty(Model.SearchTerm))
-            {
-                <a asp-page="./Index" class="inline-flex items-center px-4 py-2 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                    Clear
-                </a>
-            }
-        </form>
+            </form>
+        </div>
     </div>
 
-    <div class="bg-white/80 dark:bg-gray-800 backdrop-blur-xl shadow-xl rounded-2xl overflow-hidden border border-white/50 dark:border-gray-700">
+    <!-- Logs Table Card -->
+    <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden shadow-sm">
         <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead class="bg-gray-50/50 dark:bg-gray-900/50">
-                    <tr>
-                        <th scope="col" class="px-8 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Timestamp</th>
-                        <th scope="col" class="px-8 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Event Type</th>
-                        <th scope="col" class="px-8 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">User</th>
-                        <th scope="col" class="px-8 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Description</th>
-                        <th scope="col" class="px-8 py-4 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">IP Address</th>
+            <table class="min-w-full divide-y divide-gray-100 dark:divide-gray-700">
+                <thead>
+                    <tr class="bg-gray-50/50 dark:bg-gray-900/20">
+                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Timestamp</th>
+                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Event</th>
+                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">User</th>
+                        <th scope="col" class="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Description</th>
+                        <th scope="col" class="px-6 py-4 text-right text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">IP Address</th>
                     </tr>
                 </thead>
-                <tbody class="bg-transparent divide-y divide-gray-100 dark:divide-gray-700">
+                <tbody class="divide-y divide-gray-50 dark:divide-gray-700">
                     @foreach (var log in Model.Logs.Items)
                     {
-                        <tr class="hover:bg-white/50 dark:hover:bg-gray-700/50 transition-colors group">
-                            <td class="px-8 py-6 whitespace-nowrap">
+                        <tr class="hover:bg-gray-50/50 dark:hover:bg-gray-900/40 transition-colors duration-150 group">
+                            <td class="px-6 py-5 whitespace-nowrap">
                                 <div class="text-sm font-bold text-gray-900 dark:text-white">@log.Timestamp.ToString("MMM dd, yyyy")</div>
-                                <div class="text-xs text-gray-500 dark:text-gray-400 font-mono mt-1">@log.Timestamp.ToString("HH:mm:ss")</div>
+                                <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500 mt-0.5">@log.Timestamp.ToString("HH:mm:ss")</div>
                             </td>
-                            <td class="px-8 py-6 whitespace-nowrap">
-                                <span class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border 
-                                    @(log.EventType.Contains("Failed") ? "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800/30" : 
-                                      log.EventType.Contains("Success") ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800/30" :
-                                      "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800/30")">
+                            <td class="px-6 py-5 whitespace-nowrap">
+                                <span class="px-2.5 py-0.5 inline-flex text-[10px] font-bold uppercase tracking-wider rounded-lg border 
+                                    @(log.EventType.Contains("Failed") ? "bg-red-50 text-red-700 border-red-100 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800/30" : 
+                                      log.EventType.Contains("Success") ? "bg-green-50 text-green-700 border-green-100 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800/30" :
+                                      "bg-indigo-50 text-indigo-700 border-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:border-indigo-800/30")">
                                     @log.EventType
                                 </span>
                             </td>
-                            <td class="px-8 py-6 whitespace-nowrap">
+                            <td class="px-6 py-5 whitespace-nowrap">
                                 @if (log.User != null)
                                 {
                                     <div class="flex items-center gap-3">
-                                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-[10px] font-bold text-white shadow-sm">
+                                        <div class="w-8 h-8 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-700 flex items-center justify-center text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 shadow-sm">
                                             @log.User.FirstName[0]@log.User.LastName[0]
                                         </div>
-                                        <div class="text-sm">
-                                            <div class="font-bold text-gray-900 dark:text-white">@log.User.FirstName @log.User.LastName</div>
-                                            <div class="text-gray-500 dark:text-gray-400 text-xs">@log.User.Email</div>
+                                        <div>
+                                            <div class="text-sm font-bold text-gray-900 dark:text-white">@log.User.FirstName @log.User.LastName</div>
+                                            <div class="text-[10px] font-medium text-gray-500 dark:text-gray-400">@log.User.Email</div>
                                         </div>
                                     </div>
                                 }
                                 else
                                 {
                                     <div class="flex items-center gap-2 text-gray-400 dark:text-gray-500 italic">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
-                                        <span class="text-sm font-medium">System / Anonymous</span>
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                        <span class="text-xs font-bold uppercase tracking-wider">System</span>
                                     </div>
                                 }
                             </td>
-                            <td class="px-8 py-6">
-                                <div class="text-sm text-gray-600 dark:text-gray-300 max-w-md break-words">
+                            <td class="px-6 py-5">
+                                <div class="text-sm text-gray-600 dark:text-gray-400 max-w-md line-clamp-2">
                                     @log.Description
                                 </div>
                             </td>
-                            <td class="px-8 py-6 whitespace-nowrap text-right">
-                                <span class="text-xs font-mono text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-900/40 px-2 py-1 rounded-md">
+                            <td class="px-6 py-5 whitespace-nowrap text-right">
+                                <span class="text-[10px] font-bold font-mono text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-900/40 px-2 py-1 rounded-lg">
                                     @log.IpAddress
                                 </span>
                             </td>
@@ -108,7 +111,7 @@
                 </tbody>
             </table>
         </div>
-        <div class="px-6 py-4 bg-gray-50/30 dark:bg-gray-900/30 border-t border-gray-200/50 dark:border-gray-700/50">
+        <div class="px-6 py-4 bg-gray-50/50 dark:bg-gray-900/20 border-t border-gray-50 dark:border-gray-700">
             <partial name="Shared/Partials/_Pagination" model="Model.Logs" />
         </div>
     </div>

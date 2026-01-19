@@ -13,47 +13,61 @@ using System.IdentityModel.Tokens.Jwt;
 
 namespace NetworcoId.Tests.Integration;
 
-public class JwksRotationTests : IClassFixture<WebApplicationFactory<Program>>
+public class JwksRotationTests : IClassFixture<WebApplicationFactory<Program>>, IDisposable
 {
     private readonly WebApplicationFactory<Program> _factory;
+    private readonly string? _originalDbUrl;
 
     public JwksRotationTests(WebApplicationFactory<Program> factory)
     {
+        _originalDbUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+        Environment.SetEnvironmentVariable("DATABASE_URL", "InMemory");
+
+        var dbName = "JwksRotationTestDb_" + Guid.NewGuid();
+
         _factory = factory.WithWebHostBuilder(builder =>
         {
-            // Try to signal to DatabaseConfiguration to skip Npgsql registration
             builder.UseSetting("ConnectionStrings:DefaultConnection", "InMemory");
             builder.UseSetting("NetworcoId:Nats:ProvisionStreams", "false");
 
             builder.ConfigureServices(services =>
             {
-                // Aggressively remove existing database services
-                var dbContextOptions = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<AuthDbContext>));
-                if (dbContextOptions != null) services.Remove(dbContextOptions);
+                // Cleanly remove existing database services
+                services.RemoveAll<DbContextOptions<AuthDbContext>>();
+                services.RemoveAll<DbContextOptions>();
+                services.RemoveAll<AuthDbContext>();
+                services.RemoveAll<IDbContextFactory<AuthDbContext>>();
 
-                var dbContextOptionsGeneric = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions));
-                if (dbContextOptionsGeneric != null) services.Remove(dbContextOptionsGeneric);
-
-                var dbContext = services.SingleOrDefault(d => d.ServiceType == typeof(AuthDbContext));
-                if (dbContext != null) services.Remove(dbContext);
-
-                // Add InMemory DbContext
-                // Use a unique name to ensure isolation
-                var dbName = "InMemoryDbForTesting_JwksRotation_" + Guid.NewGuid();
-                services.AddDbContext<AuthDbContext>(options =>
+                // Shared configuration for consistency
+                Action<DbContextOptionsBuilder> configureOptions = options =>
                 {
                     options.UseInMemoryDatabase(dbName);
-                    options.EnableSensitiveDataLogging(); 
                     options.ConfigureWarnings(x => x.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning));
-                });
+                };
+
+                // Register Factory as Singleton (consistent with production)
+                services.AddDbContextFactory<AuthDbContext>(configureOptions, ServiceLifetime.Singleton);
+
+                // Register Scoped DbContext using Singleton options (consistent with production)
+                services.AddDbContext<AuthDbContext>(configureOptions, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
 
                 // Ensure JwtService uses the correct context (re-register key manager to be safe)
-                var keyManagerDescriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IKeyManagementService));
-                if (keyManagerDescriptor != null) services.Remove(keyManagerDescriptor);
-                
+                services.RemoveAll<IKeyManagementService>();
                 services.AddScoped<IKeyManagementService, KeyManagementService>();
             });
         });
+    }
+
+    public void Dispose()
+    {
+        if (_originalDbUrl != null)
+        {
+            Environment.SetEnvironmentVariable("DATABASE_URL", _originalDbUrl);
+        }
+        else
+        {
+            Environment.SetEnvironmentVariable("DATABASE_URL", null);
+        }
     }
 
     [Fact]

@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.EntityFrameworkCore;
 using NetworcoId.Infrastructure.Database;
 using NetworcoId.Models.Entities;
@@ -12,9 +13,10 @@ using Xunit;
 
 namespace NetworcoId.Tests.Integration;
 
-public class UserinfoScopeTests : IClassFixture<WebApplicationFactory<Program>>
+public class UserinfoScopeTests : IClassFixture<WebApplicationFactory<Program>>, IDisposable
 {
     private readonly WebApplicationFactory<Program> _factory;
+    private readonly string? _originalDbUrl;
     private readonly HttpClient _client;
     
     private const string TestEmail = "scope.test@networco.dev";
@@ -22,40 +24,40 @@ public class UserinfoScopeTests : IClassFixture<WebApplicationFactory<Program>>
     private const string ClientId = "scope-test-client";
     private const string ClientSecret = "test-secret";
     private const string RedirectUri = "http://localhost:3000/callback";
-    private readonly string _dbName = "ScopeTestDb_" + Guid.NewGuid();
 
     public UserinfoScopeTests(WebApplicationFactory<Program> factory)
     {
+        _originalDbUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+        Environment.SetEnvironmentVariable("DATABASE_URL", "InMemory");
+
+        var dbName = "UserinfoScopeTestDb_" + Guid.NewGuid();
+
         _factory = factory.WithWebHostBuilder(builder =>
         {
-            builder.ConfigureServices(services =>
-            {
-                var dbContextDescriptors = services.Where(d => 
-                    d.ServiceType == typeof(AuthDbContext) || 
-                    d.ServiceType == typeof(DbContextOptions<AuthDbContext>) ||
-                    d.ServiceType == typeof(IDbContextFactory<AuthDbContext>) ||
-                    d.ServiceType == typeof(DbContextOptions)).ToList();
-
-                foreach (var descriptor in dbContextDescriptors)
-                {
-                    services.Remove(descriptor);
-                }
-
-                services.AddDbContextFactory<AuthDbContext>(options =>
-                {
-                    options.UseInMemoryDatabase(_dbName);
-                    options.ConfigureWarnings(x => x.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning));
-                }, ServiceLifetime.Singleton);
-
-                services.AddDbContext<AuthDbContext>(options =>
-                {
-                    options.UseInMemoryDatabase(_dbName);
-                    options.ConfigureWarnings(x => x.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning));
-                }, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
-            });
-            
             builder.UseSetting("ConnectionStrings:DefaultConnection", "InMemory");
             builder.UseSetting("Nats:ProvisionStreams", "false");
+
+            builder.ConfigureServices(services =>
+            {
+                // Cleanly remove existing database services
+                services.RemoveAll<DbContextOptions<AuthDbContext>>();
+                services.RemoveAll<DbContextOptions>();
+                services.RemoveAll<AuthDbContext>();
+                services.RemoveAll<IDbContextFactory<AuthDbContext>>();
+
+                // Shared configuration for consistency
+                Action<DbContextOptionsBuilder> configureOptions = options =>
+                {
+                    options.UseInMemoryDatabase(dbName);
+                    options.ConfigureWarnings(x => x.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning));
+                };
+
+                // Register Factory as Singleton (consistent with production)
+                services.AddDbContextFactory<AuthDbContext>(configureOptions, ServiceLifetime.Singleton);
+
+                // Register Scoped DbContext using Singleton options (consistent with production)
+                services.AddDbContext<AuthDbContext>(configureOptions, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
+            });
         });
 
         _client = _factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -64,6 +66,18 @@ public class UserinfoScopeTests : IClassFixture<WebApplicationFactory<Program>>
         });
         
         SeedDatabase();
+    }
+
+    public void Dispose()
+    {
+        if (_originalDbUrl != null)
+        {
+            Environment.SetEnvironmentVariable("DATABASE_URL", _originalDbUrl);
+        }
+        else
+        {
+            Environment.SetEnvironmentVariable("DATABASE_URL", null);
+        }
     }
 
     private void SeedDatabase()

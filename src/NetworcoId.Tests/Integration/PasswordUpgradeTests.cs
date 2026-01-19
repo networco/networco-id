@@ -8,46 +8,73 @@ using NetworcoId.Models.Entities;
 using NetworcoId.Services;
 using Xunit;
 
+using Microsoft.Extensions.DependencyInjection.Extensions;
+
 namespace NetworcoId.Tests.Integration;
 
-public class PasswordUpgradeTests : IClassFixture<WebApplicationFactory<Program>>
+public class PasswordUpgradeTests : IClassFixture<WebApplicationFactory<Program>>, IDisposable
 {
     private readonly WebApplicationFactory<Program> _factory;
+    private readonly string? _originalDbUrl;
     
     private const string TestEmail = "upgrade.test@networco.dev";
     private const string TestPassword = "LegacyPassword123!";
 
     public PasswordUpgradeTests(WebApplicationFactory<Program> factory)
     {
+        // 1. Force the Environment Variable BEFORE WebApplicationFactory builds the host.
+        // This is critical because Program.cs reads Environment.GetEnvironmentVariable("DATABASE_URL")
+        // at the very beginning of its execution.
+        _originalDbUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+        Environment.SetEnvironmentVariable("DATABASE_URL", "InMemory");
+
         // Use a unique database name to ensure isolation
         var dbName = "PasswordUpgradeTestDb_" + Guid.NewGuid();
 
         _factory = factory.WithWebHostBuilder(builder =>
         {
+            // Note: builder.UseSetting() sets IConfiguration values, but Program.cs reads the ENV VAR directly first.
+            // That's why we need the Environment.SetEnvironmentVariable above.
+            builder.UseSetting("ConnectionStrings:DefaultConnection", "InMemory");
+            builder.UseSetting("Nats:ProvisionStreams", "false");
+
             builder.ConfigureServices(services =>
             {
-                // Aggressively remove existing database services to avoid "Multiple providers" error
-                var dbContextOptions = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<AuthDbContext>));
-                if (dbContextOptions != null) services.Remove(dbContextOptions);
+                // Cleanly remove existing database services.
+                services.RemoveAll<DbContextOptions<AuthDbContext>>();
+                services.RemoveAll<DbContextOptions>();
+                services.RemoveAll<AuthDbContext>();
+                services.RemoveAll<IDbContextFactory<AuthDbContext>>();
 
-                var dbContextOptionsGeneric = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions));
-                if (dbContextOptionsGeneric != null) services.Remove(dbContextOptionsGeneric);
-
-                var dbContext = services.SingleOrDefault(d => d.ServiceType == typeof(AuthDbContext));
-                if (dbContext != null) services.Remove(dbContext);
-
-                services.AddDbContext<AuthDbContext>(options =>
+                // Shared configuration for consistency
+                Action<DbContextOptionsBuilder> configureOptions = options =>
                 {
                     options.UseInMemoryDatabase(dbName);
                     options.ConfigureWarnings(x => x.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning));
-                });
+                };
+
+                // Register Factory as Singleton (consistent with production)
+                services.AddDbContextFactory<AuthDbContext>(configureOptions, ServiceLifetime.Singleton);
+
+                // Register Scoped DbContext using Singleton options (consistent with production)
+                services.AddDbContext<AuthDbContext>(configureOptions, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
             });
-            
-            builder.UseSetting("ConnectionStrings:DefaultConnection", "InMemory");
-            builder.UseSetting("Nats:ProvisionStreams", "false");
         });
 
         SeedLegacyUser();
+    }
+    
+    public void Dispose()
+    {
+        // Restore original env var so we don't pollute other tests
+        if (_originalDbUrl != null)
+        {
+            Environment.SetEnvironmentVariable("DATABASE_URL", _originalDbUrl);
+        }
+        else
+        {
+            Environment.SetEnvironmentVariable("DATABASE_URL", null);
+        }
     }
 
     private void SeedLegacyUser()

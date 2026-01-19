@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using NetworcoId.Core.Security;
 using NetworcoId.Infrastructure.Database;
 using NetworcoId.Models.Auth;
@@ -11,12 +12,18 @@ using Xunit;
 
 namespace NetworcoId.Tests.Integration;
 
-public class RefreshTokenTests : IClassFixture<WebApplicationFactory<Program>>
+public class RefreshTokenTests : IClassFixture<WebApplicationFactory<Program>>, IDisposable
 {
     private readonly WebApplicationFactory<Program> _factory;
+    private readonly string? _originalDbUrl;
 
     public RefreshTokenTests(WebApplicationFactory<Program> factory)
     {
+        _originalDbUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+        Environment.SetEnvironmentVariable("DATABASE_URL", "InMemory");
+
+        var dbName = "RefreshTokenTestDb_" + Guid.NewGuid();
+
         _factory = factory.WithWebHostBuilder(builder =>
         {
             builder.UseSetting("ConnectionStrings:DefaultConnection", "InMemory");
@@ -24,20 +31,38 @@ public class RefreshTokenTests : IClassFixture<WebApplicationFactory<Program>>
 
             builder.ConfigureServices(services =>
             {
-                // Remove existing DB context
-                var dbContextOptions = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<AuthDbContext>));
-                if (dbContextOptions != null) services.Remove(dbContextOptions);
+                // Cleanly remove existing database services
+                services.RemoveAll<DbContextOptions<AuthDbContext>>();
+                services.RemoveAll<DbContextOptions>();
+                services.RemoveAll<AuthDbContext>();
+                services.RemoveAll<IDbContextFactory<AuthDbContext>>();
 
-                var dbContext = services.SingleOrDefault(d => d.ServiceType == typeof(AuthDbContext));
-                if (dbContext != null) services.Remove(dbContext);
-
-                services.AddDbContext<AuthDbContext>(options =>
+                // Shared configuration for consistency
+                Action<DbContextOptionsBuilder> configureOptions = options =>
                 {
-                    options.UseInMemoryDatabase("InMemoryDbForTesting_RefreshToken_" + Guid.NewGuid());
+                    options.UseInMemoryDatabase(dbName);
                     options.ConfigureWarnings(x => x.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning));
-                });
+                };
+
+                // Register Factory as Singleton (consistent with production)
+                services.AddDbContextFactory<AuthDbContext>(configureOptions, ServiceLifetime.Singleton);
+
+                // Register Scoped DbContext using Singleton options (consistent with production)
+                services.AddDbContext<AuthDbContext>(configureOptions, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
             });
         });
+    }
+
+    public void Dispose()
+    {
+        if (_originalDbUrl != null)
+        {
+            Environment.SetEnvironmentVariable("DATABASE_URL", _originalDbUrl);
+        }
+        else
+        {
+            Environment.SetEnvironmentVariable("DATABASE_URL", null);
+        }
     }
 
     [Fact]
