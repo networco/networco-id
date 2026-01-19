@@ -17,19 +17,30 @@ using System.Security.Cryptography.X509Certificates;
 var builder = WebApplication.CreateBuilder(args);
 
 // Load environment variables if .env exists
+// Note: We use NoOverwrite to ensure that if variables are already set (e.g. by CI or Tests), we don't clobber them.
 if (File.Exists(".env"))
 {
-    DotNetEnv.Env.Load(".env");
+    DotNetEnv.Env.Load(".env", new DotNetEnv.LoadOptions(
+        setEnvVars: true,
+        clobberExistingVars: false,
+        onlyExactPath: false
+    ));
 }
 else if (File.Exists("../../.env"))
 {
-    // Try root from bin/Debug/net10.0
-    DotNetEnv.Env.Load("../../.env");
+    DotNetEnv.Env.Load("../../.env", new DotNetEnv.LoadOptions(
+        setEnvVars: true,
+        clobberExistingVars: false,
+        onlyExactPath: false
+    ));
 }
 else if (File.Exists("../../../.env"))
 {
-    // Try root from src/NetworcoId/bin/Debug/net10.0
-    DotNetEnv.Env.Load("../../../.env");
+    DotNetEnv.Env.Load("../../../.env", new DotNetEnv.LoadOptions(
+        setEnvVars: true,
+        clobberExistingVars: false,
+        onlyExactPath: false
+    ));
 }
 
 // Override configuration with environment variables
@@ -56,9 +67,15 @@ builder.Services.AddAuthServices(builder.Configuration);
 
 
 // Configure Data Protection for multi-instance deployments
-var dataProtection = builder.Services.AddDataProtection()
-    .PersistKeysToDbContext<AuthDbContext>()
+var dataProtectionBuilder = builder.Services.AddDataProtection()
     .SetApplicationName("NetworcoId");
+
+// Only persist keys to DB if not using InMemory (tests)
+var dbConnString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (dbConnString != "InMemory")
+{
+    dataProtectionBuilder.PersistKeysToDbContext<AuthDbContext>();
+}
 
 // If certificate path is configured, use it for encryption at rest
 var certPath = builder.Configuration["DATA_PROTECTION_CERT_PATH"];
@@ -69,7 +86,7 @@ if (!string.IsNullOrEmpty(certPath) && File.Exists(certPath))
 #pragma warning disable SYSLIB0057 // Suppress obsolete warning for X509Certificate2 constructor
     var certificate = new X509Certificate2(certPath, certPass);
 #pragma warning restore SYSLIB0057
-    dataProtection.ProtectKeysWithCertificate(certificate);
+    dataProtectionBuilder.ProtectKeysWithCertificate(certificate);
 }
 
 
@@ -190,9 +207,11 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "auth
 using (var scope = app.Services.CreateScope())
 {
     var connString = app.Configuration.GetConnectionString("DefaultConnection");
+    // Only migrate if we are NOT using InMemory (which is used for tests)
     if (connString != "InMemory")
     {
         var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        // Double check provider to be safe
         if (db.Database.ProviderName != "Microsoft.EntityFrameworkCore.InMemory")
         {
             await db.Database.MigrateAsync();
@@ -207,8 +226,8 @@ using (var scope = app.Services.CreateScope())
     if (config.GetValue<bool>("Nats:ProvisionStreams", true))
     {
         var nats = scope.ServiceProvider.GetRequiredService<INatsConnection>();
-    var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("NatsProvisioner");
-    await nats.ProvisionStreamsAsync(logger);
+        var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("NatsProvisioner");
+        await nats.ProvisionStreamsAsync(logger);
     }
 }
 

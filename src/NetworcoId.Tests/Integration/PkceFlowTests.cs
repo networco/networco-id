@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.EntityFrameworkCore;
 using NetworcoId.Infrastructure.Database;
 using NetworcoId.Models.Entities;
@@ -12,9 +13,10 @@ using Xunit;
 
 namespace NetworcoId.Tests.Integration;
 
-public class PkceFlowTests : IClassFixture<WebApplicationFactory<Program>>
+public class PkceFlowTests : IClassFixture<WebApplicationFactory<Program>>, IDisposable
 {
     private readonly WebApplicationFactory<Program> _factory;
+    private readonly string? _originalDbUrl;
     private readonly HttpClient _client;
     
     // Test user credentials
@@ -26,41 +28,37 @@ public class PkceFlowTests : IClassFixture<WebApplicationFactory<Program>>
 
     public PkceFlowTests(WebApplicationFactory<Program> factory)
     {
+        _originalDbUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+        Environment.SetEnvironmentVariable("DATABASE_URL", "InMemory");
+
+        var dbName = "PkceTestDb_" + Guid.NewGuid();
+
         _factory = factory.WithWebHostBuilder(builder =>
         {
+            builder.UseSetting("ConnectionStrings:DefaultConnection", "InMemory");
+            builder.UseSetting("Nats:ProvisionStreams", "false");
+
             builder.ConfigureServices(services =>
             {
-                // Remove existing database services by scanning for any registration related to AuthDbContext
-                var dbContextDescriptors = services.Where(d => 
-                    d.ServiceType == typeof(AuthDbContext) || 
-                    d.ServiceType == typeof(DbContextOptions<AuthDbContext>) ||
-                    d.ServiceType == typeof(IDbContextFactory<AuthDbContext>) ||
-                    d.ServiceType == typeof(DbContextOptions)).ToList();
+                // Cleanly remove existing database services
+                services.RemoveAll<DbContextOptions<AuthDbContext>>();
+                services.RemoveAll<DbContextOptions>();
+                services.RemoveAll<AuthDbContext>();
+                services.RemoveAll<IDbContextFactory<AuthDbContext>>();
 
-                foreach (var descriptor in dbContextDescriptors)
+                // Shared configuration for consistency
+                Action<DbContextOptionsBuilder> configureOptions = options =>
                 {
-                    services.Remove(descriptor);
-                }
-                
-                // Add InMemory DbContext with factory for SettingsService support
-                services.AddDbContextFactory<AuthDbContext>(options =>
-                {
-                    options.UseInMemoryDatabase("PkceTestDb");
+                    options.UseInMemoryDatabase(dbName);
                     options.ConfigureWarnings(x => x.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning));
-                }, ServiceLifetime.Singleton);
+                };
 
-                services.AddDbContext<AuthDbContext>(options =>
-                {
-                    options.UseInMemoryDatabase("PkceTestDb");
-                    options.ConfigureWarnings(x => x.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning));
-                }, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
+                // Register Factory as Singleton (consistent with production)
+                services.AddDbContextFactory<AuthDbContext>(configureOptions, ServiceLifetime.Singleton);
+
+                // Register Scoped DbContext using Singleton options (consistent with production)
+                services.AddDbContext<AuthDbContext>(configureOptions, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
             });
-            
-            // Try to signal to DatabaseConfiguration to skip Npgsql registration
-            builder.UseSetting("ConnectionStrings:DefaultConnection", "InMemory");
-            
-            // Disable NATS stream provisioning
-            builder.UseSetting("Nats:ProvisionStreams", "false");
         });
 
         _client = _factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -70,6 +68,18 @@ public class PkceFlowTests : IClassFixture<WebApplicationFactory<Program>>
         
         // Seed database
         SeedDatabase();
+    }
+
+    public void Dispose()
+    {
+        if (_originalDbUrl != null)
+        {
+            Environment.SetEnvironmentVariable("DATABASE_URL", _originalDbUrl);
+        }
+        else
+        {
+            Environment.SetEnvironmentVariable("DATABASE_URL", null);
+        }
     }
 
     private void SeedDatabase()

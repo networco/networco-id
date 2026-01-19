@@ -16,41 +16,47 @@
         <meta http-equiv="refresh" content="2;url=@Model.AuthorizationUrl" />
     }
 </head>
-<body class="bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 min-h-screen flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-8">
+<body class="bg-gray-50 min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-sm border border-gray-100 max-w-md w-full p-10">
         @if (Model.IsVerified)
         {
-            <div class="mb-6 text-center">
-                <div class="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-                    <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            <div class="text-center">
+                <div class="mx-auto w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-6">
+                    <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
                     </svg>
                 </div>
-                <h1 class="text-2xl font-bold text-gray-900 mb-2">E-post bekreftet!</h1>
-                <p class="text-gray-600 mb-6">Kontoen din er nå aktivert.</p>
-                <p class="text-sm text-gray-500">Videresender for å fullføre innlogging...</p>
+                <h1 class="text-3xl font-black text-gray-900 tracking-tight mb-3">Suksess!</h1>
+                <p class="text-gray-500 font-medium mb-8 leading-relaxed">Din e-post er bekreftet og kontoen din er nå aktivert.</p>
+                <div class="flex items-center justify-center gap-3 py-4 px-6 bg-gray-50 rounded-2xl border border-gray-100">
+                    <div class="w-2 h-2 bg-indigo-600 rounded-full animate-pulse"></div>
+                    <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">Logger deg inn...</p>
+                </div>
             </div>
         }
         else if (!string.IsNullOrEmpty(Model.ErrorMessage))
         {
-            <div class="mb-6 text-center">
-                <div class="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
-                    <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            <div class="text-center">
+                <div class="mx-auto w-20 h-20 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-6">
+                    <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path>
                     </svg>
                 </div>
-                <h1 class="text-2xl font-bold text-gray-900 mb-2">Bekreftelse feilet</h1>
-                <p class="text-red-600">@Model.ErrorMessage</p>
+                <h1 class="text-3xl font-black text-gray-900 tracking-tight mb-3">Oisann!</h1>
+                <p class="text-red-500 font-bold mb-10 leading-relaxed">@Model.ErrorMessage</p>
+                <a href="/Login" class="inline-block w-full bg-indigo-600 text-white font-bold py-4 px-6 rounded-2xl hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-500/20 transition-all duration-200 text-lg">
+                    Gå til innlogging
+                </a>
             </div>
         }
         else
         {
-            <div class="mb-6 text-center">
-                <div class="mx-auto w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mb-4">
-                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+            <div class="text-center">
+                <div class="mx-auto w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center mb-6">
+                    <div class="animate-spin rounded-full h-10 w-10 border-4 border-indigo-600 border-t-transparent"></div>
                 </div>
-                <h1 class="text-2xl font-bold text-gray-900 mb-2">Bekrefter...</h1>
-                <p class="text-gray-600">Vennligst vent mens vi bekrefter e-postadressen din.</p>
+                <h1 class="text-3xl font-black text-gray-900 tracking-tight mb-3">Bekrefter...</h1>
+                <p class="text-gray-500 font-medium mb-6">Et lite øyeblikk mens vi verifiserer din identitet.</p>
             </div>
         }
     </div>

@@ -10,11 +10,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace NetworcoId.Infrastructure.Database.Migrations
+namespace NetworcoId.Migrations
 {
     [DbContext(typeof(AuthDbContext))]
-    [Migration("20260118210944_AddUserRolesNew")]
-    partial class AddUserRolesNew
+    [Migration("20260119182731_ReconcileMigrationHistory")]
+    partial class ReconcileMigrationHistory
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -314,6 +314,32 @@ namespace NetworcoId.Infrastructure.Database.Migrations
                         .IsUnique();
 
                     b.ToTable("signing_keys");
+                });
+
+            modelBuilder.Entity("NetworcoId.Models.Entities.SystemSettingEntity", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("key");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("value");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("system_settings");
                 });
 
             modelBuilder.Entity("NetworcoId.Models.Entities.UserCredentialEntity", b =>

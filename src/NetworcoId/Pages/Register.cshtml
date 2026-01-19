@@ -26,29 +26,29 @@
     </style>
 </head>
 
-<body class="bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 min-h-screen flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-8">
-        <div class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-gray-900 mb-2">NETWORCO</h1>
-            <p class="text-gray-600">Opprett din konto for å komme i gang</p>
+<body class="bg-gray-50 min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-sm border border-gray-100 max-w-md w-full p-10">
+        <div class="text-center mb-10">
+            <h1 class="text-3xl font-black text-gray-900 tracking-tight mb-2">NETWORCO</h1>
+            <p class="text-gray-500 font-medium">Opprett din konto for å komme i gang</p>
         </div>
 
         @if (Model.RegistrationSuccess)
         {
-            <div class="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
-                <div class="flex items-start gap-3">
-                    <svg class="w-6 h-6 text-green-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                    <div>
-                        <h3 class="text-lg font-semibold text-green-900 mb-2">Sjekk e-posten din!</h3>
-                        <p class="text-sm text-green-800 mb-3">
-                            Vi har sendt en bekreftelseslenke til din e-postadresse. Klikk på lenken for å bekrefte e-posten og aktivere kontoen din.
-                        </p>
-                        <p class="text-xs text-green-700">
-                            Ser du den ikke? Sjekk søppelposten.
-                        </p>
+            <div class="bg-green-50 border border-green-100 rounded-2xl p-8 mb-6 text-center">
+                <div class="flex flex-col items-center gap-4">
+                    <div class="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-2">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+                        </svg>
                     </div>
+                    <h3 class="text-xl font-bold text-gray-900">Sjekk e-posten din!</h3>
+                    <p class="text-gray-600 font-medium leading-relaxed">
+                        Vi har sendt en bekreftelseslenke til din e-postadresse. Klikk på lenken for å aktivere kontoen din.
+                    </p>
+                    <p class="text-xs text-gray-400 font-bold uppercase tracking-wider mt-4">
+                        Ser du den ikke? Sjekk søppelposten.
+                    </p>
                 </div>
             </div>
         }
@@ -56,150 +56,137 @@
         {
             @if (!string.IsNullOrEmpty(Model.ErrorMessage))
             {
-                <div class="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 mb-6">
-                    <p class="text-sm">@Model.ErrorMessage</p>
+                <div class="bg-red-50 border border-red-100 text-red-700 rounded-2xl p-4 mb-8 text-center text-sm font-medium">
+                    <p>@Model.ErrorMessage</p>
                 </div>
             }
 
-            <div class="space-y-4 mb-8">
+            <div class="space-y-3 mb-10">
                 <!-- Vipps Register -->
-                <div class="h-[48px]">
+                <div class="h-[52px]">
                     <vipps-mobilepay-button brand="vipps" language="no" verb="register" rounded="true" stretched="true" branded="true">
                     </vipps-mobilepay-button>
                 </div>
 
                 <!-- BankID Register -->
-                <button type="button" class="bankid-btn w-full flex items-center justify-center gap-3 px-6 py-3 rounded-full font-medium text-lg h-[48px]">
-                    <svg width="33" height="24" viewBox="0 0 119 87" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path
-                            d="M35.6071 23.8571H19.9214C17.83 23.8571 16 22.0238 16 19.9286C16 17.8333 17.83 16 19.9214 16H35.6071C37.6986 16 39.5286 17.8333 39.5286 19.9286C39.5286 22.0238 37.6986 23.8571 35.6071 23.8571Z"
-                            fill="white" />
-                        <path
-                            d="M35.6071 55.2857H19.9214C17.83 55.2857 16 53.4524 16 51.3572C16 49.2619 17.83 47.4286 19.9214 47.4286H35.6071C37.6986 47.4286 39.5286 49.2619 39.5286 51.3572C39.5286 53.4524 37.6986 55.2857 35.6071 55.2857Z"
-                            fill="white" />
-                        <path
-                            d="M35.6071 71H19.9214C17.83 71 16 69.1667 16 67.0715C16 64.9762 17.83 63.1429 19.9214 63.1429H35.6071C37.6986 63.1429 39.5286 64.9762 39.5286 67.0715C39.5286 69.1667 37.6986 71 35.6071 71Z"
-                            fill="white" />
-                        <path
-                            d="M66.9786 39.5714H51.2929C49.2014 39.5714 47.3714 37.7381 47.3714 35.6429C47.3714 33.5476 49.2014 31.7143 51.2929 31.7143H66.9786C69.07 31.7143 70.9 33.5476 70.9 35.6429C70.9 37.7381 69.07 39.5714 66.9786 39.5714Z"
-                            fill="white" />
-                        <path
-                            d="M66.9786 55.2857H51.2929C49.2014 55.2857 47.3714 53.4524 47.3714 51.3572C47.3714 49.2619 49.2014 47.4286 51.2929 47.4286H66.9786C69.07 47.4286 70.9 49.2619 70.9 51.3572C70.9 53.4524 69.07 55.2857 66.9786 55.2857Z"
-                            fill="white" />
-                        <path
-                            d="M98.35 23.8571H82.6643C80.5729 23.8571 78.7429 22.0238 78.7429 19.9286C78.7429 17.8333 80.5729 16 82.6643 16H98.35C100.441 16 102.271 17.8333 102.271 19.9286C102.271 22.0238 100.441 23.8571 98.35 23.8571Z"
-                            fill="white" />
-                        <path
-                            d="M98.35 39.5714H82.6643C80.5729 39.5714 78.7429 37.7381 78.7429 35.6429C78.7429 33.5476 80.5729 31.7143 82.6643 31.7143H98.35C100.441 31.7143 102.271 33.5476 102.271 35.6429C102.271 37.7381 100.441 39.5714 98.35 39.5714Z"
-                            fill="white" />
-                        <path
-                            d="M98.35 71H82.6643C80.5729 71 78.7429 69.1667 78.7429 67.0715C78.7429 64.9762 80.5729 63.1429 82.6643 63.1429H98.35C100.441 63.1429 102.271 64.9762 102.271 67.0715C102.271 69.1667 100.441 71 98.35 71Z"
-                            fill="white" />
+                <button type="button" class="bankid-btn w-full flex items-center justify-center gap-3 px-6 py-3 rounded-2xl font-bold text-base h-[52px] shadow-sm">
+                    <svg width="28" height="20" viewBox="0 0 119 87" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M35.6071 23.8571H19.9214C17.83 23.8571 16 22.0238 16 19.9286C16 17.8333 17.83 16 19.9214 16H35.6071C37.6986 16 39.5286 17.8333 39.5286 19.9286C39.5286 22.0238 37.6986 23.8571 35.6071 23.8571Z" fill="white" />
+                        <path d="M35.6071 55.2857H19.9214C17.83 55.2857 16 53.4524 16 51.3572C16 49.2619 17.83 47.4286 19.9214 47.4286H35.6071C37.6986 47.4286 39.5286 49.2619 39.5286 51.3572C39.5286 53.4524 37.6986 55.2857 35.6071 55.2857Z" fill="white" />
+                        <path d="M35.6071 71H19.9214C17.83 71 16 69.1667 16 67.0715C16 64.9762 17.83 63.1429 19.9214 63.1429H35.6071C37.6986 63.1429 39.5286 64.9762 39.5286 67.0715C39.5286 69.1667 37.6986 71 35.6071 71Z" fill="white" />
+                        <path d="M66.9786 39.5714H51.2929C49.2014 39.5714 47.3714 37.7381 47.3714 35.6429C47.3714 33.5476 49.2014 31.7143 51.2929 31.7143H66.9786C69.07 31.7143 70.9 33.5476 70.9 35.6429C70.9 37.7381 69.07 39.5714 66.9786 39.5714Z" fill="white" />
+                        <path d="M66.9786 55.2857H51.2929C49.2014 55.2857 47.3714 53.4524 47.3714 51.3572C47.3714 49.2619 49.2014 47.4286 51.2929 47.4286H66.9786C69.07 47.4286 70.9 49.2619 70.9 51.3572C70.9 53.4524 69.07 55.2857 66.9786 55.2857Z" fill="white" />
+                        <path d="M98.35 23.8571H82.6643C80.5729 23.8571 78.7429 22.0238 78.7429 19.9286C78.7429 17.8333 80.5729 16 82.6643 16H98.35C100.441 16 102.271 17.8333 102.271 19.9286C102.271 22.0238 100.441 23.8571 98.35 23.8571Z" fill="white" />
+                        <path d="M98.35 39.5714H82.6643C80.5729 39.5714 78.7429 37.7381 78.7429 35.6429C78.7429 33.5476 80.5729 31.7143 82.6643 31.7143H98.35C100.441 31.7143 102.271 33.5476 102.271 35.6429C102.271 37.7381 100.441 39.5714 98.35 39.5714Z" fill="white" />
+                        <path d="M98.35 71H82.6643C80.5729 71 78.7429 69.1667 78.7429 67.0715C78.7429 64.9762 80.5729 63.1429 82.6643 63.1429H98.35C100.441 63.1429 102.271 64.9762 102.271 67.0715C102.271 69.1667 100.441 71 98.35 71Z" fill="white" />
                     </svg>
                     Registrer med BankID
                 </button>
             </div>
 
-            <div class="relative my-6">
+            <div class="relative my-10">
                 <div class="absolute inset-0 flex items-center">
-                    <div class="w-full border-t border-gray-200"></div>
+                    <div class="w-full border-t border-gray-100"></div>
                 </div>
-                <div class="relative flex justify-center text-sm">
-                    <span class="px-2 bg-white text-gray-500">eller bruk e-post</span>
+                <div class="relative flex justify-center text-xs">
+                    <span class="px-4 bg-white text-gray-400 font-bold uppercase tracking-widest">eller bruk e-post</span>
                 </div>
             </div>
 
-            <form method="post" id="registerForm" class="space-y-4">
+            <form method="post" id="registerForm" class="space-y-6">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="return_url" value="@Model.ReturnUrl" />
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label for="firstName" class="block text-sm font-medium text-gray-700 mb-1">Fornavn</label>
+                        <label for="firstName" class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Fornavn</label>
                         <input type="text" id="firstName" name="firstName" required
-                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="Ola" />
+                            class="w-full px-5 py-4 bg-gray-100 border border-gray-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all outline-none text-gray-900 font-medium placeholder:text-gray-400" placeholder="Ola" />
                     </div>
                     <div>
-                        <label for="lastName" class="block text-sm font-medium text-gray-700 mb-1">Etternavn</label>
+                        <label for="lastName" class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Etternavn</label>
                         <input type="text" id="lastName" name="lastName" required
-                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="Nordmann" />
+                            class="w-full px-5 py-4 bg-gray-100 border border-gray-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all outline-none text-gray-900 font-medium placeholder:text-gray-400" placeholder="Nordmann" />
                     </div>
                 </div>
 
                 <div>
-                    <label for="email" class="block text-sm font-medium text-gray-700 mb-1">E-post</label>
+                    <label for="email" class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">E-post</label>
                     <input type="email" id="email" name="email" required
-                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="ola@@networco.dev" />
+                        class="w-full px-5 py-4 bg-gray-100 border border-gray-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all outline-none text-gray-900 font-medium placeholder:text-gray-400" placeholder="ola@@networco.dev" />
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="space-y-6">
                     <div>
-                        <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Passord</label>
+                        <label for="password" class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Passord</label>
                         <input type="password" id="password" name="password" required minlength="@Model.MinPasswordLength"
-                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="••••••••" />
+                            class="w-full px-5 py-4 bg-gray-100 border border-gray-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all outline-none text-gray-900 font-medium placeholder:text-gray-400" placeholder="••••••••" />
 
                         <!-- Strength Indicator -->
-                        <div class="mt-2 space-y-2">
-                            <div class="flex gap-1 h-1.5">
-                                <div id="strength-1" class="flex-1 rounded-full bg-gray-200 transition-colors"></div>
-                                <div id="strength-2" class="flex-1 rounded-full bg-gray-200 transition-colors"></div>
-                                <div id="strength-3" class="flex-1 rounded-full bg-gray-200 transition-colors"></div>
-                                <div id="strength-4" class="flex-1 rounded-full bg-gray-200 transition-colors"></div>
+                        <div class="mt-4 space-y-3 px-1">
+                            <div class="flex gap-1.5 h-1.5">
+                                <div id="strength-1" class="flex-1 rounded-full bg-gray-100 transition-colors"></div>
+                                <div id="strength-2" class="flex-1 rounded-full bg-gray-100 transition-colors"></div>
+                                <div id="strength-3" class="flex-1 rounded-full bg-gray-100 transition-colors"></div>
+                                <div id="strength-4" class="flex-1 rounded-full bg-gray-100 transition-colors"></div>
                             </div>
-                            <p id="strength-text" class="text-[10px] font-medium uppercase tracking-wider text-gray-400">Styrke: Ingen</p>
+                            <p id="strength-text" class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Styrke: Ingen</p>
                         </div>
 
                         <!-- Real-time Requirements -->
-                        <ul class="mt-3 space-y-1 text-xs">
-                            <li id="req-length" class="flex items-center gap-2 text-gray-500">
-                                <span class="status-icon">○</span> Minst @Model.MinPasswordLength tegn
+                        <ul class="mt-4 space-y-2 px-1">
+                            <li id="req-length" class="flex items-center gap-3 text-[11px] font-bold uppercase tracking-wider text-gray-400 transition-colors">
+                                <span class="status-icon w-4 h-4 rounded-full border-2 border-current flex items-center justify-center text-[8px]"></span> Minst @Model.MinPasswordLength tegn
                             </li>
-                            <li id="req-upper" class="flex items-center gap-2 text-gray-500">
-                                <span class="status-icon">○</span> Stor bokstav
+                            <li id="req-upper" class="flex items-center gap-3 text-[11px] font-bold uppercase tracking-wider text-gray-400 transition-colors">
+                                <span class="status-icon w-4 h-4 rounded-full border-2 border-current flex items-center justify-center text-[8px]"></span> Stor bokstav
                             </li>
-                            <li id="req-lower" class="flex items-center gap-2 text-gray-500">
-                                <span class="status-icon">○</span> Liten bokstav
+                            <li id="req-lower" class="flex items-center gap-3 text-[11px] font-bold uppercase tracking-wider text-gray-400 transition-colors">
+                                <span class="status-icon w-4 h-4 rounded-full border-2 border-current flex items-center justify-center text-[8px]"></span> Liten bokstav
                             </li>
-                            <li id="req-digit" class="flex items-center gap-2 text-gray-500">
-                                <span class="status-icon">○</span> Minst ett tall
+                            <li id="req-digit" class="flex items-center gap-3 text-[11px] font-bold uppercase tracking-wider text-gray-400 transition-colors">
+                                <span class="status-icon w-4 h-4 rounded-full border-2 border-current flex items-center justify-center text-[8px]"></span> Minst ett tall
                             </li>
                         </ul>
                     </div>
                     <div>
-                        <label for="confirmPassword" class="block text-sm font-medium text-gray-700 mb-1">Gjenta passord</label>
+                        <label for="confirmPassword" class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Gjenta passord</label>
                         <input type="password" id="confirmPassword" name="confirmPassword" required minlength="@Model.MinPasswordLength"
-                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="••••••••" />
-                        <p id="match-text" class="text-xs text-gray-500 mt-1 flex items-center gap-2">
-                            <span id="match-icon">○</span> Passordene må være like
+                            class="w-full px-5 py-4 bg-gray-100 border border-gray-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all outline-none text-gray-900 font-medium placeholder:text-gray-400" placeholder="••••••••" />
+                        <p id="match-text" class="text-[11px] font-bold uppercase tracking-wider text-gray-400 mt-3 px-1 flex items-center gap-3 transition-colors">
+                            <span id="match-icon" class="w-4 h-4 rounded-full border-2 border-current flex items-center justify-center text-[8px]"></span> Passordene må være like
                         </p>
                     </div>
                 </div>
 
-                <div id="clientErrorMessage" class="hidden bg-red-50 border border-red-200 text-red-800 rounded-lg p-3 text-sm">
+                <div id="clientErrorMessage" class="hidden bg-red-50 border border-red-100 text-red-700 rounded-2xl p-4 text-sm font-medium">
                 </div>
 
-                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <p class="text-sm text-blue-800">
-                        📧 <strong>E-postbekreftelse kreves</strong><br />
-                        Vi sender deg en bekreftelseslenke for å bekrefte e-postadressen din.
-                    </p>
+                <div class="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-5">
+                    <div class="flex gap-3">
+                        <span class="text-xl">📧</span>
+                        <p class="text-[11px] font-bold uppercase tracking-wider text-indigo-900/60 leading-relaxed">
+                            <strong>E-postbekreftelse</strong><br />
+                            Vi sender en bekreftelseslenke for å sikre din identitet.
+                        </p>
+                    </div>
                 </div>
 
-                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors">
+                <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-4 px-6 rounded-2xl hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-500/20 transition-all duration-200 text-lg">
                     Opprett konto
                 </button>
             </form>
 
-            <div class="mt-6 text-center">
-                <p class="text-sm text-gray-600">
+            <div class="mt-10 text-center">
+                <p class="text-sm font-medium text-gray-500">
                     Har du allerede en konto?
-                    <a href="@Model.ReturnUrl" class="text-indigo-600 hover:underline font-medium">Logg inn i stedet</a>
+                    <a href="/Login?return_url=@System.Net.WebUtility.UrlEncode(Model.ReturnUrl)" class="text-indigo-600 hover:text-indigo-700 font-bold ml-1">Logg inn i stedet</a>
                 </p>
             </div>
         }
 
-        <div class="mt-6 pt-6 border-t border-gray-200">
-            <p class="text-xs text-center text-gray-500">
-                NETWORCO ID er en sikker påloggingsmetode for enkel og trygg tilgang. Du kan også bruke Vipps og BankID.
+        <div class="mt-10 pt-8 border-t border-gray-100">
+            <p class="text-[10px] leading-relaxed text-center text-gray-400 font-medium uppercase tracking-wider">
+                Sikker registrering fra Networco. Du kan også bruke Vipps og BankID for rask tilgang.
             </p>
         </div>
     </div>
@@ -237,14 +224,18 @@
                 const req = requirements[key];
                 const isMet = req.check(password);
                 if (isMet) {
-                    req.el.classList.remove('text-gray-500', 'text-red-500');
+                    req.el.classList.remove('text-gray-400', 'text-red-500');
                     req.el.classList.add('text-green-600');
                     req.el.querySelector('.status-icon').textContent = '✓';
+                    req.el.querySelector('.status-icon').classList.remove('border-current');
+                    req.el.querySelector('.status-icon').classList.add('bg-green-600', 'border-green-600', 'text-white');
                     metCount++;
                 } else {
-                    req.el.classList.remove('text-green-600');
-                    req.el.classList.add('text-gray-500');
-                    req.el.querySelector('.status-icon').textContent = '○';
+                    req.el.classList.remove('text-green-600', 'text-red-500');
+                    req.el.classList.add('text-gray-400');
+                    req.el.querySelector('.status-icon').textContent = '';
+                    req.el.querySelector('.status-icon').classList.add('border-current');
+                    req.el.querySelector('.status-icon').classList.remove('bg-green-600', 'border-green-600', 'text-white');
                 }
             }
 
@@ -255,18 +246,24 @@
             // Update match indicator
             if (confirm) {
                 if (password === confirm) {
-                    matchText.classList.remove('text-gray-500', 'text-red-500');
+                    matchText.classList.remove('text-gray-400', 'text-red-500');
                     matchText.classList.add('text-green-600');
                     matchIcon.textContent = '✓';
+                    matchIcon.classList.remove('border-current');
+                    matchIcon.classList.add('bg-green-600', 'border-green-600', 'text-white');
                 } else {
-                    matchText.classList.remove('text-gray-500', 'text-green-600');
+                    matchText.classList.remove('text-gray-400', 'text-green-600');
                     matchText.classList.add('text-red-500');
                     matchIcon.textContent = '✕';
+                    matchIcon.classList.remove('border-current');
+                    matchIcon.classList.add('bg-red-500', 'border-red-500', 'text-white');
                 }
             } else {
                 matchText.classList.remove('text-green-600', 'text-red-500');
-                matchText.classList.add('text-gray-500');
-                matchIcon.textContent = '○';
+                matchText.classList.add('text-gray-400');
+                matchIcon.textContent = '';
+                matchIcon.classList.add('border-current');
+                matchIcon.classList.remove('bg-green-600', 'border-green-600', 'bg-red-500', 'border-red-500', 'text-white');
             }
         }
 
@@ -286,15 +283,15 @@
         }
 
         function updateStrengthUI(strength) {
-            const colors = ['bg-gray-200', 'bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-green-500'];
+            const colors = ['bg-gray-100', 'bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-green-500'];
             const labels = ['Ingen', 'Svakt', 'Middels', 'Godt', 'Sterkt'];
 
             strengthBars.forEach((bar, i) => {
-                bar.className = `flex-1 rounded-full transition-colors ${i < strength ? colors[strength] : 'bg-gray-200'}`;
+                bar.className = `flex-1 rounded-full transition-colors ${i < strength ? colors[strength] : 'bg-gray-100'}`;
             });
 
             strengthText.textContent = `Styrke: ${labels[strength]}`;
-            strengthText.className = `text-[10px] font-medium uppercase tracking-wider ${strength > 0 ? colors[strength].replace('bg-', 'text-') : 'text-gray-400'}`;
+            strengthText.className = `text-[10px] font-bold uppercase tracking-wider ${strength > 0 ? colors[strength].replace('bg-', 'text-') : 'text-gray-400'}`;
         }
 
         passwordInput.addEventListener('input', updateValidation);
@@ -349,6 +346,7 @@
             });
         });
     </script>
+
 </body>
 
 </html>

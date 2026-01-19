@@ -2,20 +2,25 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using NetworcoId.Infrastructure.Database;
 using System.Security.Cryptography.X509Certificates;
 using Xunit;
 
 namespace NetworcoId.Tests.Integration;
 
-public class DataProtectionTests : IClassFixture<WebApplicationFactory<Program>>
+public class DataProtectionTests : IClassFixture<WebApplicationFactory<Program>>, IDisposable
 {
     private readonly WebApplicationFactory<Program> _factory;
+    private readonly string? _originalDbUrl;
     private readonly string _certPath;
     private readonly string _certPass;
 
     public DataProtectionTests(WebApplicationFactory<Program> factory)
     {
+        _originalDbUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+        Environment.SetEnvironmentVariable("DATABASE_URL", "InMemory");
+
         // Locate the certificate in the project root
         // The test runs in bin/Debug/net10.0, so we need to go up to src/NetworcoId
         var projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../src/NetworcoId"));
@@ -28,6 +33,8 @@ public class DataProtectionTests : IClassFixture<WebApplicationFactory<Program>>
             throw new FileNotFoundException($"Certificate not found at {_certPath}. Please ensure dataprotection.pfx exists in src/NetworcoId.");
         }
 
+        var dbName = "DataProtectionTestDb_" + Guid.NewGuid();
+
         _factory = factory.WithWebHostBuilder(builder =>
         {
             builder.UseSetting("ConnectionStrings:DefaultConnection", "InMemory");
@@ -39,33 +46,38 @@ public class DataProtectionTests : IClassFixture<WebApplicationFactory<Program>>
 
             builder.ConfigureServices(services =>
             {
-                // Remove existing database services
-                var dbContextDescriptors = services.Where(d => 
-                    d.ServiceType == typeof(AuthDbContext) || 
-                    d.ServiceType == typeof(DbContextOptions<AuthDbContext>) ||
-                    d.ServiceType == typeof(IDbContextFactory<AuthDbContext>) ||
-                    d.ServiceType == typeof(DbContextOptions)).ToList();
+                // Cleanly remove existing database services
+                services.RemoveAll<DbContextOptions<AuthDbContext>>();
+                services.RemoveAll<DbContextOptions>();
+                services.RemoveAll<AuthDbContext>();
+                services.RemoveAll<IDbContextFactory<AuthDbContext>>();
 
-                foreach (var descriptor in dbContextDescriptors)
-                {
-                    services.Remove(descriptor);
-                }
-
-                // Add InMemory DbContext with factory for SettingsService support
-                var dbName = "DataProtectionTestDb_" + Guid.NewGuid();
-                services.AddDbContextFactory<AuthDbContext>(options =>
+                // Shared configuration for consistency
+                Action<DbContextOptionsBuilder> configureOptions = options =>
                 {
                     options.UseInMemoryDatabase(dbName);
                     options.ConfigureWarnings(x => x.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning));
-                }, ServiceLifetime.Singleton);
+                };
 
-                services.AddDbContext<AuthDbContext>(options =>
-                {
-                    options.UseInMemoryDatabase(dbName);
-                    options.ConfigureWarnings(x => x.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning));
-                }, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
+                // Register Factory as Singleton (consistent with production)
+                services.AddDbContextFactory<AuthDbContext>(configureOptions, ServiceLifetime.Singleton);
+
+                // Register Scoped DbContext using Singleton options (consistent with production)
+                services.AddDbContext<AuthDbContext>(configureOptions, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
             });
         });
+    }
+
+    public void Dispose()
+    {
+        if (_originalDbUrl != null)
+        {
+            Environment.SetEnvironmentVariable("DATABASE_URL", _originalDbUrl);
+        }
+        else
+        {
+            Environment.SetEnvironmentVariable("DATABASE_URL", null);
+        }
     }
 
     [Fact]
