@@ -23,6 +23,10 @@ RUN apk add --no-cache icu-libs
 WORKDIR /app
 COPY --from=build /app/publish .
 
+# Copy the development certificate for data protection (optional, for dev-in-docker)
+# Note: Ensure the file exists and is not excluded by .dockerignore
+COPY src/NetworcoId/dataprotection.pfx .
+
 # Environment variables
 ENV ASPNETCORE_URLS=http://+:8080
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false

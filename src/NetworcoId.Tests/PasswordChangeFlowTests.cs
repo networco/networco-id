@@ -81,7 +81,14 @@ public class PasswordChangeFlowTests : IClassFixture<WebApplicationFactory<Progr
 
                 // 7. Mock PasswordValidator to pass any password
                 var mockValidator = new Mock<IPasswordValidator>();
-                mockValidator.Setup(v => v.Validate(It.IsAny<string>())).Returns((true, null));
+                mockValidator.Setup(v => v.Validate(
+                    It.IsAny<string>(), 
+                    It.IsAny<int>(), 
+                    It.IsAny<bool>(), 
+                    It.IsAny<bool>(), 
+                    It.IsAny<bool>(), 
+                    It.IsAny<bool>()))
+                    .Returns((true, null));
                 services.AddSingleton<IPasswordValidator>(mockValidator.Object);
             });
         });

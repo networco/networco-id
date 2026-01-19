@@ -30,26 +30,30 @@ public class PkceFlowTests : IClassFixture<WebApplicationFactory<Program>>
         {
             builder.ConfigureServices(services =>
             {
-                // Aggressively remove existing database services to avoid "Multiple providers" error
-                var dbContextOptions = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<AuthDbContext>));
-                if (dbContextOptions != null) services.Remove(dbContextOptions);
+                // Remove existing database services by scanning for any registration related to AuthDbContext
+                var dbContextDescriptors = services.Where(d => 
+                    d.ServiceType == typeof(AuthDbContext) || 
+                    d.ServiceType == typeof(DbContextOptions<AuthDbContext>) ||
+                    d.ServiceType == typeof(IDbContextFactory<AuthDbContext>) ||
+                    d.ServiceType == typeof(DbContextOptions)).ToList();
 
-                var dbContextOptionsGeneric = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions));
-                if (dbContextOptionsGeneric != null) services.Remove(dbContextOptionsGeneric);
-
-                var dbContext = services.SingleOrDefault(d => d.ServiceType == typeof(AuthDbContext));
-                if (dbContext != null) services.Remove(dbContext);
-
-                // Ensure no background workers or services are using the DB before we can replace it?
-                // Actually, KeyManagementService might be registered with the old context type if it was added before removal?
-                // No, it's scoped, so it resolves at request time.
+                foreach (var descriptor in dbContextDescriptors)
+                {
+                    services.Remove(descriptor);
+                }
                 
-                // Add InMemory DbContext
+                // Add InMemory DbContext with factory for SettingsService support
+                services.AddDbContextFactory<AuthDbContext>(options =>
+                {
+                    options.UseInMemoryDatabase("PkceTestDb");
+                    options.ConfigureWarnings(x => x.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning));
+                }, ServiceLifetime.Singleton);
+
                 services.AddDbContext<AuthDbContext>(options =>
                 {
                     options.UseInMemoryDatabase("PkceTestDb");
                     options.ConfigureWarnings(x => x.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning));
-                });
+                }, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
             });
             
             // Try to signal to DatabaseConfiguration to skip Npgsql registration

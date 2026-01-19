@@ -1,0 +1,79 @@
+@model NetworcoId.Models.Common.IPagedResult
+@{
+    var queryParams = ViewContext.HttpContext.Request.Query
+        .Where(q => q.Key != "PageNumber")
+        .ToDictionary(q => q.Key, q => q.Value.ToString());
+
+    // Calculate range of pages to show
+    int maxPagesToShow = 5;
+    int startPage = Math.Max(1, Model.PageNumber - (maxPagesToShow / 2));
+    int endPage = Math.Min(Model.TotalPages, startPage + maxPagesToShow - 1);
+    
+    if (endPage - startPage + 1 < maxPagesToShow)
+    {
+        startPage = Math.Max(1, endPage - maxPagesToShow + 1);
+    }
+}
+
+<div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+    <div class="flex-1 flex items-center justify-between">
+        <div>
+            <p class="text-sm text-gray-700">
+                Showing <span class="font-medium">@(Model.TotalItems > 0 ? (Model.PageNumber - 1) * Model.PageSize + 1 : 0)</span> to <span class="font-medium">@Math.Min(Model.PageNumber * Model.PageSize, Model.TotalItems)</span> of <span class="font-medium">@Model.TotalItems</span> results
+            </p>
+        </div>
+        
+        @if (Model.TotalPages > 1)
+        {
+            <div>
+                <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                    @if (Model.HasPreviousPage)
+                    {
+                        <a asp-page="./Index" asp-all-route-data="@queryParams" asp-route-PageNumber="@(Model.PageNumber - 1)"
+                           class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                            <span class="sr-only">Previous</span>
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+                        </a>
+                    }
+
+                    @if (startPage > 1)
+                    {
+                        <a asp-page="./Index" asp-all-route-data="@queryParams" asp-route-PageNumber="1"
+                           class="bg-white border-gray-300 text-gray-500 hover:bg-gray-50 relative inline-flex items-center px-4 py-2 border text-sm font-medium">1</a>
+                        @if (startPage > 2)
+                        {
+                            <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">...</span>
+                        }
+                    }
+
+                    @for (int i = startPage; i <= endPage; i++)
+                    {
+                        <a asp-page="./Index" asp-all-route-data="@queryParams" asp-route-PageNumber="@i"
+                           class="@(i == Model.PageNumber ? "z-10 bg-indigo-50 border-indigo-500 text-indigo-600 font-bold" : "bg-white border-gray-300 text-gray-500 hover:bg-gray-50") relative inline-flex items-center px-4 py-2 border text-sm font-medium">
+                            @i
+                        </a>
+                    }
+
+                    @if (endPage < Model.TotalPages)
+                    {
+                        @if (endPage < Model.TotalPages - 1)
+                        {
+                            <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">...</span>
+                        }
+                        <a asp-page="./Index" asp-all-route-data="@queryParams" asp-route-PageNumber="@Model.TotalPages"
+                           class="bg-white border-gray-300 text-gray-500 hover:bg-gray-50 relative inline-flex items-center px-4 py-2 border text-sm font-medium">@Model.TotalPages</a>
+                    }
+
+                    @if (Model.HasNextPage)
+                    {
+                        <a asp-page="./Index" asp-all-route-data="@queryParams" asp-route-PageNumber="@(Model.PageNumber + 1)"
+                           class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                            <span class="sr-only">Next</span>
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                        </a>
+                    }
+                </nav>
+            </div>
+        }
+    </div>
+</div>

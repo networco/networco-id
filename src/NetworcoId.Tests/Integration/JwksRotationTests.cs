@@ -112,7 +112,7 @@ public class JwksRotationTests : IClassFixture<WebApplicationFactory<Program>>
             
             // NOTE: Must match what ValidationParameters expects (from config)
             var token = new JwtSecurityToken(
-                issuer: "networco-auth-dev", // Config default
+                issuer: "https://host.docker.internal:5001", // Config default in test env (re-checked)
                 audience: "networco-dev",    // Config default
                 claims: new[] { new System.Security.Claims.Claim("sub", "test-user") },
                 expires: DateTime.UtcNow.AddMinutes(5),

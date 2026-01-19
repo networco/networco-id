@@ -3,6 +3,7 @@ using NetworcoId.Infrastructure.Database;
 
 namespace NetworcoId.Configuration;
 
+
 /// <summary>
 /// Database configuration and service registration.
 /// </summary>
@@ -14,11 +15,6 @@ public static class DatabaseConfiguration
     /// </summary>
     public static IServiceCollection AddDatabase(this IServiceCollection services, IConfiguration configuration)
     {
-        if (services.Any(d => d.ServiceType == typeof(DbContextOptions<AuthDbContext>)))
-        {
-            return services;
-        }
-
         var connectionString = configuration.GetConnectionString("DefaultConnection");
 
         if (string.IsNullOrEmpty(connectionString) || connectionString == "PLACEHOLDER")
@@ -27,10 +23,9 @@ public static class DatabaseConfiguration
             connectionString = Environment.GetEnvironmentVariable("DATABASE_URL");
         }
 
-        if (string.Equals(connectionString, "InMemory", StringComparison.OrdinalIgnoreCase))
+        if (services.Any(d => d.ServiceType == typeof(DbContextOptions<AuthDbContext>) || 
+                           d.ServiceType == typeof(DbContextOptions)))
         {
-            // Do NOT register anything here if InMemory is specified.
-            // The caller (like a test) is responsible for registering the InMemory provider.
             return services;
         }
 
@@ -46,10 +41,27 @@ public static class DatabaseConfiguration
             connectionString = $"Host={host};Port={port};Database={database};Username={user};Password={password};Ssl Mode=Prefer;";
         }
 
-        if (string.IsNullOrEmpty(connectionString) || connectionString == "PLACEHOLDER")
+        if (string.IsNullOrEmpty(connectionString) || 
+            connectionString == "PLACEHOLDER" || 
+            string.Equals(connectionString, "InMemory", StringComparison.OrdinalIgnoreCase))
         {
-            return services; // Skip registration if placeholder (allows tests to inject InMemory)
+            // For integration tests or local development without a DB, we allow it to proceed 
+            // without registration here. The caller (e.g. tests) can inject their own provider.
+            return services;
         }
+
+        services.AddDbContextFactory<AuthDbContext>(options =>
+        {
+            options.UseNpgsql(connectionString, npgsqlOptions =>
+            {
+                npgsqlOptions.EnableRetryOnFailure(3);
+                npgsqlOptions.CommandTimeout(30);
+            });
+            #if DEBUG
+            options.EnableSensitiveDataLogging();
+            options.EnableDetailedErrors();
+            #endif
+        }, ServiceLifetime.Singleton);
 
         services.AddDbContext<AuthDbContext>(options =>
         {
@@ -73,7 +85,7 @@ public static class DatabaseConfiguration
             options.EnableSensitiveDataLogging();
             options.EnableDetailedErrors();
             #endif
-        });
+        }, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
 
         return services;
     }

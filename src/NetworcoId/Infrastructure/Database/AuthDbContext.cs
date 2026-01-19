@@ -26,6 +26,7 @@ public class AuthDbContext : DbContext, IDataProtectionKeyContext
     public DbSet<OAuthClientEntity> OAuthClients => Set<OAuthClientEntity>();
     public DbSet<AuditLogEntity> AuditLogs => Set<AuditLogEntity>();
     public DbSet<SigningKeyEntity> SigningKeys => Set<SigningKeyEntity>();
+    public DbSet<SystemSettingEntity> SystemSettings => Set<SystemSettingEntity>();
     
     // Data Protection keys for multi-instance deployments
     public DbSet<DataProtectionKey> DataProtectionKeys { get; set; } = null!;
@@ -33,6 +34,14 @@ public class AuthDbContext : DbContext, IDataProtectionKeyContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        // Configure SystemSettingEntity
+        modelBuilder.Entity<SystemSettingEntity>(entity =>
+        {
+            entity.HasKey(e => e.Key);
+            entity.Property(e => e.Key).HasMaxLength(100);
+            entity.Property(e => e.Value).HasMaxLength(1000);
+        });
 
         // Use "auth" schema for all authentication tables
         // modelBuilder.HasDefaultSchema("auth");

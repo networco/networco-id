@@ -6,7 +6,6 @@
 **/.idea
 **/node_modules
 **/.env
-**/*.pfx
 VERSION
 scripts
 deploy
