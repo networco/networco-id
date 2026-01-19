@@ -68,8 +68,11 @@ public class CreateModel : PageModel
             AddressStreetAddress = UserData.AddressStreetAddress,
             AddressPostalCode = UserData.AddressPostalCode,
             AddressLocality = UserData.AddressLocality,
+            AddressRegion = UserData.AddressRegion,
             AddressCountry = UserData.AddressCountry,
-            AddressFormatted = $"{UserData.AddressStreetAddress}, {UserData.AddressPostalCode} {UserData.AddressLocality}, {UserData.AddressCountry}".Trim(',', ' ')
+            AddressFormatted = $"{UserData.AddressStreetAddress}, {UserData.AddressPostalCode} {UserData.AddressLocality}, {UserData.AddressRegion}, {UserData.AddressCountry}"
+                .Replace(", ,", ",")
+                .Trim(',', ' ')
         };
 
         var credential = new UserCredentialEntity

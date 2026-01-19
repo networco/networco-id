@@ -25,7 +25,7 @@ public class EditModel : PageModel
 
     public int ActiveAdminCount { get; set; }
 
-    public List<string> AvailableRoles { get; set; } = new() { "admin", "candidate", "employer", "municipal_admin" };
+    public List<string> InternalRoles { get; set; } = new() { "admin", "user" };
 
     [BindProperty]
     public List<string> SelectedRoles { get; set; } = new();
@@ -45,8 +45,11 @@ public class EditModel : PageModel
         }
 
         UserData = user;
-        SelectedRoles = user.Roles.Intersect(AvailableRoles).ToList();
-        Roles = string.Join(",", user.Roles.Except(AvailableRoles));
+        SelectedRoles = user.Roles.Intersect(InternalRoles).ToList();
+        
+        // Custom roles go into the Tag UI
+        Roles = string.Join(",", user.Roles.Except(InternalRoles));
+        
         ActiveAdminCount = await _context.Users.CountAsync(u => u.IsActive && u.Roles.Contains("admin"));
 
         return Page();
@@ -109,8 +112,11 @@ public class EditModel : PageModel
         user.AddressStreetAddress = UserData.AddressStreetAddress;
         user.AddressPostalCode = UserData.AddressPostalCode;
         user.AddressLocality = UserData.AddressLocality;
+        user.AddressRegion = UserData.AddressRegion;
         user.AddressCountry = UserData.AddressCountry;
-        user.AddressFormatted = $"{UserData.AddressStreetAddress}, {UserData.AddressPostalCode} {UserData.AddressLocality}, {UserData.AddressCountry}".Trim(',', ' ');
+        user.AddressFormatted = $"{UserData.AddressStreetAddress}, {UserData.AddressPostalCode} {UserData.AddressLocality}, {UserData.AddressRegion}, {UserData.AddressCountry}"
+            .Replace(", ,", ",")
+            .Trim(',', ' ');
 
         _context.Users.Update(user);
         await _context.SaveChangesAsync();
