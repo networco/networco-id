@@ -449,75 +449,47 @@ public static class AuthEndpoints
             // OIDC spec requires address to be a JSON object.
             // Even if we don't have address data, we must return the claim key if the scope is granted.
             // The value should be a JSON object, even if empty.
-            // Since we added it as a claim in JwtService with value "{}" and type "json",
-            // we should pass it through here.
             
-            // Check if we have the claim from the token
             if (context.User.HasClaim(c => c.Type == "address"))
             {
-                 var addressJson = context.User.FindFirst("address")?.Value;
-                 // We need to return it as a raw JSON object in the response, not a stringified JSON string.
-                 // Results.Json will serialize the dictionary values.
-                 // If we put a string "{}" here, it will be serialized to "\"{}\"".
-                 // So we should try to deserialize it back to an object or use a dictionary.
-                 try 
-                 {
-                     if (!string.IsNullOrEmpty(addressJson))
-                     {
-                             // Basic parsing to avoid full serializer dependency if simple
-                         if (addressJson.Trim() == "{}")
-                         {
-                             claims.Add("address", new 
-                             {
-                                 formatted = "",
-                                 street_address = "",
-                                 locality = "",
-                                 region = "",
-                                 postal_code = "",
-                                 country = ""
-                             });
-                         }
-                         else
-                         {
-                             // Fallback for more complex json if we had it
-                             var deserialized = System.Text.Json.JsonSerializer.Deserialize<object>(addressJson);
-                             if (deserialized != null)
-                             {
-                                 claims.Add("address", deserialized);
-                             }
-                             else
-                             {
-                                 claims.Add("address", new { });
-                             }
-                         }
-                     }
-                 }
-                 catch
-                 {
-                     // Fallback if parsing fails
-                     claims.Add("address", new 
-                             {
-                                 formatted = "",
-                                 street_address = "",
-                                 locality = "",
-                                 region = "",
-                                 postal_code = "",
-                                 country = ""
-                             });
-                 }
+                var addressJson = context.User.FindFirst("address")?.Value;
+                try 
+                {
+                    if (!string.IsNullOrEmpty(addressJson))
+                    {
+                        var deserialized = System.Text.Json.JsonSerializer.Deserialize<IDictionary<string, object>>(addressJson);
+                        if (deserialized != null)
+                        {
+                            claims.Add("address", deserialized);
+                        }
+                    }
+                }
+                catch
+                {
+                    // Fallback if parsing fails or empty
+                    claims.Add("address", new 
+                    {
+                        formatted = "",
+                        street_address = "",
+                        locality = "",
+                        region = "",
+                        postal_code = "",
+                        country = ""
+                    });
+                }
             }
             else 
             {
-                // Fallback if claim is missing but scope is present (shouldn't happen with updated JwtService)
+                // Ensure address object exists if scope is granted but claim missing
                 claims.Add("address", new 
-                             {
-                                 formatted = "",
-                                 street_address = "",
-                                 locality = "",
-                                 region = "",
-                                 postal_code = "",
-                                 country = ""
-                             });
+                {
+                    formatted = "",
+                    street_address = "",
+                    locality = "",
+                    region = "",
+                    postal_code = "",
+                    country = ""
+                });
             }
         }
         

@@ -120,6 +120,7 @@ public static class OAuthEndpoints
             end_session_endpoint = $"{baseUrl}/oauth/logout",
             registration_endpoint = $"{baseUrl}/oauth/register",
             response_types_supported = new[] { "code", "token", "id_token", "code token", "code id_token", "token id_token", "code token id_token" },
+            response_modes_supported = new[] { "query", "fragment", "form_post" },
             subject_types_supported = new[] { "public", "pairwise" },
             id_token_signing_alg_values_supported = new[] { "HS256", "RS256" },
             scopes_supported = new[] { "openid", "profile", "email", "phone", "address", "offline_access" },
@@ -151,6 +152,7 @@ public static class OAuthEndpoints
         var state = GetParam("state");
         var scope = GetParam("scope");
         var registration = GetParam("registration");
+        var response_mode = GetParam("response_mode");
         var code_challenge = GetParam("code_challenge");
         var code_challenge_method = GetParam("code_challenge_method");
         var nonce = GetParam("nonce");
@@ -294,51 +296,45 @@ public static class OAuthEndpoints
 
             // 3. Handle 'prompt=none'
             // If prompt is 'none', we must return immediately without displaying any UI.
-            if (prompt == "none")
+        if (prompt == "none")
+        {
+            if (!isAuthenticated || !maxAgeSatisfied)
             {
-                if (!isAuthenticated || !maxAgeSatisfied)
-                {
-                    var errorQuery = HttpUtility.ParseQueryString("");
-                    errorQuery["error"] = isAuthenticated ? "login_required" : "login_required"; // Spec says login_required or interaction_required
-                    errorQuery["error_description"] = !isAuthenticated ? "Prompt is none but user is not logged in" : "Prompt is none but max_age is exceeded";
-                    if (!string.IsNullOrEmpty(state)) errorQuery["state"] = state;
+                var errorQuery = HttpUtility.ParseQueryString("");
+                errorQuery["error"] = isAuthenticated ? "login_required" : "login_required"; // Spec says login_required or interaction_required
+                errorQuery["error_description"] = !isAuthenticated ? "Prompt is none but user is not logged in" : "Prompt is none but max_age is exceeded";
+                if (!string.IsNullOrEmpty(state)) errorQuery["state"] = state;
 
-                    var builder = new UriBuilder(redirect_uri);
-                    builder.Query = (string.IsNullOrEmpty(builder.Query) ? "" : builder.Query.TrimStart('?') + "&") + errorQuery.ToString();
-                    return Results.Redirect(builder.ToString());
-                }
-                
-                // User is authenticated! Proceed to issue code immediately (silent login)
+                return BuildResponse(redirect_uri, errorQuery, response_mode);
+            }
+            
+            // User is authenticated! Proceed to issue code immediately (silent login)
             var email = result?.Principal?.FindFirst(ClaimTypes.Email)?.Value;
             if (string.IsNullOrEmpty(email))
             {
                 // Should not happen if cookie is valid
-                 var errorQuery = HttpUtility.ParseQueryString("");
+                var errorQuery = HttpUtility.ParseQueryString("");
                 errorQuery["error"] = "server_error";
                 errorQuery["error_description"] = "Authenticated user has no email claim";
                 if (!string.IsNullOrEmpty(state)) errorQuery["state"] = state;
 
-                var builder = new UriBuilder(redirect_uri);
-                builder.Query = (string.IsNullOrEmpty(builder.Query) ? "" : builder.Query.TrimStart('?') + "&") + errorQuery.ToString();
-                return Results.Redirect(builder.ToString());
+                return BuildResponse(redirect_uri, errorQuery, response_mode);
             }
 
-             // Create authorization code immediately
-             // Pass the PRESERVED auth_time to ensure silent re-auth doesn't update it to "now"
+            // Create authorization code immediately
+            // Pass the PRESERVED auth_time to ensure silent re-auth doesn't update it to "now"
             var requestedScopes = scope?.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).ToList();
             var code = authService.CreateAuthorizationCode(email, redirect_uri, state, client_id, code_challenge, code_challenge_method, nonce, requestedScopes, authTime);
 
-            // Build redirect URL
-            var redirectUrl = new UriBuilder(redirect_uri);
-            var queryParams = HttpUtility.ParseQueryString(redirectUrl.Query);
+            // Build redirect response
+            var queryParams = HttpUtility.ParseQueryString("");
             queryParams["code"] = code;
             if (!string.IsNullOrEmpty(state))
             {
                 queryParams["state"] = state;
             }
-            redirectUrl.Query = queryParams.ToString();
 
-            return Results.Redirect(redirectUrl.ToString());
+            return BuildResponse(redirect_uri, queryParams, response_mode);
         }
 
         // 4. Now that we trust the redirect_uri, we can validate other parameters 
@@ -370,9 +366,7 @@ public static class OAuthEndpoints
                  var clientForError = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(dbContext.OAuthClients, c => c.ClientId == client_id);
                  if (clientForError != null && clientForError.RedirectUris.Contains(redirect_uri))
                  {
-                    var builder = new UriBuilder(redirect_uri);
-                    builder.Query = (string.IsNullOrEmpty(builder.Query) ? "" : builder.Query.TrimStart('?') + "&") + errorQuery.ToString();
-                    return Results.Redirect(builder.ToString());
+                    return BuildResponse(redirect_uri, errorQuery, response_mode);
                  }
             }
 
@@ -439,10 +433,9 @@ public static class OAuthEndpoints
                 var errorQuery = HttpUtility.ParseQueryString("");
                 errorQuery["error"] = "invalid_scope";
                 errorQuery["error_description"] = $"Invalid scopes: {string.Join(", ", invalidScopes)}";
+                if (!string.IsNullOrEmpty(state)) errorQuery["state"] = state;
 
-                var builder = new UriBuilder(redirect_uri);
-                builder.Query = (string.IsNullOrEmpty(builder.Query) ? "" : builder.Query.TrimStart('?') + "&") + errorQuery.ToString();
-                return Results.Redirect(builder.ToString());
+                return BuildResponse(redirect_uri, errorQuery, response_mode);
             }
         }
 
@@ -458,18 +451,17 @@ public static class OAuthEndpoints
              var email = result?.Principal?.FindFirst(ClaimTypes.Email)?.Value;
              if (!string.IsNullOrEmpty(email))
              {
-                 var requestedScopes = scope?.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).ToList();
-                 var code = authService.CreateAuthorizationCode(email, redirect_uri, state, client_id, code_challenge, code_challenge_method, nonce, requestedScopes, authTime);
+                  var requestedScopes = scope?.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+                  var code = authService.CreateAuthorizationCode(email, redirect_uri, state, client_id, code_challenge, code_challenge_method, nonce, requestedScopes, authTime);
 
-                 var redirectUrl = new UriBuilder(redirect_uri);
-                 var queryParams = HttpUtility.ParseQueryString(redirectUrl.Query);
-                 queryParams["code"] = code;
-                 if (!string.IsNullOrEmpty(state)) queryParams["state"] = state;
-                 redirectUrl.Query = queryParams.ToString();
+                  var queryParams = HttpUtility.ParseQueryString("");
+                  queryParams["code"] = code;
+                  if (!string.IsNullOrEmpty(state)) queryParams["state"] = state;
 
-                 return Results.Redirect(redirectUrl.ToString());
+                  return BuildResponse(redirect_uri, queryParams, response_mode);
              }
         }
+
 
         // Redirect to Login page
         var query = HttpUtility.ParseQueryString("");
@@ -479,6 +471,8 @@ public static class OAuthEndpoints
         if (!string.IsNullOrEmpty(scope)) query["scope"] = scope;
         if (!string.IsNullOrEmpty(registration)) query["registration"] = registration;
         if (!string.IsNullOrEmpty(nonce)) query["nonce"] = nonce;
+        
+        if (!string.IsNullOrEmpty(response_mode)) query["response_mode"] = response_mode;
         
         // Pass PKCE params to login page so they can be preserved
         if (!string.IsNullOrEmpty(code_challenge)) query["code_challenge"] = code_challenge;
@@ -497,6 +491,53 @@ public static class OAuthEndpoints
         }
 
         return Results.Redirect($"/Login?{query}");
+    }
+
+    /// <summary>
+    /// Builds an OIDC response based on the requested response_mode.
+    /// Supports "query", "fragment", and "form_post".
+    /// </summary>
+    private static IResult BuildResponse(string redirectUri, System.Collections.Specialized.NameValueCollection parameters, string? responseMode)
+    {
+        // Default response_mode logic based on response_type (which we assume is "code" here)
+        // For "code", default is "query". For "token" or "id_token", default is "fragment".
+        var mode = responseMode?.ToLower() ?? "query";
+
+        if (mode == "form_post")
+        {
+            var html = new System.Text.StringBuilder();
+            html.Append("<html><head><title>Submit This Form</title></head>");
+            html.Append($"<body onload=\"document.forms[0].submit()\">");
+            html.Append($"<form method=\"post\" action=\"{HttpUtility.HtmlEncode(redirectUri)}\">");
+            foreach (string? key in parameters.AllKeys)
+            {
+                if (key == null) continue;
+                html.Append($"<input type=\"hidden\" name=\"{HttpUtility.HtmlEncode(key)}\" value=\"{HttpUtility.HtmlEncode(parameters[key])}\" />");
+            }
+            html.Append("<noscript><p>JavaScript is required. Click the button below to continue.</p><input type=\"submit\" value=\"Continue\" /></noscript>");
+            html.Append("</form></body></html>");
+            return Results.Content(html.ToString(), "text/html");
+        }
+
+        var builder = new UriBuilder(redirectUri);
+        var query = HttpUtility.ParseQueryString(builder.Query);
+        foreach (string? key in parameters.AllKeys)
+        {
+            if (key == null) continue;
+            query[key] = parameters[key];
+        }
+
+        if (mode == "fragment")
+        {
+            builder.Fragment = query.ToString();
+            builder.Query = ""; // Clear query if using fragment
+        }
+        else
+        {
+            builder.Query = query.ToString();
+        }
+
+        return Results.Redirect(builder.ToString());
     }
 
     private static async Task<IResult> Token(

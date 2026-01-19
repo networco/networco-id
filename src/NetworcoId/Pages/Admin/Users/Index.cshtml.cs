@@ -24,6 +24,7 @@ public class IndexModel : PageModel
     }
 
     public PagedResult<UserEntity> Users { get; set; } = null!;
+    public int ActiveAdminCount { get; set; }
 
     [BindProperty(SupportsGet = true)]
     public int PageNumber { get; set; } = 1;
@@ -39,6 +40,7 @@ public class IndexModel : PageModel
 
     public async Task OnGetAsync()
     {
+        ActiveAdminCount = await _context.Users.CountAsync(u => u.IsActive && u.Roles.Contains("admin"));
         var query = _context.Users
             .Include(u => u.Credential)
             .AsQueryable();
@@ -97,6 +99,17 @@ public class IndexModel : PageModel
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == id);
         if (user != null)
         {
+            // Security: Prevent deactivating the last admin
+            if (user.IsActive && user.Roles?.Contains("admin") == true)
+            {
+                var adminCount = await _context.Users.CountAsync(u => u.IsActive && u.Roles.Contains("admin"));
+                if (adminCount <= 1)
+                {
+                    TempData["StatusMessage"] = "Error: Cannot deactivate the last remaining active administrator.";
+                    return RedirectToPage();
+                }
+            }
+
             user.IsActive = !user.IsActive;
             _context.Users.Update(user);
             await _context.SaveChangesAsync();
@@ -117,6 +130,14 @@ public class IndexModel : PageModel
             user.Roles ??= new List<string>();
             if (user.Roles.Contains("admin"))
             {
+                // Security: Prevent removing the last admin role
+                var adminCount = await _context.Users.CountAsync(u => u.IsActive && u.Roles.Contains("admin"));
+                if (adminCount <= 1)
+                {
+                    TempData["StatusMessage"] = "Error: Cannot remove the last remaining active administrator.";
+                    return RedirectToPage();
+                }
+
                 user.Roles.Remove("admin");
             }
             else
