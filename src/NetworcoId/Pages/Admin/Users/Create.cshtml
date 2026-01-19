@@ -110,8 +110,8 @@
             <div class="p-6">
                 <div>
                     <label for="Password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Initial Password</label>
-                    <input type="password" name="Password" id="Password" class="block w-full rounded-xl border-gray-200/60 dark:border-gray-700/60 bg-white/50 dark:bg-gray-900/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200" required />
-                    <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">User will be prompted to change this password on their first login.</p>
+                    <input type="password" name="Password" id="Password" minlength="@Model.MinPasswordLength" class="block w-full rounded-xl border-gray-200/60 dark:border-gray-700/60 bg-white/50 dark:bg-gray-900/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200" required />
+                    <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">User will be prompted to change this password on their first login. Min length: @Model.MinPasswordLength.</p>
                 </div>
             </div>
         </div>

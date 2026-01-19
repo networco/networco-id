@@ -8,7 +8,7 @@ using NetworcoId.Infrastructure.Auth;
 
 using NetworcoId.Models.Common;
 
-namespace NetworcoId.Pages.Admin.Logs;
+namespace NetworcoId.Pages.Admin.AuditLogs;
 
 [AdminAuth]
 public class IndexModel : PageModel

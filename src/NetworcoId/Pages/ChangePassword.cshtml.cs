@@ -9,6 +9,8 @@ namespace NetworcoId.Pages;
 [IgnoreAntiforgeryToken]
 public class ChangePasswordModel(IAuthService authService, NetworcoIdConfig config, IPasswordValidator passwordValidator) : PageModel
 {
+    public int MinPasswordLength => config.MinPasswordLength;
+
     [BindProperty(SupportsGet = true)]
     public string? Email { get; set; }
 
