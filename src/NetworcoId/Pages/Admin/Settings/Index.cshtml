@@ -49,12 +49,25 @@
                                 <span asp-validation-for="Input.MaxFailedLoginAttempts" class="text-red-500 text-xs"></span>
                             </div>
 
-                            <div class="col-span-6 sm:col-span-3">
-                                <label asp-for="Input.LockoutDurationMinutes" class="block text-sm font-medium text-gray-700"></label>
-                                <input asp-for="Input.LockoutDurationMinutes" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                                <span asp-validation-for="Input.LockoutDurationMinutes" class="text-red-500 text-xs"></span>
-                            </div>
+                             <div class="col-span-6 sm:col-span-3">
+                                 <label asp-for="Input.LockoutDurationMinutes" class="block text-sm font-medium text-gray-700"></label>
+                                 <input asp-for="Input.LockoutDurationMinutes" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                                 <span asp-validation-for="Input.LockoutDurationMinutes" class="text-red-500 text-xs"></span>
+                             </div>
+
+                             <div class="col-span-6 sm:col-span-3">
+                                 <label asp-for="Input.AccessTokenExpirationMinutes" class="block text-sm font-medium text-gray-700"></label>
+                                 <input asp-for="Input.AccessTokenExpirationMinutes" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                                 <span asp-validation-for="Input.AccessTokenExpirationMinutes" class="text-red-500 text-xs"></span>
+                             </div>
+
+                             <div class="col-span-6 sm:col-span-3">
+                                 <label asp-for="Input.RefreshTokenExpirationDays" class="block text-sm font-medium text-gray-700"></label>
+                                 <input asp-for="Input.RefreshTokenExpirationDays" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                                 <span asp-validation-for="Input.RefreshTokenExpirationDays" class="text-red-500 text-xs"></span>
+                             </div>
                         </div>
+
 
                         <fieldset>
                             <legend class="text-base font-medium text-gray-900">Complexity Requirements</legend>

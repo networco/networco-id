@@ -169,30 +169,7 @@
                             }
                         </tbody>
                     </table>
-                    @if (Model.Users.TotalPages > 1)
-                    {
-                        <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
-                            <div class="text-sm text-gray-700">
-                                Showing <span class="font-medium">@(((Model.PageNumber - 1) * Model.Users.PageSize) + 1)</span> to <span class="font-medium">@Math.Min(Model.PageNumber * Model.Users.PageSize, Model.Users.TotalItems)</span> of <span class="font-medium">@Model.Users.TotalItems</span> results
-                            </div>
-                            <div class="flex-1 flex justify-end gap-2">
-                                @if (Model.Users.HasPreviousPage)
-                                {
-                                    <a asp-page="./Index" asp-route-PageNumber="@(Model.PageNumber - 1)" asp-route-SearchTerm="@Model.SearchTerm" asp-route-SortBy="@Model.SortBy" asp-route-SortDescending="@Model.SortDescending.ToString().ToLower()" 
-                                       class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-colors">
-                                        Previous
-                                    </a>
-                                }
-                                @if (Model.Users.HasNextPage)
-                                {
-                                    <a asp-page="./Index" asp-route-PageNumber="@(Model.PageNumber + 1)" asp-route-SearchTerm="@Model.SearchTerm" asp-route-SortBy="@Model.SortBy" asp-route-SortDescending="@Model.SortDescending.ToString().ToLower()" 
-                                       class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-colors">
-                                        Next
-                                    </a>
-                                }
-                            </div>
-                        </div>
-                    }
+                    <partial name="Shared/Partials/_Pagination" model="Model.Users" />
                 </div>
             </div>
         </div>

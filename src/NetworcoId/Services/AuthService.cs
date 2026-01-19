@@ -225,7 +225,13 @@ public class AuthService : IAuthService
             throw new InvalidOperationException("User with this email, national ID, or phone number already exists");
         }
 
-        var validationResult = _passwordValidator.Validate(password);
+        var validationResult = _passwordValidator.Validate(
+            password, 
+            _config.MinPasswordLength, 
+            _config.RequireDigit, 
+            _config.RequireUppercase, 
+            _config.RequireLowercase, 
+            _config.RequireNonAlphanumeric);
         if (!validationResult.IsValid)
         {
             throw new ArgumentException(validationResult.ErrorMessage);
@@ -799,7 +805,13 @@ public class AuthService : IAuthService
             return false;
         }
 
-        var validationResult = _passwordValidator.Validate(newPassword);
+        var validationResult = _passwordValidator.Validate(
+            newPassword,
+            _config.MinPasswordLength,
+            _config.RequireDigit,
+            _config.RequireUppercase,
+            _config.RequireLowercase,
+            _config.RequireNonAlphanumeric);
         if (!validationResult.IsValid)
         {
             throw new ArgumentException(validationResult.ErrorMessage);
@@ -884,7 +896,13 @@ public class AuthService : IAuthService
             return false;
         }
 
-        var validationResult = _passwordValidator.Validate(newPassword);
+        var validationResult = _passwordValidator.Validate(
+            newPassword,
+            _config.MinPasswordLength,
+            _config.RequireDigit,
+            _config.RequireUppercase,
+            _config.RequireLowercase,
+            _config.RequireNonAlphanumeric);
         if (!validationResult.IsValid)
         {
             throw new ArgumentException(validationResult.ErrorMessage);

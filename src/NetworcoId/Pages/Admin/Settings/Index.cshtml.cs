@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
 using NetworcoId.Models.Auth;
 using NetworcoId.Services.Audit;
+using NetworcoId.Services.System;
 using System.ComponentModel.DataAnnotations;
 
 using NetworcoId.Infrastructure.Auth;
@@ -14,11 +15,13 @@ public class IndexModel : PageModel
 {
     private readonly IAuditService _auditService;
     private readonly NetworcoIdConfig _config;
+    private readonly ISettingsService _settingsService;
 
-    public IndexModel(IAuditService auditService, NetworcoIdConfig config)
+    public IndexModel(IAuditService auditService, NetworcoIdConfig config, ISettingsService settingsService)
     {
         _auditService = auditService;
         _config = config;
+        _settingsService = settingsService;
     }
 
     [BindProperty]
@@ -49,6 +52,14 @@ public class IndexModel : PageModel
         [Display(Name = "Lockout Duration (Minutes)")]
         [Range(1, 1440)]
         public int LockoutDurationMinutes { get; set; }
+
+        [Display(Name = "Access Token Expiration (Minutes)")]
+        [Range(1, 1440)]
+        public int AccessTokenExpirationMinutes { get; set; }
+
+        [Display(Name = "Refresh Token Expiration (Days)")]
+        [Range(1, 365)]
+        public int RefreshTokenExpirationDays { get; set; }
     }
 
     public void OnGet()
@@ -61,7 +72,9 @@ public class IndexModel : PageModel
             RequireLowercase = _config.RequireLowercase,
             RequireNonAlphanumeric = _config.RequireNonAlphanumeric,
             MaxFailedLoginAttempts = _config.MaxFailedLoginAttempts,
-            LockoutDurationMinutes = _config.LockoutDurationMinutes
+            LockoutDurationMinutes = _config.LockoutDurationMinutes,
+            AccessTokenExpirationMinutes = _config.AccessTokenExpirationMinutes,
+            RefreshTokenExpirationDays = _config.RefreshTokenExpirationDays
         };
     }
 
@@ -82,10 +95,14 @@ public class IndexModel : PageModel
         _config.RequireNonAlphanumeric = Input.RequireNonAlphanumeric;
         _config.MaxFailedLoginAttempts = Input.MaxFailedLoginAttempts;
         _config.LockoutDurationMinutes = Input.LockoutDurationMinutes;
+        _config.AccessTokenExpirationMinutes = Input.AccessTokenExpirationMinutes;
+        _config.RefreshTokenExpirationDays = Input.RefreshTokenExpirationDays;
+
+        await _settingsService.SaveSettingsAsync(_config);
 
         await _auditService.LogAsync("SettingsUpdated", "System security settings were updated by administrator.");
 
-        TempData["StatusMessage"] = "Settings updated successfully. Note: These changes are applied in-memory for the current session.";
+        TempData["StatusMessage"] = "Settings updated successfully and persisted to database.";
         
         return RedirectToPage();
     }

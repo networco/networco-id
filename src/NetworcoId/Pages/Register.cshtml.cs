@@ -60,7 +60,13 @@ public class RegisterModel(
             return Page();
         }
 
-        var validationResult = passwordValidator.Validate(password);
+        var validationResult = passwordValidator.Validate(
+            password,
+            _config.MinPasswordLength,
+            _config.RequireDigit,
+            _config.RequireUppercase,
+            _config.RequireLowercase,
+            _config.RequireNonAlphanumeric);
         if (!validationResult.IsValid)
         {
             ErrorMessage = validationResult.ErrorMessage;

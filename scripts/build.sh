@@ -25,6 +25,15 @@ for arg in "$@"; do
         --no-push)
             NO_PUSH=true
             ;;
+        major)
+            BUMP="major"
+            ;;
+        minor)
+            BUMP="minor"
+            ;;
+        patch)
+            BUMP="patch"
+            ;;
         *)
             if [[ "$arg" == *"."* ]]; then
                 NEW_VERSION="$arg"
@@ -51,7 +60,21 @@ parse_version() {
     BUILD="${BUILD:-0}"
 }
 
-increment_build() {
+increment_version() {
+    case $BUMP in
+        major)
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+            ;;
+        minor)
+            MINOR=$((MINOR + 1))
+            PATCH=0
+            ;;
+        patch)
+            PATCH=$((PATCH + 1))
+            ;;
+    esac
     BUILD=$((BUILD + 1))
 }
 
@@ -73,12 +96,13 @@ if [[ -n "$NEW_VERSION" ]]; then
         MAJOR="$NEW_MAJOR"
         MINOR="$NEW_MINOR"
         PATCH="$NEW_PATCH"
+        BUILD=$((BUILD + 1))
     else
         parse_version "$NEW_VERSION"
+        BUILD=$((BUILD + 1))
     fi
-    increment_build
 else
-    increment_build
+    increment_version
 fi
 
 VERSION=$(format_version)

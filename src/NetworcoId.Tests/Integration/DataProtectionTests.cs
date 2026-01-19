@@ -39,22 +39,31 @@ public class DataProtectionTests : IClassFixture<WebApplicationFactory<Program>>
 
             builder.ConfigureServices(services =>
             {
-                // Aggressively remove existing database services
-                var dbContextOptions = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<AuthDbContext>));
-                if (dbContextOptions != null) services.Remove(dbContextOptions);
+                // Remove existing database services
+                var dbContextDescriptors = services.Where(d => 
+                    d.ServiceType == typeof(AuthDbContext) || 
+                    d.ServiceType == typeof(DbContextOptions<AuthDbContext>) ||
+                    d.ServiceType == typeof(IDbContextFactory<AuthDbContext>) ||
+                    d.ServiceType == typeof(DbContextOptions)).ToList();
 
-                var dbContextOptionsGeneric = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions));
-                if (dbContextOptionsGeneric != null) services.Remove(dbContextOptionsGeneric);
+                foreach (var descriptor in dbContextDescriptors)
+                {
+                    services.Remove(descriptor);
+                }
 
-                var dbContext = services.SingleOrDefault(d => d.ServiceType == typeof(AuthDbContext));
-                if (dbContext != null) services.Remove(dbContext);
+                // Add InMemory DbContext with factory for SettingsService support
+                var dbName = "DataProtectionTestDb_" + Guid.NewGuid();
+                services.AddDbContextFactory<AuthDbContext>(options =>
+                {
+                    options.UseInMemoryDatabase(dbName);
+                    options.ConfigureWarnings(x => x.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning));
+                }, ServiceLifetime.Singleton);
 
-                // Add InMemory DbContext
                 services.AddDbContext<AuthDbContext>(options =>
                 {
-                    options.UseInMemoryDatabase("DataProtectionTestDb_" + Guid.NewGuid());
+                    options.UseInMemoryDatabase(dbName);
                     options.ConfigureWarnings(x => x.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning));
-                });
+                }, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
             });
         });
     }

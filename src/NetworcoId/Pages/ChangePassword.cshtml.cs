@@ -1,12 +1,13 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using NetworcoId.Core.Security;
 using NetworcoId.Models.Auth;
 using NetworcoId.Services;
 
 namespace NetworcoId.Pages;
 
 [IgnoreAntiforgeryToken]
-public class ChangePasswordModel(IAuthService authService, NetworcoIdConfig config) : PageModel
+public class ChangePasswordModel(IAuthService authService, NetworcoIdConfig config, IPasswordValidator passwordValidator) : PageModel
 {
     [BindProperty(SupportsGet = true)]
     public string? Email { get; set; }
@@ -59,33 +60,17 @@ public class ChangePasswordModel(IAuthService authService, NetworcoIdConfig conf
             return Page();
         }
 
-        if (NewPassword.Length < config.MinPasswordLength)
-        {
-            ErrorMessage = $"Passordet må være minst {config.MinPasswordLength} tegn langt";
-            return Page();
-        }
+        var validationResult = passwordValidator.Validate(
+            NewPassword,
+            config.MinPasswordLength,
+            config.RequireDigit,
+            config.RequireUppercase,
+            config.RequireLowercase,
+            config.RequireNonAlphanumeric);
 
-        if (config.RequireUppercase && !NewPassword.Any(char.IsUpper))
+        if (!validationResult.IsValid)
         {
-            ErrorMessage = "Passordet må inneholde minst én stor bokstav";
-            return Page();
-        }
-
-        if (config.RequireLowercase && !NewPassword.Any(char.IsLower))
-        {
-            ErrorMessage = "Passordet må inneholde minst én liten bokstav";
-            return Page();
-        }
-
-        if (config.RequireDigit && !NewPassword.Any(char.IsDigit))
-        {
-            ErrorMessage = "Passordet må inneholde minst ett tall";
-            return Page();
-        }
-
-        if (config.RequireNonAlphanumeric && NewPassword.All(char.IsLetterOrDigit))
-        {
-            ErrorMessage = "Passordet må inneholde minst ett spesialtegn";
+            ErrorMessage = validationResult.ErrorMessage;
             return Page();
         }
 

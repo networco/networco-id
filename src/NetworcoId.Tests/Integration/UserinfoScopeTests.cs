@@ -30,17 +30,28 @@ public class UserinfoScopeTests : IClassFixture<WebApplicationFactory<Program>>
         {
             builder.ConfigureServices(services =>
             {
-                var dbContextOptions = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<AuthDbContext>));
-                if (dbContextOptions != null) services.Remove(dbContextOptions);
+                var dbContextDescriptors = services.Where(d => 
+                    d.ServiceType == typeof(AuthDbContext) || 
+                    d.ServiceType == typeof(DbContextOptions<AuthDbContext>) ||
+                    d.ServiceType == typeof(IDbContextFactory<AuthDbContext>) ||
+                    d.ServiceType == typeof(DbContextOptions)).ToList();
 
-                var dbContext = services.SingleOrDefault(d => d.ServiceType == typeof(AuthDbContext));
-                if (dbContext != null) services.Remove(dbContext);
+                foreach (var descriptor in dbContextDescriptors)
+                {
+                    services.Remove(descriptor);
+                }
+
+                services.AddDbContextFactory<AuthDbContext>(options =>
+                {
+                    options.UseInMemoryDatabase(_dbName);
+                    options.ConfigureWarnings(x => x.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning));
+                }, ServiceLifetime.Singleton);
 
                 services.AddDbContext<AuthDbContext>(options =>
                 {
                     options.UseInMemoryDatabase(_dbName);
                     options.ConfigureWarnings(x => x.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning));
-                });
+                }, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
             });
             
             builder.UseSetting("ConnectionStrings:DefaultConnection", "InMemory");

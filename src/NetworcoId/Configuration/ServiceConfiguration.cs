@@ -100,6 +100,8 @@ public static class ServiceConfiguration
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IAuthSeeder, AuthSeeder>();
         services.AddScoped<IBootstrapService, BootstrapService>();
+        services.AddSingleton<ISettingsService, SettingsService>();
+        services.AddHostedService<SettingsInitialLoader>();
         services.AddScoped<IClientManagementService, ClientManagementService>();
         services.AddScoped<Services.Messaging.IEmailService, Services.Messaging.NatsEmailService>();
 
