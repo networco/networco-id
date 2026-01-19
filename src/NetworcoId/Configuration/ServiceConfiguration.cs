@@ -30,31 +30,31 @@ public static class ServiceConfiguration
         // Infrastructure services
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddSingleton<IPasswordValidator, PasswordValidator>();
-        
+
         // Add Memory Cache for JWKS caching
         services.AddMemoryCache();
 
         // Configuration
         services.Configure<NetworcoIdConfig>(configuration.GetSection("NetworcoId"));
-        
+
         // Build the config object eagerly to use it for setup
         // Priority: Environment Variable (ISSUER) > appsettings.json > Default
-        var issuer = configuration["ISSUER"] 
-                    ?? configuration["NetworcoId:Issuer"] 
+        var issuer = configuration["ISSUER"]
+                    ?? configuration["NetworcoId:Issuer"]
                     ?? "http://localhost:5001";
-        
+
         var baseUrl = configuration["BASE_URL"]
                     ?? configuration["NetworcoId:BaseUrl"]
                     ?? "http://localhost:5200";
 
-        var config = new NetworcoIdConfig 
-        { 
-            Issuer = issuer, 
+        var config = new NetworcoIdConfig
+        {
+            Issuer = issuer,
             Audience = "networco-api",
             BaseUrl = baseUrl
         };
         configuration.GetSection("NetworcoId").Bind(config);
-        
+
         // Ensure values are set correctly after binding (if not overridden by env)
         config.Issuer = issuer;
         config.BaseUrl = baseUrl;
@@ -62,7 +62,7 @@ public static class ServiceConfiguration
         services.AddSingleton(provider =>
         {
             var optionsConfig = provider.GetRequiredService<IOptions<NetworcoIdConfig>>().Value;
-            
+
             // Re-apply to options to be safe
             optionsConfig.Issuer = issuer;
             optionsConfig.BaseUrl = baseUrl;
@@ -70,7 +70,7 @@ public static class ServiceConfiguration
             // Fallback for signing key
             if (string.IsNullOrEmpty(optionsConfig.Secret))
             {
-                optionsConfig.Secret = configuration["Auth:Jwt:SigningKey"] 
+                optionsConfig.Secret = configuration["Auth:Jwt:SigningKey"]
                              ?? configuration["JWT_SECRET"];
             }
 
@@ -105,7 +105,7 @@ public static class ServiceConfiguration
 
         // Add ASP.NET Core Authentication & Authorization
         services.AddAuthorization();
-        services.AddAuthentication(options => 
+        services.AddAuthentication(options =>
             {
                 options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
                 options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -146,12 +146,12 @@ public static class ServiceConfiguration
                             if (Guid.TryParse(userIdStr, out var userId))
                             {
                                 var dbContext = context.HttpContext.RequestServices.GetRequiredService<NetworcoId.Infrastructure.Database.AuthDbContext>();
-                                
+
                                 // Check user credentials timestamp
                                 var creds = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
-                                    Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AsNoTracking(dbContext.UserCredentials), 
+                                    Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AsNoTracking(dbContext.UserCredentials),
                                     c => c.Id == userId);
-                                    
+
                                 if (creds?.UpdatedAt != null)
                                 {
                                     var iatClaim = context.Principal.FindFirst("iat");
@@ -176,32 +176,32 @@ public static class ServiceConfiguration
             .Configure<IMemoryCache, IOptions<NetworcoIdConfig>>((options, cache, configOptions) =>
             {
                 var config = configOptions.Value;
-                
+
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuer = true,
                     ValidIssuer = config.Issuer,
-                    ValidateAudience = false, 
+                    ValidateAudience = false,
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
                     // Use the JWKS endpoint for validation
                     IssuerSigningKeyResolver = (token, securityToken, kid, validationParameters) =>
                     {
                         var keys = new List<SecurityKey>();
-                        
+
                         // 1. Try to get keys from cache (populated by KeyRotationWorker/JwtService)
                         if (cache.TryGetValue("valid_signing_keys", out List<NetworcoId.Models.Entities.SigningKeyEntity>? cachedKeys) && cachedKeys != null)
                         {
                             foreach (var keyEntity in cachedKeys)
                             {
-                                try 
+                                try
                                 {
                                     var rsa = System.Security.Cryptography.RSA.Create();
                                     rsa.ImportFromPem(keyEntity.PublicKeyPem);
                                     keys.Add(new RsaSecurityKey(rsa) { KeyId = keyEntity.KeyId });
                                 }
-                                catch 
-                                { 
+                                catch
+                                {
                                     // Ignore invalid keys in cache
                                 }
                             }
