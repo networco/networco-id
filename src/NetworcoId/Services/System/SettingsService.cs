@@ -75,6 +75,14 @@ public class SettingsService : ISettingsService
         await SaveSettingAsync(nameof(config.LockoutDurationMinutes), config.LockoutDurationMinutes.ToString());
         await SaveSettingAsync(nameof(config.AccessTokenExpirationMinutes), config.AccessTokenExpirationMinutes.ToString());
         await SaveSettingAsync(nameof(config.RefreshTokenExpirationDays), config.RefreshTokenExpirationDays.ToString());
+        
+        // Brute Force & Rate Limiting
+        await SaveSettingAsync(nameof(config.IpLockoutMaxFailures), config.IpLockoutMaxFailures.ToString());
+        await SaveSettingAsync(nameof(config.IpLockoutDurationMinutes), config.IpLockoutDurationMinutes.ToString());
+        await SaveSettingAsync(nameof(config.AdminRateLimitPermit), config.AdminRateLimitPermit.ToString());
+        await SaveSettingAsync(nameof(config.AdminRateLimitWindowSeconds), config.AdminRateLimitWindowSeconds.ToString());
+        await SaveSettingAsync(nameof(config.AuthRateLimitPermit), config.AuthRateLimitPermit.ToString());
+        await SaveSettingAsync(nameof(config.AuthRateLimitWindowSeconds), config.AuthRateLimitWindowSeconds.ToString());
     }
 
     private void ApplySetting(string key, string value)
@@ -109,6 +117,24 @@ public class SettingsService : ISettingsService
                     break;
                 case nameof(_config.RefreshTokenExpirationDays):
                     if (int.TryParse(value, out var refreshExp)) _config.RefreshTokenExpirationDays = refreshExp;
+                    break;
+                case nameof(_config.IpLockoutMaxFailures):
+                    if (int.TryParse(value, out var ipMax)) _config.IpLockoutMaxFailures = ipMax;
+                    break;
+                case nameof(_config.IpLockoutDurationMinutes):
+                    if (int.TryParse(value, out var ipDur)) _config.IpLockoutDurationMinutes = ipDur;
+                    break;
+                case nameof(_config.AdminRateLimitPermit):
+                    if (int.TryParse(value, out var admPerm)) _config.AdminRateLimitPermit = admPerm;
+                    break;
+                case nameof(_config.AdminRateLimitWindowSeconds):
+                    if (int.TryParse(value, out var admWin)) _config.AdminRateLimitWindowSeconds = admWin;
+                    break;
+                case nameof(_config.AuthRateLimitPermit):
+                    if (int.TryParse(value, out var authPerm)) _config.AuthRateLimitPermit = authPerm;
+                    break;
+                case nameof(_config.AuthRateLimitWindowSeconds):
+                    if (int.TryParse(value, out var authWin)) _config.AuthRateLimitWindowSeconds = authWin;
                     break;
                 case "System:ManagementClientId":
                     _config.SystemManagementClientId = value;
