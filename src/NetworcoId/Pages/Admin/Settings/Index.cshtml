@@ -84,6 +84,66 @@
                     </div>
                 </div>
 
+                <!-- Brute Force & Rate Limiting Card -->
+                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+                    <div class="px-6 py-5 border-b border-gray-50 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-900/20">
+                        <h4 class="text-sm font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Brute Force & Rate Limiting</h4>
+                    </div>
+                    <div class="p-6 space-y-8">
+                        <!-- IP Lockout Section -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 pb-6 border-b border-gray-50 dark:border-gray-700/50">
+                            <div class="sm:col-span-2">
+                                <h5 class="text-sm font-bold text-gray-900 dark:text-white mb-1">Distributed IP Lockout</h5>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">Controls how IPs are blocked across all instances after repeated failures.</p>
+                            </div>
+                            <div>
+                                <label asp-for="Input.IpLockoutMaxFailures" class="block text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2"></label>
+                                <input asp-for="Input.IpLockoutMaxFailures" class="block w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all sm:text-sm">
+                                <span asp-validation-for="Input.IpLockoutMaxFailures" class="text-red-500 text-xs mt-1"></span>
+                            </div>
+                            <div>
+                                <label asp-for="Input.IpLockoutDurationMinutes" class="block text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2"></label>
+                                <input asp-for="Input.IpLockoutDurationMinutes" class="block w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all sm:text-sm">
+                                <span asp-validation-for="Input.IpLockoutDurationMinutes" class="text-red-500 text-xs mt-1"></span>
+                            </div>
+                        </div>
+
+                        <!-- Rate Limiting Section -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-8">
+                            <div class="sm:col-span-2">
+                                <h5 class="text-sm font-bold text-gray-900 dark:text-white mb-1">Infrastructure Rate Limiting</h5>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">Pre-auth request limits to protect the database and application from flooding.</p>
+                            </div>
+                            
+                            <!-- Admin Rate Limit -->
+                            <div class="space-y-4 p-4 rounded-xl bg-gray-50/50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-700/50">
+                                <p class="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">Admin Access</p>
+                                <div>
+                                    <label asp-for="Input.AdminRateLimitPermit" class="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-2"></label>
+                                    <input asp-for="Input.AdminRateLimitPermit" class="block w-full px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white sm:text-sm">
+                                </div>
+                                <div>
+                                    <label asp-for="Input.AdminRateLimitWindowSeconds" class="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-2"></label>
+                                    <input asp-for="Input.AdminRateLimitWindowSeconds" class="block w-full px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white sm:text-sm">
+                                </div>
+                            </div>
+
+                            <!-- Auth Rate Limit -->
+                            <div class="space-y-4 p-4 rounded-xl bg-gray-50/50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-700/50">
+                                <p class="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">User Auth</p>
+                                <div>
+                                    <label asp-for="Input.AuthRateLimitPermit" class="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-2"></label>
+                                    <input asp-for="Input.AuthRateLimitPermit" class="block w-full px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white sm:text-sm">
+                                </div>
+                                <div>
+                                    <label asp-for="Input.AuthRateLimitWindowSeconds" class="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-2"></label>
+                                    <input asp-for="Input.AuthRateLimitWindowSeconds" class="block w-full px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white sm:text-sm">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Complexity Card -->
                 <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
                     <div class="px-6 py-5 border-b border-gray-50 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-900/20">
