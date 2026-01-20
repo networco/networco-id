@@ -11,7 +11,7 @@
         [x-cloak] { display: none !important; }
     </style>
     <script>
-        // Initialize theme before anything else to avoid flash
+        // Critical: Anti-flash script
         (function() {
             const theme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
             if (theme === 'dark') {
@@ -20,8 +20,7 @@
                 document.documentElement.classList.remove('dark');
             }
         })();
-    </script>
-    <script>
+        
         tailwind.config = {
             darkMode: 'class',
         }
@@ -44,11 +43,7 @@
                     <a href="/Admin/AuditLogs/Index" class="@(ViewContext.HttpContext.Request.Path.StartsWithSegments("/Admin/AuditLogs") ? "text-indigo-600 dark:text-indigo-400 font-bold" : "text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium") transition-colors">Logs</a>
                 </nav>
                 <div class="flex items-center gap-4">
-                    <!-- Dark Mode Toggle -->
-                    <button id="theme-toggle" class="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all focus:outline-none" title="Toggle Dark Mode">
-                        <svg id="theme-toggle-dark-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
-                        <svg id="theme-toggle-light-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" fill-rule="evenodd" clip-rule="evenodd"></path></svg>
-                    </button>
+                    <partial name="_ThemeToggle" />
 
                     <div class="relative" id="profile-dropdown">
                         <button type="button" class="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-3 py-1.5 rounded-full transition-colors focus:outline-none border border-transparent dark:border-gray-700" id="profile-button">
@@ -118,30 +113,6 @@
                     e.stopPropagation();
                 });
             }
-
-            // Theme Toggle
-            const themeToggleBtn = document.getElementById('theme-toggle');
-            const darkIcon = document.getElementById('theme-toggle-dark-icon');
-            const lightIcon = document.getElementById('theme-toggle-light-icon');
-
-            function updateIcons() {
-                if (document.documentElement.classList.contains('dark')) {
-                    lightIcon.classList.remove('hidden');
-                    darkIcon.classList.add('hidden');
-                } else {
-                    lightIcon.classList.add('hidden');
-                    darkIcon.classList.remove('hidden');
-                }
-            }
-
-            updateIcons();
-
-            themeToggleBtn.addEventListener('click', function() {
-                document.documentElement.classList.toggle('dark');
-                const isDark = document.documentElement.classList.contains('dark');
-                localStorage.setItem('theme', isDark ? 'dark' : 'light');
-                updateIcons();
-            });
         });
     </script>
 

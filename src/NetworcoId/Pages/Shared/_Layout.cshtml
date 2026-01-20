@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - NETWORCO ID</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Critical: Anti-flash script
+        (function() {
+            const theme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        })();
+        
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
+    @await RenderSectionAsync("Styles", required: false)
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+    @RenderBody()
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>
