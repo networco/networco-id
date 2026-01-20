@@ -110,6 +110,9 @@ public class SettingsService : ISettingsService
                 case nameof(_config.RefreshTokenExpirationDays):
                     if (int.TryParse(value, out var refreshExp)) _config.RefreshTokenExpirationDays = refreshExp;
                     break;
+                case "System:ManagementClientId":
+                    _config.SystemManagementClientId = value;
+                    break;
             }
         }
         catch (Exception ex)

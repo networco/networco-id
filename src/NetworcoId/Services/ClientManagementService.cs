@@ -23,7 +23,8 @@ public interface IClientManagementService
 
 public class ClientManagementService(
     AuthDbContext dbContext,
-    IPasswordHasher passwordHasher) : IClientManagementService
+    IPasswordHasher passwordHasher,
+    NetworcoIdConfig config) : IClientManagementService
 {
     public async Task<PagedResult<OAuthClientEntity>> GetClientsAsync(int pageNumber = 1, int pageSize = 10, string? searchTerm = null, string? sortBy = null, bool sortDescending = true)
     {
@@ -141,6 +142,11 @@ public class ClientManagementService(
 
     public async Task<bool> ToggleClientStatusAsync(string clientId)
     {
+        if (clientId == config.SystemManagementClientId)
+        {
+            return false;
+        }
+
         var client = await dbContext.OAuthClients.AsTracking().FirstOrDefaultAsync(c => c.ClientId == clientId);
         if (client == null) return false;
 
@@ -152,6 +158,11 @@ public class ClientManagementService(
 
     public async Task<bool> DeleteClientAsync(string clientId)
     {
+        if (clientId == config.SystemManagementClientId)
+        {
+            return false;
+        }
+
         var client = await dbContext.OAuthClients.AsTracking().FirstOrDefaultAsync(c => c.ClientId == clientId);
         if (client == null) return false;
 

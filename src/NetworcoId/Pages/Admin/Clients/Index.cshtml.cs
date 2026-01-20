@@ -2,8 +2,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using NetworcoId.Infrastructure.Auth;
-using NetworcoId.Infrastructure.Database;
-using NetworcoId.Models.Entities;
+ using NetworcoId.Infrastructure.Database;
+ using NetworcoId.Models.Auth;
+ using NetworcoId.Models.Entities;
 using NetworcoId.Services;
 
 using NetworcoId.Models.Common;
@@ -11,9 +12,10 @@ using NetworcoId.Models.Common;
 namespace NetworcoId.Pages.Admin.Clients;
 
 [AdminAuth]
-public class IndexModel(IClientManagementService clientService) : PageModel
-{
-    public PagedResult<OAuthClientEntity> Clients { get; set; } = null!;
+ public class IndexModel(IClientManagementService clientService, Microsoft.Extensions.Options.IOptions<NetworcoIdConfig> config) : PageModel
+ {
+     public PagedResult<OAuthClientEntity> Clients { get; set; } = null!;
+     public string? SystemClientId { get; set; } = config.Value.SystemManagementClientId;
 
     [BindProperty(SupportsGet = true)]
     public int PageNumber { get; set; } = 1;

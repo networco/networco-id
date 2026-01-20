@@ -122,6 +122,38 @@ public class IndexModel : PageModel
         return RedirectToPage();
     }
 
+    public async Task<IActionResult> OnPostDeleteAsync(Guid id)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == id);
+        if (user != null)
+        {
+            // Security: Prevent deleting the last admin
+            if (user.Roles?.Contains("admin") == true)
+            {
+                var adminCount = await _context.Users.CountAsync(u => u.IsActive && u.Roles.Contains("admin"));
+                if (adminCount <= 1)
+                {
+                    TempData["StatusMessage"] = "Error: Cannot delete the last remaining active administrator.";
+                    return RedirectToPage();
+                }
+            }
+
+            if (user.Email == "admin@networco.local")
+            {
+                TempData["StatusMessage"] = "Error: Cannot delete the system administrator.";
+                return RedirectToPage();
+            }
+
+            _context.Users.Remove(user);
+            await _context.SaveChangesAsync();
+
+            await _auditService.LogAsync("UserDeleted", $"User deleted: {user.Email}", id);
+            TempData["StatusMessage"] = $"User {user.Email} has been deleted.";
+        }
+
+        return RedirectToPage();
+    }
+
     public async Task<IActionResult> OnPostToggleAdminAsync(Guid id)
     {
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == id);

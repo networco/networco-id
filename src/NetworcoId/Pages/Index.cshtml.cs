@@ -9,6 +9,7 @@ public class IndexModel(IOptions<NetworcoIdConfig> config) : PageModel
 {
     public string Version { get; set; } = "0.0.0.0";
     public string BaseUrl { get; set; } = config.Value.BaseUrl;
+    public string SystemClientId { get; set; } = config.Value.SystemManagementClientId ?? "networco-admin";
 
     public void OnGet()
     {

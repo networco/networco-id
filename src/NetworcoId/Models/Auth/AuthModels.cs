@@ -42,6 +42,9 @@ public class NetworcoIdConfig
     // Data Protection
     public string? DataProtectionCertificatePath { get; set; }
     public string? DataProtectionCertificatePassword { get; set; }
+
+    // Runtime tracked system client ID
+    public string? SystemManagementClientId { get; set; }
 }
 
 /// <summary>

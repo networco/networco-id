@@ -7,7 +7,8 @@ using NetworcoId.Infrastructure.Database;
 using NetworcoId.Models.Entities;
 using NetworcoId.Core.Security;
 using NetworcoId.Services;
-
+using NetworcoId.Models.Auth;
+using Microsoft.Extensions.Options;
 using NetworcoId.Services.Audit;
 
 namespace NetworcoId.Pages.Admin.Clients;
@@ -42,11 +43,12 @@ public class EditModel(IClientManagementService clientService, IAuditService aud
     public string? SecretType { get; set; } // "Primary" or "Secondary"
 
     public bool HasSecondarySecret { get; set; }
+    public bool IsSystemClient { get; set; }
 
     [BindProperty]
     public bool IsActive { get; set; }
 
-    public async Task<IActionResult> OnGetAsync(string id)
+    public async Task<IActionResult> OnGetAsync(string id, [FromServices] IOptions<NetworcoIdConfig> config)
     {
         var client = await clientService.GetClientAsync(id);
         if (client == null)
@@ -54,6 +56,7 @@ public class EditModel(IClientManagementService clientService, IAuditService aud
             return RedirectToPage("./Index");
         }
 
+        IsSystemClient = client.ClientId == config.Value.SystemManagementClientId;
         ClientId = client.ClientId;
         DisplayName = client.DisplayName;
         RedirectUris = string.Join("\n", client.RedirectUris);
@@ -66,7 +69,7 @@ public class EditModel(IClientManagementService clientService, IAuditService aud
         return Page();
     }
 
-    public async Task<IActionResult> OnPostAsync()
+    public async Task<IActionResult> OnPostAsync([FromServices] IOptions<NetworcoIdConfig> config)
     {
         var client = await clientService.GetClientAsync(ClientId);
         if (client == null)
@@ -74,9 +77,14 @@ public class EditModel(IClientManagementService clientService, IAuditService aud
             return RedirectToPage("./Index");
         }
 
+        if (client.ClientId == config.Value.SystemManagementClientId)
+        {
+            TempData["StatusMessage"] = "System client configuration is protected. Only secrets can be rotated.";
+            return RedirectToPage(new { id = ClientId });
+        }
+
         var redirectUriList = RedirectUris.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).ToList();
         
-        // Combine selected checkboxes with manual scopes
         var scopeList = SelectedScopes ?? new List<string>();
         if (!string.IsNullOrWhiteSpace(Scopes))
         {
@@ -87,20 +95,18 @@ public class EditModel(IClientManagementService clientService, IAuditService aud
             }
         }
 
-        // Update active status
         if (IsActive != client.IsActive)
         {
             await clientService.ToggleClientStatusAsync(ClientId);
         }
 
         await clientService.UpdateClientAsync(ClientId, DisplayName, redirectUriList, scopeList, IsTrustedForExchange);
-        
         await auditService.LogAsync("ClientUpdated", $"OAuth client {ClientId} was updated.");
 
         return RedirectToPage(new { id = ClientId });
     }
 
-    public async Task<IActionResult> OnPostRotatePrimaryAsync(string id)
+    public async Task<IActionResult> OnPostRotatePrimaryAsync(string id, [FromServices] IOptions<NetworcoIdConfig> config)
     {
         var secret = await clientService.RotateClientSecretAsync(id, isPrimary: true);
         if (secret == null) return RedirectToPage("./Index");
@@ -110,12 +116,12 @@ public class EditModel(IClientManagementService clientService, IAuditService aud
         NewSecret = secret;
         SecretType = "Primary";
         
-        await LoadClientProperties(id);
+        await LoadClientProperties(id, config.Value.SystemManagementClientId);
 
         return Page();
     }
 
-    public async Task<IActionResult> OnPostRotateSecondaryAsync(string id)
+    public async Task<IActionResult> OnPostRotateSecondaryAsync(string id, [FromServices] IOptions<NetworcoIdConfig> config)
     {
         var secret = await clientService.RotateClientSecretAsync(id, isPrimary: false);
         if (secret == null) return RedirectToPage("./Index");
@@ -125,7 +131,7 @@ public class EditModel(IClientManagementService clientService, IAuditService aud
         NewSecret = secret;
         SecretType = "Secondary";
 
-        await LoadClientProperties(id);
+        await LoadClientProperties(id, config.Value.SystemManagementClientId);
 
         return Page();
     }
@@ -137,16 +143,20 @@ public class EditModel(IClientManagementService clientService, IAuditService aud
         return RedirectToPage(new { id = id });
     }
 
-    private async Task LoadClientProperties(string id)
+    private async Task LoadClientProperties(string id, string? systemClientId)
     {
         var client = await clientService.GetClientAsync(id);
         if (client != null)
         {
+            IsSystemClient = client.ClientId == systemClientId;
             ClientId = client.ClientId;
             DisplayName = client.DisplayName;
             RedirectUris = string.Join("\n", client.RedirectUris);
             Scopes = string.Join(", ", client.AllowedScopes);
             HasSecondarySecret = !string.IsNullOrEmpty(client.SecondaryClientSecretHash);
+            IsActive = client.IsActive;
+            IsTrustedForExchange = client.IsTrustedForExchange;
+            SelectedScopes = client.AllowedScopes;
         }
     }
 }
