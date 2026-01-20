@@ -83,10 +83,11 @@ public class IndexModel : PageModel
             credential.LockedUntil = null;
             
             _context.UserCredentials.Update(credential);
-            await _context.SaveChangesAsync();
             
             var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == id);
             await _auditService.LogAsync("UserUnlocked", $"User account unlocked manually: {user?.Email}", id);
+            
+            await _context.SaveChangesAsync();
             
             TempData["StatusMessage"] = $"User {user?.Email} has been unlocked.";
         }
@@ -112,9 +113,10 @@ public class IndexModel : PageModel
 
             user.IsActive = !user.IsActive;
             _context.Users.Update(user);
-            await _context.SaveChangesAsync();
             
             await _auditService.LogAsync("UserStatusToggled", $"User status toggled to {(user.IsActive ? "Active" : "Inactive")}: {user.Email}", id);
+
+            await _context.SaveChangesAsync();
             
             TempData["StatusMessage"] = $"User {user.Email} is now {(user.IsActive ? "Active" : "Inactive")}.";
         }
@@ -144,11 +146,13 @@ public class IndexModel : PageModel
                 return RedirectToPage();
             }
 
+            await _auditService.LogAsync("UserDeleted", $"User deleted: {user.Email}", id);
+            
             _context.Users.Remove(user);
             await _context.SaveChangesAsync();
 
-            await _auditService.LogAsync("UserDeleted", $"User deleted: {user.Email}", id);
             TempData["StatusMessage"] = $"User {user.Email} has been deleted.";
+            return RedirectToPage();
         }
 
         return RedirectToPage();
@@ -178,9 +182,10 @@ public class IndexModel : PageModel
             }
             
             _context.Users.Update(user);
-            await _context.SaveChangesAsync();
             
             await _auditService.LogAsync("UserRoleChanged", $"User role toggled: {user.Email}", id);
+
+            await _context.SaveChangesAsync();
             
             TempData["StatusMessage"] = $"Admin role toggled for {user.Email}.";
         }
