@@ -4,15 +4,18 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using NetworcoId.Infrastructure.Database;
 using NetworcoId.Models.Auth;
 using NetworcoId.Services;
+using NetworcoId.Services.Security;
 
 namespace NetworcoId.Pages;
 
 [IgnoreAntiforgeryToken]
-public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthDbContext dbContext, ILogger<LoginModel> logger) : PageModel
+[EnableRateLimiting("auth-login-strict")]
+public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthDbContext dbContext, ILogger<LoginModel> logger, ILockoutService lockoutService) : PageModel
 {
     [BindProperty(SupportsGet = true)]
     public string? client_id { get; set; }
@@ -171,11 +174,24 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
 
             logger.LogInformation("Login Post: Email={Email}, ClientId={ClientId}, RedirectUri={RedirectUri}", Email, ClientId, RedirectUri);
 
+            // Check IP Lockout
+            var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            if (await lockoutService.IsLockedAsync(ip))
+            {
+                logger.LogWarning("Login attempt from locked IP: {Ip}", ip);
+                ErrorMessage = "Din IP-adresse er midlertidig sperret pga. for mange feilede forsøk.";
+                return Page();
+            }
+
             // Authenticate user
             var user = await authService.AuthenticateUserAsync(Email, Password);
             if (user == null)
             {
                 logger.LogWarning("Login Post: Authentication failed for {Email}", Email);
+                
+                // Record IP failure
+                await lockoutService.RecordFailureAsync(ip);
+
                 // Check for account lockout or increment failed attempts
                 var credential = await dbContext.UserCredentials
                     .Include(c => c.User)
@@ -228,6 +244,10 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
                     await dbContext.SaveChangesAsync();
                 }
             }
+
+            // Reset IP failure on success
+            var ipSuccess = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            await lockoutService.ResetAsync(ipSuccess);
 
             if (user.MustChangePassword)
             {

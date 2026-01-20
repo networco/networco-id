@@ -27,6 +27,7 @@ public class AuthDbContext : DbContext, IDataProtectionKeyContext
     public DbSet<AuditLogEntity> AuditLogs => Set<AuditLogEntity>();
     public DbSet<SigningKeyEntity> SigningKeys => Set<SigningKeyEntity>();
     public DbSet<SystemSettingEntity> SystemSettings => Set<SystemSettingEntity>();
+    public DbSet<IpLockoutEntity> IpLockouts => Set<IpLockoutEntity>();
     
     // Data Protection keys for multi-instance deployments
     public DbSet<DataProtectionKey> DataProtectionKeys { get; set; } = null!;
