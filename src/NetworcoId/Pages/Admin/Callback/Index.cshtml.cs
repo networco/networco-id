@@ -56,6 +56,6 @@ public class CallbackModel(
 
         logger.LogInformation("Admin user {Email} logged in successfully via OAuth bootstrap.", result.User.Email);
 
-        return RedirectToPage("/Admin/Clients/Index");
+        return RedirectToPage("/Admin/Index");
     }
 }

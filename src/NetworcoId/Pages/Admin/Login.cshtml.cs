@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Hosting;
+using NetworcoId.Services.Audit;
 
 namespace NetworcoId.Pages.Admin;
 
@@ -11,11 +12,13 @@ public class LoginModel : PageModel
 
     private readonly IConfiguration _config;
     private readonly IWebHostEnvironment _env;
+    private readonly IAuditService _auditService;
 
-    public LoginModel(IConfiguration config, IWebHostEnvironment env)
+    public LoginModel(IConfiguration config, IWebHostEnvironment env, IAuditService auditService)
     {
         _config = config;
         _env = env;
+        _auditService = auditService;
     }
 
     [BindProperty]
@@ -27,7 +30,7 @@ public class LoginModel : PageModel
     {
     }
 
-    public IActionResult OnPost()
+    public async Task<IActionResult> OnPostAsync()
     {
         var adminKey = _config[AdminKeyConfigName];
 
@@ -47,8 +50,12 @@ public class LoginModel : PageModel
                 Expires = DateTimeOffset.UtcNow.AddDays(1)
             });
 
-            return RedirectToPage("/Admin/Clients/Index");
+            await _auditService.LogAsync("AdminLogin", "Administrator logged in using access key.");
+
+            return RedirectToPage("/Admin/Index");
         }
+
+        await _auditService.LogAsync("AdminLoginFailed", "Failed admin login attempt with incorrect access key.");
 
         ErrorMessage = "Invalid access key.";
         return Page();

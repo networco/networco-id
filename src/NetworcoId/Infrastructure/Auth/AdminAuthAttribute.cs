@@ -31,6 +31,7 @@ public class AdminAuthAttribute : Attribute, IAsyncPageFilter
         {
             if (cookieValue == adminKey)
             {
+                SetNoCacheHeaders(context.HttpContext.Response);
                 await next();
                 return;
             }
@@ -50,6 +51,7 @@ public class AdminAuthAttribute : Attribute, IAsyncPageFilter
                 Expires = DateTimeOffset.UtcNow.AddDays(1)
             });
 
+            SetNoCacheHeaders(context.HttpContext.Response);
             await next();
             return;
         }
@@ -77,6 +79,13 @@ public class AdminAuthAttribute : Attribute, IAsyncPageFilter
         }
 
         // Not authenticated
-        context.Result = new RedirectToPageResult("/Admin/Login");
+        context.Result = new NotFoundResult();
+    }
+
+    private static void SetNoCacheHeaders(HttpResponse response)
+    {
+        response.Headers.Append("Cache-Control", "no-cache, no-store, must-revalidate");
+        response.Headers.Append("Pragma", "no-cache");
+        response.Headers.Append("Expires", "0");
     }
 }
