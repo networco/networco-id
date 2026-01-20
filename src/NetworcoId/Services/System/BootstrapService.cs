@@ -26,8 +26,15 @@ public class BootstrapService(
 
     private async Task ProvisionSystemClientAsync()
     {
-        var clientId = config.InitialClientId ?? "networco-admin";
-        var existingClient = await dbContext.OAuthClients.FirstOrDefaultAsync(c => c.ClientId == clientId);
+        // Try to get existing system client ID from settings
+        var systemClientIdSetting = await dbContext.SystemSettings.FirstOrDefaultAsync(s => s.Key == "System:ManagementClientId");
+        var clientId = systemClientIdSetting?.Value;
+        
+        OAuthClientEntity? existingClient = null;
+        if (!string.IsNullOrEmpty(clientId))
+        {
+            existingClient = await dbContext.OAuthClients.FirstOrDefaultAsync(c => c.ClientId == clientId);
+        }
 
         if (existingClient != null)
         {
@@ -58,22 +65,27 @@ public class BootstrapService(
                 logger.LogInformation("Updated system client configuration for '{ClientId}'.", clientId);
                 await dbContext.SaveChangesAsync();
             }
+            
+            // Update runtime config
+            config.SystemManagementClientId = clientId;
             return;
         }
 
-        if (await dbContext.OAuthClients.AnyAsync())
+        logger.LogInformation("System client not found or unconfigured. Provisioning new random system client...");
+
+        // Generate a random client ID like any other client
+        var newClientId = "nw_" + Convert.ToHexString(RandomNumberGenerator.GetBytes(8)).ToLowerInvariant();
+        while (await dbContext.OAuthClients.AnyAsync(c => c.ClientId == newClientId))
         {
-            return;
+            newClientId = "nw_" + Convert.ToHexString(RandomNumberGenerator.GetBytes(8)).ToLowerInvariant();
         }
 
-        logger.LogInformation("First run detected: No OAuth2 clients found. Provisioning system client...");
-
-        var clientSecret = config.InitialClientSecret ?? Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        var clientSecret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
         var secretHash = passwordHasher.HashPassword(clientSecret);
 
         var client = new OAuthClientEntity
         {
-            ClientId = clientId,
+            ClientId = newClientId,
             DisplayName = "Networco ID Management Portal",
             PrimaryClientSecretHash = secretHash,
             RedirectUris = new List<string> { $"{config.BaseUrl.TrimEnd('/')}/admin/callback" },
@@ -84,21 +96,36 @@ public class BootstrapService(
         };
 
         dbContext.OAuthClients.Add(client);
-        await dbContext.SaveChangesAsync();
 
-        if (string.IsNullOrEmpty(config.InitialClientSecret))
+        // Update or create the system setting
+        if (systemClientIdSetting == null)
         {
-            logger.LogCritical("********************************************************************************");
-            logger.LogCritical("SYSTEM CLIENT PROVISIONED");
-            logger.LogCritical("Client ID: {ClientId}", clientId);
-            logger.LogCritical("Client Secret: {ClientSecret}", clientSecret);
-            logger.LogCritical("SAVE THIS SECRET SECURELY. It will not be shown again.");
-            logger.LogCritical("********************************************************************************");
+            dbContext.SystemSettings.Add(new SystemSettingEntity 
+            { 
+                Key = "System:ManagementClientId", 
+                Value = newClientId,
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
         }
         else
         {
-            logger.LogInformation("System client '{ClientId}' provisioned using configuration secret.", clientId);
+            systemClientIdSetting.Value = newClientId;
+            systemClientIdSetting.UpdatedAt = DateTimeOffset.UtcNow;
+            dbContext.SystemSettings.Update(systemClientIdSetting);
         }
+
+        await dbContext.SaveChangesAsync();
+        
+        // Update runtime config
+        config.SystemManagementClientId = newClientId;
+
+        logger.LogCritical("********************************************************************************");
+        logger.LogCritical("SYSTEM MANAGEMENT CLIENT PROVISIONED");
+        logger.LogCritical("Client ID: {ClientId}", newClientId);
+        logger.LogCritical("Client Secret: {ClientSecret}", clientSecret);
+        logger.LogCritical("SAVE THIS SECRET SECURELY. It will not be shown again.");
+        logger.LogCritical("The Admin Portal depends on these credentials.");
+        logger.LogCritical("********************************************************************************");
     }
 
     private async Task ProvisionInitialAdminAsync()

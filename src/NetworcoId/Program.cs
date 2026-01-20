@@ -45,6 +45,20 @@ else if (File.Exists("../../../.env"))
 
 // Override configuration with environment variables
 var dbUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+if (string.IsNullOrEmpty(dbUrl))
+{
+    var pgHost = Environment.GetEnvironmentVariable("POSTGRES_HOST");
+    var pgPort = Environment.GetEnvironmentVariable("POSTGRES_PORT") ?? "5432";
+    var pgDb = Environment.GetEnvironmentVariable("POSTGRES_DB");
+    var pgUser = Environment.GetEnvironmentVariable("POSTGRES_USER");
+    var pgPass = Environment.GetEnvironmentVariable("POSTGRES_PASSWORD");
+
+    if (!string.IsNullOrEmpty(pgHost) && !string.IsNullOrEmpty(pgDb) && !string.IsNullOrEmpty(pgUser))
+    {
+        dbUrl = $"Host={pgHost};Port={pgPort};Database={pgDb};Username={pgUser};Password={pgPass};Ssl Mode=Prefer;";
+    }
+}
+
 if (!string.IsNullOrEmpty(dbUrl))
 {
     builder.Configuration["ConnectionStrings:DefaultConnection"] = dbUrl;
