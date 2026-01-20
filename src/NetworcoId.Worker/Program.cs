@@ -48,8 +48,12 @@ builder.Configuration["Nats:Url"] = Environment.GetEnvironmentVariable("NATS_URL
 // Brevo Mapping - Ensure multiple possible env var names are covered
 var brevoKey = Environment.GetEnvironmentVariable("BREVO_API_KEY") ?? Environment.GetEnvironmentVariable("BREVO_APIKEY");
 builder.Configuration["Brevo:ApiKey"] = brevoKey;
-builder.Configuration["Brevo:SenderName"] = Environment.GetEnvironmentVariable("BREVO_SENDER_NAME");
-builder.Configuration["Brevo:SenderEmail"] = Environment.GetEnvironmentVariable("BREVO_SENDER_EMAIL");
+
+var senderName = Environment.GetEnvironmentVariable("BREVO_SENDER_NAME");
+if (!string.IsNullOrEmpty(senderName)) builder.Configuration["Brevo:SenderName"] = senderName;
+
+var senderEmail = Environment.GetEnvironmentVariable("BREVO_SENDER_EMAIL");
+if (!string.IsNullOrEmpty(senderEmail)) builder.Configuration["Brevo:SenderEmail"] = senderEmail;
 
 if (string.IsNullOrEmpty(brevoKey))
 {
