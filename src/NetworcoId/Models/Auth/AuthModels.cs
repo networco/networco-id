@@ -39,6 +39,15 @@ public class NetworcoIdConfig
     public int MaxFailedLoginAttempts { get; set; } = 5;
     public int LockoutDurationMinutes { get; set; } = 15;
 
+    public int IpLockoutMaxFailures { get; set; } = 10;
+    public int IpLockoutDurationMinutes { get; set; } = 30;
+
+    public int AdminRateLimitPermit { get; set; } = 3;
+    public int AdminRateLimitWindowSeconds { get; set; } = 60;
+
+    public int AuthRateLimitPermit { get; set; } = 10;
+    public int AuthRateLimitWindowSeconds { get; set; } = 60;
+
     // Data Protection
     public string? DataProtectionCertificatePath { get; set; }
     public string? DataProtectionCertificatePassword { get; set; }

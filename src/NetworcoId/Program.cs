@@ -166,6 +166,33 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0
             }));
 
+    // Dynamic policies using configuration
+    options.AddPolicy("admin-login-strict", httpContext =>
+    {
+        var config = httpContext.RequestServices.GetRequiredService<NetworcoIdConfig>();
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = config.AdminRateLimitPermit,
+                Window = TimeSpan.FromSeconds(config.AdminRateLimitWindowSeconds),
+                QueueLimit = 0
+            });
+    });
+
+    options.AddPolicy("auth-login-strict", httpContext =>
+    {
+        var config = httpContext.RequestServices.GetRequiredService<NetworcoIdConfig>();
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = config.AuthRateLimitPermit,
+                Window = TimeSpan.FromSeconds(config.AuthRateLimitWindowSeconds),
+                QueueLimit = 0
+            });
+    });
+
     // Strict limit for Auth endpoints
     options.AddPolicy("auth-strict", httpContext =>
         RateLimitPartition.GetFixedWindowLimiter(
