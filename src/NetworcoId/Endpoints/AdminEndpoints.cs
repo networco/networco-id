@@ -59,13 +59,42 @@ public static class AdminEndpoints
             return success ? Results.Ok(new { message = "Client deleted" }) : Results.NotFound();
         });
 
-        group.MapGet("/audit-logs", async (AuthDbContext db) =>
+        group.MapGet("/audit-logs", async (
+            AuthDbContext db, 
+            [FromQuery] int page = 1, 
+            [FromQuery] int pageSize = 20,
+            [FromQuery] string? eventType = null,
+            [FromQuery] string? search = null) =>
         {
-            var logs = await db.AuditLogs
+            var query = db.AuditLogs
+                .Include(l => l.User)
                 .OrderByDescending(l => l.Timestamp)
-                .Take(50)
+                .AsQueryable();
+
+            if (!string.IsNullOrEmpty(eventType))
+            {
+                query = query.Where(l => l.EventType == eventType);
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                query = query.Where(l => l.Description.Contains(search) || (l.User != null && l.User.Email.Contains(search)));
+            }
+
+            var totalItems = await query.CountAsync();
+            var items = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
-            return Results.Ok(logs);
+
+            return Results.Ok(new 
+            {
+                items,
+                totalItems,
+                page,
+                pageSize,
+                totalPages = (int)Math.Ceiling(totalItems / (double)pageSize)
+            });
         });
     }
 

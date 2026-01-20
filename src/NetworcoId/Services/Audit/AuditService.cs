@@ -22,22 +22,30 @@ public class AuditService : IAuditService
 
     public async Task LogAsync(string eventType, string description, Guid? userId = null, string? metadata = null)
     {
-        var httpContext = _httpContextAccessor.HttpContext;
-        var ipAddress = httpContext?.Connection?.RemoteIpAddress?.ToString();
-        var userAgent = httpContext?.Request?.Headers["User-Agent"].ToString();
-
-        var auditLog = new AuditLogEntity
+        try
         {
-            EventType = eventType,
-            Description = description,
-            UserId = userId,
-            IpAddress = ipAddress,
-            UserAgent = userAgent,
-            Timestamp = DateTimeOffset.UtcNow,
-            Metadata = metadata
-        };
+            var httpContext = _httpContextAccessor.HttpContext;
+            var ipAddress = httpContext?.Connection?.RemoteIpAddress?.ToString();
+            var userAgent = httpContext?.Request?.Headers["User-Agent"].ToString();
 
-        _context.AuditLogs.Add(auditLog);
-        await _context.SaveChangesAsync();
+            var auditLog = new AuditLogEntity
+            {
+                EventType = eventType,
+                Description = description,
+                UserId = userId,
+                IpAddress = ipAddress,
+                UserAgent = userAgent,
+                Timestamp = DateTimeOffset.UtcNow,
+                Metadata = metadata
+            };
+
+            _context.AuditLogs.Add(auditLog);
+            await _context.SaveChangesAsync();
+        }
+        catch
+        {
+            // Fail silently - audit logging should not break the main business flow
+            // In a real production system, we would log this failure to a separate system (e.g. Application Insights)
+        }
     }
 }
