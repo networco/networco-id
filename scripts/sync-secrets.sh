@@ -124,6 +124,7 @@ set +a
 echo -e "${YELLOW}Updating networcoid-secrets...${NC}"
 
 # Internal defaults if not set in .env.prod
+POSTGRES_HOST=${POSTGRES_HOST:-"postgres"}
 NATS_URL=${NATS_URL:-"nats://nats.networco-id.svc.cluster.local:4222"}
 
 kubectl create secret generic networcoid-secrets \

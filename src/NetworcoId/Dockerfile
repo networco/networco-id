@@ -19,7 +19,7 @@ RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages \
 
 # Final stage/image
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine
-RUN apk add --no-cache icu-libs
+RUN apk add --no-cache icu-libs krb5-libs
 WORKDIR /app
 COPY --from=build /app/publish .
 
