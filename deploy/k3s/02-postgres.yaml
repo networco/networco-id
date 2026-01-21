@@ -4,10 +4,15 @@ metadata:
   name: postgres
   namespace: networco-id
 spec:
+  type: LoadBalancer
   selector:
     app: postgres
   ports:
-  - port: 5432
+  - name: postgres
+    port: 5432
+    targetPort: 5432
+  - name: external
+    port: 5434
     targetPort: 5432
 ---
 apiVersion: apps/v1
@@ -31,7 +36,6 @@ spec:
         image: postgres:18-alpine
         ports:
         - containerPort: 5432
-          hostPort: 5433
         env:
         - name: POSTGRES_DB
           valueFrom:
