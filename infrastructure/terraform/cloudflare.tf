@@ -45,6 +45,13 @@ variable "vps_nodes" {
       ssh_user   = "root"
       role       = "server"
       datacenter = "oslo-stw"
+    },
+    {
+      name       = "srv04"
+      ip         = "104.233.9.235"
+      ssh_user   = "root"
+      role       = "server"
+      datacenter = "oslo-stw"
     }
   ]
 }

@@ -38,7 +38,7 @@ if (string.IsNullOrEmpty(dbUrl))
 
     if (!string.IsNullOrEmpty(pgHost) && !string.IsNullOrEmpty(pgDb) && !string.IsNullOrEmpty(pgUser))
     {
-        dbUrl = $"Host={pgHost};Port={pgPort};Database={pgDb};Username={pgUser};Password={pgPass};Ssl Mode=Require;Trust Server Certificate=true;";
+        dbUrl = $"Host={pgHost};Port={pgPort};Database={pgDb};Username={pgUser};Password={pgPass};Ssl Mode=Prefer;Trust Server Certificate=true;";
     }
 }
 
