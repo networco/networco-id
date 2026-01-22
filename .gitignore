@@ -499,3 +499,6 @@ $RECYCLE.BIN/
 bin/Debug/
 openid-conformance-suite/
 src/NetworcoId/Endpoints/OAuthEndpoints.cs
+
+# Kubernetes secrets
+deploy/k3s/03-secrets.yaml

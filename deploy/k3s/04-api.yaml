@@ -72,6 +72,24 @@ spec:
               name: networcoid-secrets
               key: admin-password
               optional: true
+        - name: INITIAL_ADMIN_EMAIL
+          valueFrom:
+            secretKeyRef:
+              name: networcoid-secrets
+              key: admin-email
+              optional: true
+        - name: INITIAL_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: networcoid-secrets
+              key: client-id
+              optional: true
+        - name: INITIAL_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: networcoid-secrets
+              key: client-secret
+              optional: true
         ports:
         - containerPort: 8080
 ---
