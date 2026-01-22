@@ -76,7 +76,7 @@ public static class ServiceConfiguration
 
             // Fallbacks for bootstrap configuration
             optionsConfig.InitialAdminEmail ??= configuration["INITIAL_ADMIN_EMAIL"];
-            optionsConfig.InitialAdminPassword ??= configuration["INITIAL_ADMIN_PASSWORD"];
+            optionsConfig.InitialAdminPassword ??= configuration["INITIAL_ADMIN_PASSWORD"] ?? configuration["Admin:Password"];
             optionsConfig.InitialClientId ??= configuration["INITIAL_CLIENT_ID"];
             optionsConfig.InitialClientSecret ??= configuration["INITIAL_CLIENT_SECRET"];
 

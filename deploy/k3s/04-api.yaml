@@ -65,6 +65,13 @@ spec:
             secretKeyRef:
               name: networcoid-secrets
               key: admin-access-key
+              optional: true
+        - name: Admin__Password
+          valueFrom:
+            secretKeyRef:
+              name: networcoid-secrets
+              key: admin-password
+              optional: true
         ports:
         - containerPort: 8080
 ---
