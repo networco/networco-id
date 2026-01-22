@@ -192,7 +192,7 @@ public class BootstrapService(
         logger.LogInformation("No users found. Provisioning initial admin user...");
 
         var adminId = Guid.NewGuid();
-        var password = config.InitialAdminPassword ?? ("Admin_" + Convert.ToHexString(RandomNumberGenerator.GetBytes(4)));
+        var password = config.InitialAdminPassword ?? ("Admin_" + Convert.ToHexString(RandomNumberGenerator.GetBytes(6)).ToLowerInvariant());
         
         var user = new UserEntity
         {
