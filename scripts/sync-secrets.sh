@@ -66,6 +66,10 @@ if [ "$1" == "--pull" ]; then
         "db-password:POSTGRES_PASSWORD"
         "jwt-secret:JWT_SECRET"
         "admin-access-key:ADMIN_ACCESS_KEY"
+        "admin-password:INITIAL_ADMIN_PASSWORD"
+        "admin-email:INITIAL_ADMIN_EMAIL"
+        "client-id:INITIAL_CLIENT_ID"
+        "client-secret:INITIAL_CLIENT_SECRET"
         "brevo-api-key:BREVO_API_KEY"
         "issuer:ISSUER"
         "base-url:BASE_URL"
@@ -135,6 +139,10 @@ kubectl create secret generic networcoid-secrets \
     --from-literal=db-password="$POSTGRES_PASSWORD" \
     --from-literal=jwt-secret="$JWT_SECRET" \
     --from-literal=admin-access-key="$ADMIN_ACCESS_KEY" \
+    --from-literal=admin-password="$INITIAL_ADMIN_PASSWORD" \
+    --from-literal=admin-email="$INITIAL_ADMIN_EMAIL" \
+    --from-literal=client-id="$INITIAL_CLIENT_ID" \
+    --from-literal=client-secret="$INITIAL_CLIENT_SECRET" \
     --from-literal=brevo-api-key="$BREVO_API_KEY" \
     --from-literal=issuer="$ISSUER" \
     --from-literal=base-url="$BASE_URL" \
