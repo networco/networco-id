@@ -69,7 +69,8 @@ echo -e "${BLUE}=== Rotating Database Password for $POSTGRES_USER ===${NC}"
 
 # 1. Update password in Kubernetes Postgres pod
 echo -e "${YELLOW}Updating password in Kubernetes Postgres pod...${NC}"
-kubectl exec statefulset/postgres -n "$NAMESPACE" -- psql -U postgres -c "DO \$QL\$ BEGIN IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '$POSTGRES_USER') THEN CREATE ROLE $POSTGRES_USER WITH LOGIN PASSWORD '$NEW_DATABASE_PASSWORD'; ELSE ALTER ROLE $POSTGRES_USER WITH PASSWORD '$NEW_DATABASE_PASSWORD'; END IF; END \$QL\$;"
+# We use the pod's own environment variables to authenticate the psql command
+kubectl exec statefulset/postgres -n "$NAMESPACE" -- sh -c "export PGPASSWORD=\$POSTGRES_PASSWORD; psql -U \$POSTGRES_USER -d \$POSTGRES_DB -c \"ALTER ROLE \$POSTGRES_USER WITH PASSWORD '$NEW_DATABASE_PASSWORD';\""
 
 # 2. Update .env.prod
 echo -e "${YELLOW}Updating local .env.prod...${NC}"
