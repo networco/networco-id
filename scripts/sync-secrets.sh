@@ -150,3 +150,14 @@ kubectl create secret generic networcoid-secrets \
     --dry-run=client -o yaml | kubectl apply -f -
 
 echo -e "${GREEN}✓ Secrets synchronized successfully.${NC}"
+
+# Restart deployments to pick up new secrets
+echo -e "${YELLOW}Restarting deployments in $NAMESPACE...${NC}"
+kubectl rollout restart deployment networcoid -n "$NAMESPACE"
+kubectl rollout restart deployment networcoid-worker -n "$NAMESPACE"
+
+# Wait for rollout
+kubectl rollout status deployment networcoid -n "$NAMESPACE"
+kubectl rollout status deployment networcoid-worker -n "$NAMESPACE"
+
+echo -e "${GREEN}✓ All services restarted and up to date.${NC}"
