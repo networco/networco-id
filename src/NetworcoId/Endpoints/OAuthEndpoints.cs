@@ -713,7 +713,14 @@ public static class OAuthEndpoints
             return null;
         }
 
-        if (!passwordHasher.VerifyPassword(clientSecret, client.PrimaryClientSecretHash))
+        bool isValid = passwordHasher.VerifyPassword(clientSecret, client.PrimaryClientSecretHash);
+
+        if (!isValid && !string.IsNullOrEmpty(client.SecondaryClientSecretHash))
+        {
+            isValid = passwordHasher.VerifyPassword(clientSecret, client.SecondaryClientSecretHash);
+        }
+
+        if (!isValid)
         {
             return null;
         }

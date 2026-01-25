@@ -255,7 +255,24 @@ using (var scope = app.Services.CreateScope())
         // Double check provider to be safe
         if (db.Database.ProviderName != "Microsoft.EntityFrameworkCore.InMemory")
         {
-            await db.Database.MigrateAsync();
+            try
+            {
+                await db.Database.MigrateAsync();
+            }
+            catch (Exception ex)
+            {
+                var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Migration");
+                
+                if (ex is Npgsql.PostgresException pgEx && (pgEx.SqlState == "42501" || pgEx.SqlState == "3D000"))
+                {
+                    logger.LogWarning("Database migration/access warning (State: {State}): {Message}. Attempting to continue...", pgEx.SqlState, pgEx.MessageText);
+                }
+                else
+                {
+                    logger.LogCritical(ex, "CRITICAL: Database migration failed with an unexpected error.");
+                    throw; // Re-throw critical unexpected errors
+                }
+            }
         }
     }
 

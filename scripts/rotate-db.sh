@@ -69,7 +69,8 @@ echo -e "${BLUE}=== Rotating Database Password for $POSTGRES_USER ===${NC}"
 
 # 1. Update password on host via SSH
 echo -e "${YELLOW}Updating password on database host ($POSTGRES_HOST)...${NC}"
-ssh root@$POSTGRES_HOST "LC_ALL=C sudo -u postgres psql -c \"DO \\\$QL\\\$ BEGIN IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '$POSTGRES_USER') THEN CREATE ROLE $POSTGRES_USER WITH LOGIN PASSWORD '$NEW_DATABASE_PASSWORD'; ELSE ALTER ROLE $POSTGRES_USER WITH PASSWORD '$NEW_DATABASE_PASSWORD'; END IF; END \\\$QL\\\$;\""
+# Use the database name from config to ensure we target the right one
+ssh root@$POSTGRES_HOST "LC_ALL=C sudo -u postgres psql -d $POSTGRES_DB -c \"DO \\\$QL\\\$ BEGIN IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '$POSTGRES_USER') THEN CREATE ROLE $POSTGRES_USER WITH LOGIN PASSWORD '$NEW_DATABASE_PASSWORD'; ELSE ALTER ROLE $POSTGRES_USER WITH PASSWORD '$NEW_DATABASE_PASSWORD'; END IF; END \\\$QL\\\$;\""
 
 # 2. Update .env.prod
 echo -e "${YELLOW}Updating local .env.prod...${NC}"
