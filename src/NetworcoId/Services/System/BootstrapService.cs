@@ -38,58 +38,53 @@ public class BootstrapService(
 
         if (existingClient != null)
         {
-            var requiredScopes = new[] { "openid", "profile", "email", "address", "phone", "admin" };
-            var changed = false;
-            
-            existingClient.AllowedScopes ??= new List<string>();
-            foreach (var scope in requiredScopes)
-            {
-                if (!existingClient.AllowedScopes.Contains(scope))
-                {
-                    existingClient.AllowedScopes.Add(scope);
-                    changed = true;
-                }
-            }
-
-            // Sync Redirect URIs with BaseUrl
-            var expectedRedirectUri = $"{config.BaseUrl.TrimEnd('/')}/admin/callback";
-            existingClient.RedirectUris ??= new List<string>();
-            if (!existingClient.RedirectUris.Contains(expectedRedirectUri))
-            {
-                existingClient.RedirectUris.Add(expectedRedirectUri);
-                changed = true;
-            }
-            
-            if (changed)
-            {
-                logger.LogInformation("Updated system client configuration for '{ClientId}'.", clientId);
-                await dbContext.SaveChangesAsync();
-            }
-            
-            // Update runtime config
-            config.SystemManagementClientId = clientId;
+            await SyncSystemClientAsync(existingClient);
             return;
         }
 
-        logger.LogInformation("System client not found or unconfigured. Provisioning new random system client...");
-
-        // Generate a random client ID like any other client
-        var newClientId = "nw_" + Convert.ToHexString(RandomNumberGenerator.GetBytes(8)).ToLowerInvariant();
-        while (await dbContext.OAuthClients.AnyAsync(c => c.ClientId == newClientId))
+        // Check if we should adopt an existing client by InitialClientId
+        if (!string.IsNullOrEmpty(config.InitialClientId))
         {
-            newClientId = "nw_" + Convert.ToHexString(RandomNumberGenerator.GetBytes(8)).ToLowerInvariant();
+            existingClient = await dbContext.OAuthClients.FirstOrDefaultAsync(c => c.ClientId == config.InitialClientId);
+            if (existingClient != null)
+            {
+                logger.LogInformation("Adopting existing client '{ClientId}' as the system management client.", config.InitialClientId);
+                await UpdateSystemClientIdSettingAsync(config.InitialClientId);
+                await SyncSystemClientAsync(existingClient);
+                return;
+            }
         }
 
-        var clientSecret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
-        var secretHash = passwordHasher.HashPassword(clientSecret);
+        logger.LogInformation("System client not found or unconfigured. Provisioning system client...");
+
+        // Determine Client ID
+        var newClientId = config.InitialClientId;
+        if (string.IsNullOrEmpty(newClientId))
+        {
+            newClientId = "nw_" + Convert.ToHexString(RandomNumberGenerator.GetBytes(8)).ToLowerInvariant();
+            while (await dbContext.OAuthClients.AnyAsync(c => c.ClientId == newClientId))
+            {
+                newClientId = "nw_" + Convert.ToHexString(RandomNumberGenerator.GetBytes(8)).ToLowerInvariant();
+            }
+        }
+
+        // Determine Client Secret
+        var clientSecret = config.InitialClientSecret;
+        var secretGenerated = string.IsNullOrEmpty(clientSecret);
+        if (secretGenerated)
+        {
+            clientSecret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        }
+
+        var secretHash = passwordHasher.HashPassword(clientSecret!);
 
         var client = new OAuthClientEntity
         {
             ClientId = newClientId,
             DisplayName = "Networco ID Management Portal",
             PrimaryClientSecretHash = secretHash,
-            RedirectUris = new List<string> { $"{config.BaseUrl.TrimEnd('/')}/admin/callback" },
-            AllowedScopes = new List<string> { "openid", "profile", "email", "address", "phone", "admin" },
+            RedirectUris = [$"{config.BaseUrl.TrimEnd('/')}/admin/callback"],
+            AllowedScopes = ["openid", "profile", "email", "address", "phone", "admin"],
             IsTrustedForExchange = true,
             IsActive = true,
             CreatedAt = DateTimeOffset.UtcNow
@@ -97,35 +92,80 @@ public class BootstrapService(
 
         dbContext.OAuthClients.Add(client);
 
-        // Update or create the system setting
-        if (systemClientIdSetting == null)
-        {
-            dbContext.SystemSettings.Add(new SystemSettingEntity 
-            { 
-                Key = "System:ManagementClientId", 
-                Value = newClientId,
-                UpdatedAt = DateTimeOffset.UtcNow
-            });
-        }
-        else
-        {
-            systemClientIdSetting.Value = newClientId;
-            systemClientIdSetting.UpdatedAt = DateTimeOffset.UtcNow;
-            dbContext.SystemSettings.Update(systemClientIdSetting);
-        }
-
+        await UpdateSystemClientIdSettingAsync(newClientId);
         await dbContext.SaveChangesAsync();
         
         // Update runtime config
         config.SystemManagementClientId = newClientId;
 
-        logger.LogCritical("********************************************************************************");
-        logger.LogCritical("SYSTEM MANAGEMENT CLIENT PROVISIONED");
-        logger.LogCritical("Client ID: {ClientId}", newClientId);
-        logger.LogCritical("Client Secret: {ClientSecret}", clientSecret);
-        logger.LogCritical("SAVE THIS SECRET SECURELY. It will not be shown again.");
-        logger.LogCritical("The Admin Portal depends on these credentials.");
-        logger.LogCritical("********************************************************************************");
+        if (secretGenerated)
+        {
+            logger.LogCritical("********************************************************************************");
+            logger.LogCritical("SYSTEM MANAGEMENT CLIENT PROVISIONED");
+            logger.LogCritical("Client ID: {ClientId}", newClientId);
+            logger.LogCritical("Client Secret: {ClientSecret}", clientSecret);
+            logger.LogCritical("SAVE THIS SECRET SECURELY. It will not be shown again.");
+            logger.LogCritical("The Admin Portal depends on these credentials.");
+            logger.LogCritical("********************************************************************************");
+        }
+        else
+        {
+            logger.LogInformation("System management client '{ClientId}' provisioned with configured secret.", newClientId);
+        }
+    }
+
+    private async Task SyncSystemClientAsync(OAuthClientEntity client)
+    {
+        var requiredScopes = new[] { "openid", "profile", "email", "address", "phone", "admin" };
+        var changed = false;
+        
+        client.AllowedScopes ??= [];
+        foreach (var scope in requiredScopes)
+        {
+            if (!client.AllowedScopes.Contains(scope))
+            {
+                client.AllowedScopes.Add(scope);
+                changed = true;
+            }
+        }
+
+        // Sync Redirect URIs with BaseUrl
+        var expectedRedirectUri = $"{config.BaseUrl.TrimEnd('/')}/admin/callback";
+        client.RedirectUris ??= [];
+        if (!client.RedirectUris.Contains(expectedRedirectUri))
+        {
+            client.RedirectUris.Add(expectedRedirectUri);
+            changed = true;
+        }
+        
+        if (changed)
+        {
+            logger.LogInformation("Updated system client configuration for '{ClientId}'.", client.ClientId);
+            await dbContext.SaveChangesAsync();
+        }
+        
+        // Update runtime config
+        config.SystemManagementClientId = client.ClientId;
+    }
+
+    private async Task UpdateSystemClientIdSettingAsync(string clientId)
+    {
+        var setting = await dbContext.SystemSettings.FirstOrDefaultAsync(s => s.Key == "System:ManagementClientId");
+        if (setting == null)
+        {
+            dbContext.SystemSettings.Add(new SystemSettingEntity 
+            { 
+                Key = "System:ManagementClientId", 
+                Value = clientId,
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
+        }
+        else
+        {
+            setting.Value = clientId;
+            setting.UpdatedAt = DateTimeOffset.UtcNow;
+            dbContext.SystemSettings.Update(setting);
+        }
     }
 
     private async Task ProvisionInitialAdminAsync()
@@ -136,7 +176,7 @@ public class BootstrapService(
         if (existingAdmin != null)
         {
             // Ensure admin has the 'admin' role
-            existingAdmin.Roles ??= new List<string>();
+            existingAdmin.Roles ??= [];
             if (!existingAdmin.Roles.Contains("admin"))
             {
                 logger.LogInformation("Adding 'admin' role to existing admin user '{Email}'.", email);
@@ -152,7 +192,7 @@ public class BootstrapService(
                 var extraUser = await dbContext.Users.FirstOrDefaultAsync(u => u.Email == extraEmail);
                 if (extraUser != null)
                 {
-                    extraUser.Roles ??= new List<string>();
+                    extraUser.Roles ??= [];
                     if (!extraUser.Roles.Contains("admin"))
                     {
                         logger.LogInformation("Adding 'admin' role to extra admin user '{Email}'.", extraEmail);
@@ -200,7 +240,7 @@ public class BootstrapService(
             Email = email,
             FirstName = "System",
             LastName = "Administrator",
-            Roles = new List<string> { "admin" },
+            Roles = ["admin"],
             CreatedAt = DateTimeOffset.UtcNow,
             EmailVerified = true,
             IsActive = true
