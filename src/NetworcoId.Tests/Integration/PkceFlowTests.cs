@@ -126,6 +126,7 @@ public class PkceFlowTests : IClassFixture<WebApplicationFactory<Program>>, IDis
                 db.OAuthClients.Add(new OAuthClientEntity
                 {
                     ClientId = ClientId,
+                    Audience = "networco-api",
                     DisplayName = "Test Client",
                     PrimaryClientSecretHash = hasher.HashPassword(ClientSecret),
                     RedirectUris = new List<string> { RedirectUri },

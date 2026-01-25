@@ -122,6 +122,7 @@ public class UserinfoScopeTests : IClassFixture<WebApplicationFactory<Program>>,
                 db.OAuthClients.Add(new OAuthClientEntity
                 {
                     ClientId = ClientId,
+                    Audience = "networco-api",
                     DisplayName = "Scope Test Client",
                     PrimaryClientSecretHash = hasher.HashPassword(ClientSecret),
                     RedirectUris = new List<string> { RedirectUri },
@@ -188,7 +189,12 @@ public class UserinfoScopeTests : IClassFixture<WebApplicationFactory<Program>>,
         
         _client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
         var response = await _client.GetAsync("/auth/me");
-        var claims = await response.Content.ReadFromJsonAsync<Dictionary<string, object>>();
+        var responseContent = await response.Content.ReadAsStringAsync();
+        if (response.StatusCode != HttpStatusCode.OK)
+        {
+            throw new Exception($"Userinfo failed with status {response.StatusCode}. Content: {responseContent}");
+        }
+        var claims = JsonSerializer.Deserialize<Dictionary<string, object>>(responseContent);
         
         Assert.True(claims!.ContainsKey("given_name"), $"Expected given_name to be present. Claims: {string.Join(", ", claims.Keys)}");
         Assert.True(claims.ContainsKey("family_name"), "Expected family_name to be present");
@@ -203,7 +209,12 @@ public class UserinfoScopeTests : IClassFixture<WebApplicationFactory<Program>>,
         
         _client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
         var response = await _client.GetAsync("/auth/me");
-        var claims = await response.Content.ReadFromJsonAsync<Dictionary<string, object>>();
+        var responseContent = await response.Content.ReadAsStringAsync();
+        if (response.StatusCode != HttpStatusCode.OK)
+        {
+            throw new Exception($"Userinfo failed with status {response.StatusCode}. Content: {responseContent}");
+        }
+        var claims = JsonSerializer.Deserialize<Dictionary<string, object>>(responseContent);
         
         Assert.True(claims!.ContainsKey("email"), $"Expected email to be present. Claims: {string.Join(", ", claims.Keys)}");
         Assert.True(claims.ContainsKey("email_verified"), "Expected email_verified to be present");
@@ -218,7 +229,12 @@ public class UserinfoScopeTests : IClassFixture<WebApplicationFactory<Program>>,
         
         _client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
         var response = await _client.GetAsync("/auth/me");
-        var claims = await response.Content.ReadFromJsonAsync<Dictionary<string, object>>();
+        var responseContent = await response.Content.ReadAsStringAsync();
+        if (response.StatusCode != HttpStatusCode.OK)
+        {
+            throw new Exception($"Userinfo failed with status {response.StatusCode}. Content: {responseContent}");
+        }
+        var claims = JsonSerializer.Deserialize<Dictionary<string, object>>(responseContent);
         
         Assert.True(claims!.ContainsKey("sub"), "Expected sub to be present");
         Assert.True(claims.ContainsKey("email"), "Expected email to be present");
@@ -234,7 +250,12 @@ public class UserinfoScopeTests : IClassFixture<WebApplicationFactory<Program>>,
         
         _client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
         var response = await _client.GetAsync("/auth/me");
-        var claims = await response.Content.ReadFromJsonAsync<Dictionary<string, object>>();
+        var responseContent = await response.Content.ReadAsStringAsync();
+        if (response.StatusCode != HttpStatusCode.OK)
+        {
+            throw new Exception($"Userinfo failed with status {response.StatusCode}. Content: {responseContent}");
+        }
+        var claims = JsonSerializer.Deserialize<Dictionary<string, object>>(responseContent);
         
         Assert.True(claims!.ContainsKey("sub"));
         Assert.False(claims.ContainsKey("email"));

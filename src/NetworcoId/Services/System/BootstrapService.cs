@@ -82,6 +82,7 @@ public class BootstrapService(
         {
             ClientId = newClientId,
             DisplayName = "Networco ID Management Portal",
+            Audience = config.Audience, // Use the service's own audience for management portal access
             PrimaryClientSecretHash = secretHash,
             RedirectUris = [$"{config.BaseUrl.TrimEnd('/')}/admin/callback"],
             AllowedScopes = ["openid", "profile", "email", "address", "phone", "admin"],
@@ -185,28 +186,35 @@ public class BootstrapService(
             }
 
             // Also check other potential admins from config or environment
-            var extraAdmins = Environment.GetEnvironmentVariable("NETWORCO_EXTRA_ADMINS")?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? Array.Empty<string>();
-            logger.LogInformation("Found {Count} extra admins to check: {Admins}", extraAdmins.Length, string.Join(", ", extraAdmins));
-            foreach (var extraEmail in extraAdmins)
+            var extraAdminsEnv = Environment.GetEnvironmentVariable("NETWORCO_EXTRA_ADMINS");
+            var extraAdmins = string.IsNullOrEmpty(extraAdminsEnv) 
+                ? Array.Empty<string>() 
+                : extraAdminsEnv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            
+            if (extraAdmins.Length > 0)
             {
-                var extraUser = await dbContext.Users.FirstOrDefaultAsync(u => u.Email == extraEmail);
-                if (extraUser != null)
+                logger.LogInformation("Found {Count} extra admins to check: {Admins}", extraAdmins.Length, string.Join(", ", extraAdmins));
+                foreach (var extraEmail in extraAdmins)
                 {
-                    extraUser.Roles ??= [];
-                    if (!extraUser.Roles.Contains("admin"))
+                    var extraUser = await dbContext.Users.FirstOrDefaultAsync(u => u.Email == extraEmail);
+                    if (extraUser != null)
                     {
-                        logger.LogInformation("Adding 'admin' role to extra admin user '{Email}'.", extraEmail);
-                        extraUser.Roles.Add("admin");
-                        await dbContext.SaveChangesAsync();
+                        extraUser.Roles ??= [];
+                        if (!extraUser.Roles.Contains("admin"))
+                        {
+                            logger.LogInformation("Adding 'admin' role to extra admin user '{Email}'.", extraEmail);
+                            extraUser.Roles.Add("admin");
+                            await dbContext.SaveChangesAsync();
+                        }
+                        else
+                        {
+                            logger.LogInformation("User '{Email}' already has 'admin' role.", extraEmail);
+                        }
                     }
                     else
                     {
-                        logger.LogInformation("User '{Email}' already has 'admin' role.", extraEmail);
+                        logger.LogWarning("Extra admin user '{Email}' not found in database.", extraEmail);
                     }
-                }
-                else
-                {
-                    logger.LogWarning("Extra admin user '{Email}' not found in database.", extraEmail);
                 }
             }
 

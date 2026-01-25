@@ -215,3 +215,39 @@ public class IpLockoutEntityConfiguration : IEntityTypeConfiguration<IpLockoutEn
         builder.HasIndex(l => l.LockedUntil);
     }
 }
+
+/// <summary>
+/// EF Core configuration for OAuthClientEntity.
+/// </summary>
+public class OAuthClientEntityConfiguration : IEntityTypeConfiguration<OAuthClientEntity>
+{
+    public void Configure(EntityTypeBuilder<OAuthClientEntity> builder)
+    {
+        builder.HasKey(c => c.ClientId);
+
+        builder.Property(c => c.ClientId)
+            .HasMaxLength(100)
+            .IsRequired();
+
+        builder.Property(c => c.Audience)
+            .HasMaxLength(255)
+            .IsRequired();
+
+        builder.Property(c => c.PrimaryClientSecretHash)
+            .HasMaxLength(255)
+            .IsRequired();
+
+        builder.Property(c => c.SecondaryClientSecretHash)
+            .HasMaxLength(255);
+
+        builder.Property(c => c.DisplayName)
+            .HasMaxLength(255)
+            .IsRequired();
+
+        builder.Property(c => c.CreatedAt)
+            .HasDefaultValueSql("now()");
+
+        builder.Property(c => c.IsActive)
+            .HasDefaultValue(true);
+    }
+}

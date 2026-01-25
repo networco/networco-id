@@ -187,7 +187,7 @@ public static class AuthEndpoints
             return Results.Json(new { error = "must_change_password", message = "You must change your password before proceeding." }, statusCode: 403);
         }
 
-        var accessToken = await jwtService.GenerateAccessTokenAsync(user);
+        var accessToken = await jwtService.GenerateAccessTokenAsync(user, config.Audience);
         var refreshToken = jwtService.GenerateRefreshToken();
 
         // Store refresh token
@@ -235,7 +235,7 @@ public static class AuthEndpoints
         }
 
         // Generate new tokens
-        var newAccessToken = await jwtService.GenerateAccessTokenAsync(user);
+        var newAccessToken = await jwtService.GenerateAccessTokenAsync(user, config.Audience);
         var newRefreshToken = jwtService.GenerateRefreshToken();
 
         // Rotate refresh token
@@ -285,7 +285,7 @@ public static class AuthEndpoints
                 return Results.BadRequest(new { error = "Failed to create user account" });
             }
 
-            var accessToken = await jwtService.GenerateAccessTokenAsync(user);
+            var accessToken = await jwtService.GenerateAccessTokenAsync(user, config.Audience);
             var refreshToken = jwtService.GenerateRefreshToken();
 
             // Store refresh token

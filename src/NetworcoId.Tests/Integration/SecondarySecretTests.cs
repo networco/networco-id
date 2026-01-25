@@ -98,6 +98,7 @@ public class SecondarySecretTests : IClassFixture<WebApplicationFactory<Program>
         db.OAuthClients.Add(new OAuthClientEntity
         {
             ClientId = ClientId,
+            Audience = "networco-api",
             DisplayName = "Secondary Secret Test Client",
             PrimaryClientSecretHash = hasher.HashPassword(PrimarySecret),
             SecondaryClientSecretHash = hasher.HashPassword(SecondarySecret),
