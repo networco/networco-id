@@ -55,7 +55,7 @@ if (string.IsNullOrEmpty(dbUrl))
 
     if (!string.IsNullOrEmpty(pgHost) && !string.IsNullOrEmpty(pgDb) && !string.IsNullOrEmpty(pgUser))
     {
-        dbUrl = $"Host={pgHost};Port={pgPort};Database={pgDb};Username={pgUser};Password={pgPass};Ssl Mode=Prefer;Trust Server Certificate=true;";
+        dbUrl = $"Host={pgHost};Port={pgPort};Database={pgDb};Username={pgUser};Password={pgPass};Ssl Mode=Prefer;Trust Server Certificate=true;Timeout=60;Command Timeout=60;Keepalive=30;";
     }
 }
 
@@ -255,22 +255,27 @@ using (var scope = app.Services.CreateScope())
         // Double check provider to be safe
         if (db.Database.ProviderName != "Microsoft.EntityFrameworkCore.InMemory")
         {
-            try
+            var retryCount = 0;
+            const int maxRetries = 10;
+            var migrated = false;
+
+            while (!migrated && retryCount < maxRetries)
             {
-                await db.Database.MigrateAsync();
-            }
-            catch (Exception ex)
-            {
-                var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Migration");
-                
-                if (ex is Npgsql.PostgresException pgEx && (pgEx.SqlState == "42501" || pgEx.SqlState == "3D000"))
+                try
                 {
-                    logger.LogWarning("Database migration/access warning (State: {State}): {Message}. Attempting to continue...", pgEx.SqlState, pgEx.MessageText);
+                    await db.Database.MigrateAsync();
+                    migrated = true;
                 }
-                else
+                catch (Exception ex)
                 {
-                    logger.LogCritical(ex, "CRITICAL: Database migration failed with an unexpected error.");
-                    throw; // Re-throw critical unexpected errors
+                    retryCount++;
+                    if (retryCount >= maxRetries)
+                    {
+                        throw;
+                    }
+                    var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("DatabaseMigrator");
+                    logger.LogWarning(ex, "Database migration failed (attempt {RetryCount}/{MaxRetries}). Retrying in 5 seconds...", retryCount, maxRetries);
+                    await Task.Delay(5000);
                 }
             }
         }
