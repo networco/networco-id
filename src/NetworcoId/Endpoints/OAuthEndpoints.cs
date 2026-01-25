@@ -671,7 +671,7 @@ public static class OAuthEndpoints
 
         // Generate tokens
         // Scopes are now retrieved from the authorization code session
-        var accessToken = await jwtService.GenerateAccessTokenAsync(user, scopes);
+        var accessToken = await jwtService.GenerateAccessTokenAsync(user, clientEntity.Audience, scopes);
         // Pass authTime to ID token generation to preserve original login time
         var idToken = await jwtService.GenerateIdTokenAsync(user, finalClientId, user.Nonce, authTime);
         var newRefreshToken = jwtService.GenerateRefreshToken();
@@ -813,7 +813,7 @@ public static class OAuthEndpoints
             AddressCountry = user.AddressCountry
         };
 
-        var newAccessToken = await jwtService.GenerateAccessTokenAsync(userDto, new List<string> { "openid", "profile", "email", "offline_access" }); // TODO: Persist scopes in refresh token
+        var newAccessToken = await jwtService.GenerateAccessTokenAsync(userDto, clientEntity.Audience, new List<string> { "openid", "profile", "email", "offline_access" }); // TODO: Persist scopes in refresh token
         var newRefreshToken = jwtService.GenerateRefreshToken();
         var newRefreshTokenHash = Convert.ToBase64String(System.Security.Cryptography.SHA256.HashData(
             System.Text.Encoding.UTF8.GetBytes(newRefreshToken)));

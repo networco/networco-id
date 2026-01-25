@@ -13,8 +13,8 @@ public interface IClientManagementService
 {
     Task<PagedResult<OAuthClientEntity>> GetClientsAsync(int pageNumber = 1, int pageSize = 10, string? searchTerm = null, string? sortBy = null, bool sortDescending = true);
     Task<OAuthClientEntity?> GetClientAsync(string clientId);
-    Task<(OAuthClientEntity Client, string Secret)> CreateClientAsync(string displayName, List<string> redirectUris, List<string> allowedScopes, bool isTrustedForExchange = false);
-    Task UpdateClientAsync(string clientId, string displayName, List<string> redirectUris, List<string> allowedScopes, bool isTrustedForExchange = false);
+    Task<(OAuthClientEntity Client, string Secret)> CreateClientAsync(string displayName, string audience, List<string> redirectUris, List<string> allowedScopes, bool isTrustedForExchange = false);
+    Task UpdateClientAsync(string clientId, string displayName, string audience, List<string> redirectUris, List<string> allowedScopes, bool isTrustedForExchange = false);
     Task<string?> RotateClientSecretAsync(string clientId, bool isPrimary);
     Task ClearSecondarySecretAsync(string clientId);
     Task<bool> ToggleClientStatusAsync(string clientId);
@@ -63,7 +63,7 @@ public class ClientManagementService(
         return await dbContext.OAuthClients.FirstOrDefaultAsync(c => c.ClientId == clientId);
     }
 
-    public async Task<(OAuthClientEntity Client, string Secret)> CreateClientAsync(string displayName, List<string> redirectUris, List<string> allowedScopes, bool isTrustedForExchange = false)
+    public async Task<(OAuthClientEntity Client, string Secret)> CreateClientAsync(string displayName, string audience, List<string> redirectUris, List<string> allowedScopes, bool isTrustedForExchange = false)
     {
         var clientId = "nw_" + Convert.ToHexString(RandomNumberGenerator.GetBytes(8)).ToLowerInvariant();
 
@@ -78,6 +78,7 @@ public class ClientManagementService(
         var client = new OAuthClientEntity
         {
             ClientId = clientId,
+            Audience = audience,
             PrimaryClientSecretHash = secretHash,
             DisplayName = displayName,
             RedirectUris = redirectUris,
@@ -93,12 +94,13 @@ public class ClientManagementService(
         return (client, secret);
     }
 
-    public async Task UpdateClientAsync(string clientId, string displayName, List<string> redirectUris, List<string> allowedScopes, bool isTrustedForExchange = false)
+    public async Task UpdateClientAsync(string clientId, string displayName, string audience, List<string> redirectUris, List<string> allowedScopes, bool isTrustedForExchange = false)
     {
         var client = await dbContext.OAuthClients.AsTracking().FirstOrDefaultAsync(c => c.ClientId == clientId);
         if (client == null) return;
 
         client.DisplayName = displayName;
+        client.Audience = audience;
         client.RedirectUris = redirectUris;
         client.AllowedScopes = allowedScopes;
         client.IsTrustedForExchange = isTrustedForExchange;

@@ -33,8 +33,14 @@ public static class AdminEndpoints
                 return Results.BadRequest(new { error = "DisplayName is required" });
             }
 
+            if (string.IsNullOrEmpty(request.Audience))
+            {
+                return Results.BadRequest(new { error = "Audience is required" });
+            }
+
             var result = await clientService.CreateClientAsync(
                 request.DisplayName, 
+                request.Audience,
                 request.RedirectUris ?? new List<string>(), 
                 request.AllowedScopes ?? new List<string>(),
                 request.IsTrustedForExchange);
@@ -100,6 +106,7 @@ public static class AdminEndpoints
 
     public record CreateClientRequest(
         string DisplayName, 
+        string Audience,
         List<string>? RedirectUris, 
         List<string>? AllowedScopes,
         bool IsTrustedForExchange = false);

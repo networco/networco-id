@@ -86,6 +86,9 @@
                                             <a asp-page="./Edit" asp-route-id="@client.ClientId">@client.DisplayName</a>
                                         </div>
                                         <div class="text-[10px] font-bold font-mono text-gray-400 dark:text-gray-500 uppercase tracking-widest">@client.ClientId</div>
+                                        <div class="mt-1 text-[10px] font-medium text-gray-400 dark:text-gray-500 truncate max-w-[200px]" title="Audience: @client.Audience">
+                                            <span class="uppercase tracking-tighter text-[9px] opacity-70">Aud:</span> @client.Audience
+                                        </div>
                                     </div>
                                 </div>
                             </td>

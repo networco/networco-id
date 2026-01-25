@@ -135,6 +135,7 @@ public class PasswordChangeFlowTests : IClassFixture<WebApplicationFactory<Progr
             db.OAuthClients.Add(new Models.Entities.OAuthClientEntity
             {
                 ClientId = "test-client",
+                Audience = "networco-api",
                 DisplayName = "Test Client",
                 PrimaryClientSecretHash = hasher.HashPassword("secret"),
                 RedirectUris = new List<string> { "https://example.com/callback" },

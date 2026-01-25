@@ -50,7 +50,7 @@ public static class ServiceConfiguration
         var config = new NetworcoIdConfig
         {
             Issuer = issuer,
-            Audience = "networco-api",
+            Audience = configuration["JWT_AUDIENCE"] ?? "networco-api",
             BaseUrl = baseUrl
         };
         configuration.GetSection("NetworcoId").Bind(config);
@@ -185,7 +185,23 @@ public static class ServiceConfiguration
                 {
                     ValidateIssuer = true,
                     ValidIssuer = config.Issuer,
-                    ValidateAudience = false,
+                    ValidateAudience = true,
+                    // Allow both the global audience and dynamic audiences from the database
+                    ValidAudience = config.Audience,
+                    AudienceValidator = (audiences, securityToken, validationParameters) =>
+                    {
+                        if (audiences == null || !audiences.Any()) return false;
+                        
+                        // 1. Check if it matches the primary audience (IDP itself)
+                        if (audiences.Contains(config.Audience)) return true;
+                        
+                        // 2. Check if it's a registered client audience
+                        // We use a scope here to access the database
+                        using var scope = services.BuildServiceProvider().CreateScope();
+                        var dbContext = scope.ServiceProvider.GetRequiredService<NetworcoId.Infrastructure.Database.AuthDbContext>();
+                        
+                        return audiences.Any(aud => dbContext.OAuthClients.Any(c => c.Audience == aud));
+                    },
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
                     // Use the JWKS endpoint for validation

@@ -7,6 +7,7 @@ namespace NetworcoId.Models.Entities;
 public class OAuthClientEntity
 {
     public required string ClientId { get; set; }
+    public required string Audience { get; set; }
     public required string PrimaryClientSecretHash { get; set; }
     public string? SecondaryClientSecretHash { get; set; }
     public required string DisplayName { get; set; }

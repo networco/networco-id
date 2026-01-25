@@ -23,6 +23,9 @@ public class EditModel(IClientManagementService clientService, IAuditService aud
     public string DisplayName { get; set; } = string.Empty;
 
     [BindProperty]
+    public string Audience { get; set; } = string.Empty;
+
+    [BindProperty]
     public string RedirectUris { get; set; } = string.Empty;
 
     [BindProperty]
@@ -59,6 +62,7 @@ public class EditModel(IClientManagementService clientService, IAuditService aud
         IsSystemClient = client.ClientId == config.Value.SystemManagementClientId;
         ClientId = client.ClientId;
         DisplayName = client.DisplayName;
+        Audience = client.Audience;
         RedirectUris = string.Join("\n", client.RedirectUris);
         Scopes = string.Join(", ", client.AllowedScopes);
         SelectedScopes = client.AllowedScopes;
@@ -100,7 +104,7 @@ public class EditModel(IClientManagementService clientService, IAuditService aud
             await clientService.ToggleClientStatusAsync(ClientId);
         }
 
-        await clientService.UpdateClientAsync(ClientId, DisplayName, redirectUriList, scopeList, IsTrustedForExchange);
+        await clientService.UpdateClientAsync(ClientId, DisplayName, Audience, redirectUriList, scopeList, IsTrustedForExchange);
         await auditService.LogAsync("ClientUpdated", $"OAuth client {ClientId} was updated.");
 
         return RedirectToPage(new { id = ClientId });
@@ -151,6 +155,7 @@ public class EditModel(IClientManagementService clientService, IAuditService aud
             IsSystemClient = client.ClientId == systemClientId;
             ClientId = client.ClientId;
             DisplayName = client.DisplayName;
+            Audience = client.Audience;
             RedirectUris = string.Join("\n", client.RedirectUris);
             Scopes = string.Join(", ", client.AllowedScopes);
             HasSecondarySecret = !string.IsNullOrEmpty(client.SecondaryClientSecretHash);

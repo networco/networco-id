@@ -17,6 +17,9 @@ public class CreateModel(IClientManagementService clientManagementService) : Pag
     public string DisplayName { get; set; } = string.Empty;
 
     [BindProperty]
+    public string Audience { get; set; } = "networco-api";
+
+    [BindProperty]
     public string RedirectUris { get; set; } = string.Empty;
 
     [BindProperty]
@@ -60,7 +63,7 @@ public class CreateModel(IClientManagementService clientManagementService) : Pag
             }
         }
 
-        var (client, secret) = await clientManagementService.CreateClientAsync(DisplayName, redirectUriList, scopeList, IsTrustedForExchange);
+        var (client, secret) = await clientManagementService.CreateClientAsync(DisplayName, Audience, redirectUriList, scopeList, IsTrustedForExchange);
 
         CreatedClientId = client.ClientId;
         CreatedSecret = secret;
