@@ -77,3 +77,6 @@ This document provides essential context and instructions for AI agents operatin
 - **Subjects:** Defined in `NetworcoId.Core.Models.NetworcoIdSubjects`.
 - **Publishing:** Use `INatsConnection.PublishJetStreamAsync`.
 - **Provisioning:** Streams are provisioned on startup in `Program.cs` via `ProvisionStreamsAsync`.
+
+## 🔄 Git Workflow
+- **Do NOT auto-commit**: Never commit changes automatically. The user wants to review all changes before committing.

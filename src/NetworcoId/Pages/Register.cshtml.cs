@@ -28,9 +28,12 @@ public class RegisterModel(
     public string ReturnUrl { get; set; } = string.Empty;
     public bool RegistrationSuccess { get; set; }
 
+    private string SanitizeReturnUrl(string? url) =>
+        string.IsNullOrWhiteSpace(url) ? _config.FrontendUrl : url;
+
     public void OnGet(string? return_url)
     {
-        ReturnUrl = return_url ?? "http://localhost:3000";
+        ReturnUrl = SanitizeReturnUrl(return_url);
     }
 
     public async Task<IActionResult> OnPostAsync(
@@ -50,14 +53,14 @@ public class RegisterModel(
                 string.IsNullOrEmpty(firstName), string.IsNullOrEmpty(lastName), 
                 string.IsNullOrEmpty(email), string.IsNullOrEmpty(password));
             ErrorMessage = "Alle felt er påkrevd";
-            ReturnUrl = return_url ?? "http://localhost:3000";
+            ReturnUrl = SanitizeReturnUrl(return_url);
             return Page();
         }
 
         if (password != confirmPassword)
         {
             ErrorMessage = "Passordene er ikke like";
-            ReturnUrl = return_url ?? "http://localhost:3000";
+            ReturnUrl = SanitizeReturnUrl(return_url);
             return Page();
         }
 
@@ -71,11 +74,11 @@ public class RegisterModel(
         if (!validationResult.IsValid)
         {
             ErrorMessage = validationResult.ErrorMessage;
-            ReturnUrl = return_url ?? "http://localhost:3000";
+            ReturnUrl = SanitizeReturnUrl(return_url);
             return Page();
         }
 
-        ReturnUrl = return_url ?? "http://localhost:3000";
+        ReturnUrl = SanitizeReturnUrl(return_url);
 
         try
         {
@@ -122,10 +125,11 @@ public class RegisterModel(
 
             // Send NATS message via IEmailService to follow project convention
             // The NatsEmailService will handle publishing the EmailNotificationMessage
+            var verifyUrl = $"{_config.BaseUrl.TrimEnd('/')}/verify?token={verificationToken}&return_url={HttpUtility.UrlEncode(ReturnUrl)}";
             await emailService.SendEmailAsync(
                 email,
                 "Verify your NetworcoID account",
-                $"Please verify your account using this link: {_config.BaseUrl.TrimEnd('/')}/verify?token={verificationToken}",
+                $"Please verify your account using this link: {verifyUrl}",
                 firstName);
 
             logger.LogInformation("User {Email} registered, verification email queued", email);
