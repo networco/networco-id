@@ -16,6 +16,7 @@ public class NetworcoIdConfig
     public required string Issuer { get; set; }
     public required string Audience { get; set; }
     public string BaseUrl { get; set; } = "http://localhost:5200";
+    public string FrontendUrl { get; set; } = "http://localhost:3000";
     
     // Initial Bootstrap Configuration
     public string? InitialAdminEmail { get; set; }

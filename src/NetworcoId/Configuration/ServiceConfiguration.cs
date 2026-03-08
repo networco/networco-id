@@ -47,17 +47,23 @@ public static class ServiceConfiguration
                     ?? configuration["NetworcoId:BaseUrl"]
                     ?? "http://localhost:5200";
 
+        var frontendUrl = configuration["FRONTEND_URL"]
+                    ?? configuration["NetworcoId:FrontendUrl"]
+                    ?? "http://localhost:3000";
+
         var config = new NetworcoIdConfig
         {
             Issuer = issuer,
             Audience = configuration["JWT_AUDIENCE"] ?? "networco-api",
-            BaseUrl = baseUrl
+            BaseUrl = baseUrl,
+            FrontendUrl = frontendUrl
         };
         configuration.GetSection("NetworcoId").Bind(config);
 
         // Ensure values are set correctly after binding (if not overridden by env)
         config.Issuer = issuer;
         config.BaseUrl = baseUrl;
+        config.FrontendUrl = frontendUrl;
 
         services.AddSingleton(provider =>
         {
@@ -66,6 +72,7 @@ public static class ServiceConfiguration
             // Re-apply to options to be safe
             optionsConfig.Issuer = issuer;
             optionsConfig.BaseUrl = baseUrl;
+            optionsConfig.FrontendUrl = frontendUrl;
 
             // Fallback for signing key
             if (string.IsNullOrEmpty(optionsConfig.Secret))

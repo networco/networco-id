@@ -1,8 +1,10 @@
 using System.Web;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Options;
 using NetworcoId.Infrastructure.Database;
 using NetworcoId.Services;
+using NetworcoId.Models.Auth;
 using NetworcoId.Models.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,8 +13,10 @@ namespace NetworcoId.Pages;
 public class VerifyModel(
     AuthDbContext dbContext,
     IAuthService authService,
+    IOptions<NetworcoIdConfig> config,
     ILogger<VerifyModel> logger) : PageModel
 {
+    private readonly NetworcoIdConfig _config = config.Value;
     public bool IsVerified { get; set; }
     public string? ErrorMessage { get; set; }
     public string? AuthorizationUrl { get; set; }
@@ -28,7 +32,7 @@ public class VerifyModel(
         }
 
         Token = token;
-        ReturnUrl = return_url ?? "http://localhost:3000";
+        ReturnUrl = !string.IsNullOrWhiteSpace(return_url) ? return_url : _config.FrontendUrl;
 
         try
         {

@@ -150,7 +150,7 @@
                         <label for="confirmPassword" class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Gjenta passord</label>
                         <input type="password" id="confirmPassword" name="confirmPassword" required minlength="@Model.MinPasswordLength"
                             class="w-full px-5 py-4 bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white dark:focus:bg-gray-950 transition-all outline-none text-gray-900 dark:text-white font-medium placeholder:text-gray-400" placeholder="••••••••" />
-                        <p id="match-text" class="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-3 px-1 flex items-center gap-3 transition-colors">
+                        <p id="match-text" class="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-3 px-1 flex items-center gap-3 transition-colors" style="visibility: hidden;">
                             <span id="match-icon" class="w-4 h-4 rounded-full border-2 border-current flex items-center justify-center text-[8px]"></span> Passordene må være like
                         </p>
                     </div>
@@ -244,22 +244,26 @@
             const strength = calculateStrength(password, metCount);
             updateStrengthUI(strength);
 
-            // Update match indicator
+            // Update match indicator — only show when user has started typing in confirm field
             if (confirm) {
+                matchText.style.visibility = 'visible';
                 if (password === confirm) {
                     matchText.classList.remove('text-gray-400', 'text-red-500');
                     matchText.classList.add('text-green-600');
                     matchIcon.textContent = '✓';
                     matchIcon.classList.remove('border-current');
                     matchIcon.classList.add('bg-green-600', 'border-green-600', 'text-white');
+                    matchText.lastChild.textContent = ' Passordene er like';
                 } else {
                     matchText.classList.remove('text-gray-400', 'text-green-600');
                     matchText.classList.add('text-red-500');
                     matchIcon.textContent = '✕';
                     matchIcon.classList.remove('border-current');
                     matchIcon.classList.add('bg-red-500', 'border-red-500', 'text-white');
+                    matchText.lastChild.textContent = ' Passordene må være like';
                 }
             } else {
+                matchText.style.visibility = 'hidden';
                 matchText.classList.remove('text-green-600', 'text-red-500');
                 matchText.classList.add('text-gray-400');
                 matchIcon.textContent = '';
