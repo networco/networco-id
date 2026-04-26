@@ -1,5 +1,4 @@
 using System.Text;
-using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using NetworcoId.Core.Security;
 using NetworcoId.Infrastructure.Database;
@@ -24,7 +23,7 @@ public interface IAuthService
     Task<NetworcoIdUserDto?> GetUserByEmailOrNationalIdAsync(string emailOrNationalId);
     Task<(NetworcoIdUserDto? User, List<string>? Scopes, DateTimeOffset? AuthTime)> ValidateAuthorizationCodeAsync(string code, string redirectUri, string? clientId = null, string? codeVerifier = null, bool isRegistration = false);
     Task<NetworcoIdUserDto?> RegisterUserAsync(string email, string password, string firstName, string lastName, string? nationalId, string? phoneNumber);
-    string CreateAuthorizationCode(string emailOrNationalId, string redirectUri, string? state, string? clientId = null, string? codeChallenge = null, string? codeChallengeMethod = null, string? nonce = null, IEnumerable<string>? scopes = null, DateTimeOffset? authTime = null);
+    Task<string> CreateAuthorizationCodeAsync(string emailOrNationalId, string redirectUri, string? state, string? clientId = null, string? codeChallenge = null, string? codeChallengeMethod = null, string? nonce = null, IEnumerable<string>? scopes = null, DateTimeOffset? authTime = null);
     Task StoreRefreshTokenAsync(Guid userId, string tokenHash, DateTimeOffset expiresAt, string? clientId = null);
     Task<NetworcoIdUserDto?> GetUserByRefreshTokenAsync(string tokenHash);
     Task<bool> ValidateRefreshTokenAsync(string tokenHash);
@@ -50,9 +49,9 @@ public class AuthService : IAuthService
     private readonly IEmailService _emailService;
     private readonly INatsConnection _nats;
     private readonly IPasswordValidator _passwordValidator;
+    private readonly IAuthCodeStore _authCodes;
 
-    // In-memory storage for auth codes (stateless, short-lived)
-    private static readonly ConcurrentDictionary<string, AuthCodeSession> _authCodes = new();
+    // Server-side OAuth code lifetime — must match the NATS KV bucket TTL.
     private static readonly TimeSpan CodeExpiration = TimeSpan.FromMinutes(5);
 
     public AuthService(
@@ -63,7 +62,8 @@ public class AuthService : IAuthService
         IAuditService auditService,
         IEmailService emailService,
         INatsConnection nats,
-        IPasswordValidator passwordValidator)
+        IPasswordValidator passwordValidator,
+        IAuthCodeStore authCodes)
     {
         _context = context;
         _passwordHasher = passwordHasher;
@@ -73,6 +73,7 @@ public class AuthService : IAuthService
         _emailService = emailService;
         _nats = nats;
         _passwordValidator = passwordValidator;
+        _authCodes = authCodes;
     }
 
     public async Task<NetworcoIdUserDto?> AuthenticateUserAsync(string emailOrNationalId, string password)
@@ -342,16 +343,13 @@ public class AuthService : IAuthService
         };
     }
 
-    public string CreateAuthorizationCode(string emailOrNationalId, string redirectUri, string? state, string? clientId = null, string? codeChallenge = null, string? codeChallengeMethod = null, string? nonce = null, IEnumerable<string>? scopes = null, DateTimeOffset? authTime = null)
+    public async Task<string> CreateAuthorizationCodeAsync(string emailOrNationalId, string redirectUri, string? state, string? clientId = null, string? codeChallenge = null, string? codeChallengeMethod = null, string? nonce = null, IEnumerable<string>? scopes = null, DateTimeOffset? authTime = null)
     {
-        // Stateless code: email|redirectUri|clientId|timestamp|challenge|method
-        // We use a concurrent dictionary in memory instead of embedding everything in the string
-        
         var codeId = Guid.NewGuid().ToString("N");
         var session = new AuthCodeSession(
-            emailOrNationalId, 
-            redirectUri, 
-            state, 
+            emailOrNationalId,
+            redirectUri,
+            state,
             codeChallenge,
             codeChallengeMethod,
             nonce,
@@ -360,20 +358,7 @@ public class AuthService : IAuthService
             DateTimeOffset.UtcNow,
             null);
 
-        _authCodes.TryAdd(codeId, session);
-
-        // Clean up expired codes occasionally
-        if (_authCodes.Count > 1000)
-        {
-            foreach (var key in _authCodes.Keys)
-            {
-                if (_authCodes.TryGetValue(key, out var s) && (DateTimeOffset.UtcNow - s.CreatedAt) > CodeExpiration)
-                {
-                    _authCodes.TryRemove(key, out _);
-                }
-            }
-        }
-
+        await _authCodes.PutAsync(codeId, session);
         return codeId;
     }
 
@@ -381,26 +366,27 @@ public class AuthService : IAuthService
     {
         try
         {
-            // Check in-memory store first (New Way)
-            if (_authCodes.TryGetValue(code, out var session))
+            // Atomic GET + mark-as-used via NATS KV (revision CAS). The store
+            // returns the session with `UsedAt = null` ONLY when we won the
+            // CAS — i.e. we're the first to consume this code. Any other
+            // outcome (already used at fetch time, or another caller raced
+            // us) is reuse.
+            var session = await _authCodes.GetAndMarkUsedAsync(code);
+            if (session is not null)
             {
-                // Check if code was already used (Reuse Detection)
                 if (session.UsedAt.HasValue)
                 {
                     _logger.LogWarning("Security Alert: Authorization code reuse detected! Code: {Code}, User: {User}", code, session.EmailOrNationalId);
-                    
-                    // Revoke all tokens for this user
                     await RevokeAllRefreshTokensForUserAsync(session.EmailOrNationalId);
-                    
                     return (null, null, null);
                 }
 
-                // Verify expiration
+                // Verify expiration (defensive — KV TTL should already have
+                // dropped expired entries, but check the timestamp anyway).
                 if ((DateTimeOffset.UtcNow - session.CreatedAt) > CodeExpiration)
                 {
                     _logger.LogWarning("Authorization code expired");
-                    // Code is expired, remove it to clean up
-                    _authCodes.TryRemove(code, out _);
+                    await _authCodes.DeleteAsync(code);
                     return (null, null, null);
                 }
 
@@ -453,15 +439,6 @@ public class AuthService : IAuthService
                             return (null, null, null);
                         }
                     }
-                }
-
-                // If valid, MARK AS USED
-                var usedSession = session with { UsedAt = DateTimeOffset.UtcNow };
-                if (!_authCodes.TryUpdate(code, usedSession, session))
-                {
-                     // Concurrency issue: someone else updated it. Treat as reuse failure.
-                     _logger.LogWarning("Failed to update auth code status. Potential concurrent use.");
-                     return (null, null, null);
                 }
 
                 var validUser = await GetUserByEmailOrNationalIdAsync(session.EmailOrNationalId);
@@ -948,15 +925,4 @@ public class AuthService : IAuthService
         return true;
     }
 
-    private record AuthCodeSession(
-        string EmailOrNationalId,
-        string RedirectUri,
-        string? State,
-        string? CodeChallenge,
-        string? CodeChallengeMethod,
-        string? Nonce,
-        List<string> Scopes,
-        DateTimeOffset? AuthTime,
-        DateTimeOffset CreatedAt,
-        DateTimeOffset? UsedAt);
 }

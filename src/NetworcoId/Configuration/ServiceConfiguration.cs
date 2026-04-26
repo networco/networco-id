@@ -105,6 +105,11 @@ public static class ServiceConfiguration
 
         // Business services
         services.AddScoped<IAuditService, AuditService>();
+        // OAuth authorization-code store backed by NATS KV — survives pod
+        // restarts, replicates with NATS, TTL'd to match the 5-minute code
+        // lifetime. Singleton so the lazily-initialised KV bucket handle is
+        // shared across requests.
+        services.AddSingleton<IAuthCodeStore, NatsKvAuthCodeStore>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IAuthSeeder, AuthSeeder>();
         services.AddScoped<IBootstrapService, BootstrapService>();

@@ -158,7 +158,7 @@ public class VerifyModel(
                 logger.LogWarning(ex, "Failed to extract OAuth params from ReturnUrl: {ReturnUrl}", ReturnUrl);
             }
 
-            var authCode = authService.CreateAuthorizationCode(user.Email, finalRedirectUri, state, clientId);
+            var authCode = await authService.CreateAuthorizationCodeAsync(user.Email, finalRedirectUri, state, clientId);
 
             // Build callback URL
             AuthorizationUrl = $"{finalRedirectUri}{(finalRedirectUri.Contains("?") ? "&" : "?")}code={authCode}&state={state}";

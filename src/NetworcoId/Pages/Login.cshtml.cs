@@ -324,7 +324,7 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
             logger.LogInformation("LOGIN POST: Creating Auth Code with Scopes = {Scopes}", requestedScopes == null ? "NULL" : string.Join(",", requestedScopes));
 
             // Pass the authTime to the auth code so it can be put in the ID token
-            var code = authService.CreateAuthorizationCode(user.Email, RedirectUri, State, ClientId, CodeChallenge, CodeChallengeMethod, Nonce, requestedScopes, authTime);
+            var code = await authService.CreateAuthorizationCodeAsync(user.Email, RedirectUri, State, ClientId, CodeChallenge, CodeChallengeMethod, Nonce, requestedScopes, authTime);
 
             // Build redirect URL
             var redirectUrl = new UriBuilder(RedirectUri);

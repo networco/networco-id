@@ -27,8 +27,10 @@
     </PackageReference>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.2" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.15.0" />
-    <PackageReference Include="NATS.Client.Core" Version="2.7.0" />
-    <PackageReference Include="NATS.Extensions.Microsoft.DependencyInjection" Version="2.7.0" />
+    <PackageReference Include="NATS.Client.Core" Version="2.7.3" />
+    <PackageReference Include="NATS.Client.JetStream" Version="2.7.3" />
+    <PackageReference Include="NATS.Client.KeyValueStore" Version="2.7.3" />
+    <PackageReference Include="NATS.Extensions.Microsoft.DependencyInjection" Version="2.7.3" />
   </ItemGroup>
 
   <ItemGroup>

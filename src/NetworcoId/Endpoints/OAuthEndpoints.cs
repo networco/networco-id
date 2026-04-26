@@ -324,7 +324,7 @@ public static class OAuthEndpoints
             // Create authorization code immediately
             // Pass the PRESERVED auth_time to ensure silent re-auth doesn't update it to "now"
             var requestedScopes = scope?.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).ToList();
-            var code = authService.CreateAuthorizationCode(email, redirect_uri, state, client_id, code_challenge, code_challenge_method, nonce, requestedScopes, authTime);
+            var code = await authService.CreateAuthorizationCodeAsync(email, redirect_uri, state, client_id, code_challenge, code_challenge_method, nonce, requestedScopes, authTime);
 
             // Build redirect response
             var queryParams = HttpUtility.ParseQueryString("");
@@ -452,7 +452,7 @@ public static class OAuthEndpoints
              if (!string.IsNullOrEmpty(email))
              {
                   var requestedScopes = scope?.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).ToList();
-                  var code = authService.CreateAuthorizationCode(email, redirect_uri, state, client_id, code_challenge, code_challenge_method, nonce, requestedScopes, authTime);
+                  var code = await authService.CreateAuthorizationCodeAsync(email, redirect_uri, state, client_id, code_challenge, code_challenge_method, nonce, requestedScopes, authTime);
 
                   var queryParams = HttpUtility.ParseQueryString("");
                   queryParams["code"] = code;
