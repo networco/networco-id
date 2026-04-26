@@ -119,8 +119,16 @@ public class VerifyModel(
             var finalRedirectUri = ReturnUrl;
             var state = Guid.NewGuid().ToString();
 
-            // Try to extract client_id and redirect_uri from ReturnUrl if it's an OAuth callback
+            // Try to extract OAuth params from ReturnUrl if it carried them.
+            // The auth code MUST carry the original scope list so the issued
+            // JWT includes the claims (email, given_name, family_name, …) the
+            // BFF needs to identify the user — otherwise the token exchange
+            // succeeds but the API rejects with "missing email" claim.
             string? clientId = null;
+            // Sensible default for the consumer-registration flow that hits
+            // this page: openid + profile + email so the BFF can JIT-provision
+            // the user. `offline_access` enables the refresh-token issuance.
+            List<string>? requestedScopes = new() { "openid", "profile", "email", "offline_access" };
             try
             {
                 // In production, ReturnUrl from email might be double-encoded or contain the full redirect URL
@@ -133,32 +141,49 @@ public class VerifyModel(
 
                 var uri = new Uri(uriString);
                 var query = HttpUtility.ParseQueryString(uri.Query);
-                
+
                 clientId = query["client_id"];
                 var oauthRedirectUri = query["redirect_uri"];
                 var oauthState = query["state"];
+                var oauthScope = query["scope"];
 
                 // If ReturnUrl was /Login?client_id=...&redirect_uri=..., then oauthRedirectUri is what we want
                 if (!string.IsNullOrEmpty(oauthRedirectUri))
                 {
                     finalRedirectUri = oauthRedirectUri;
                 }
-                
+
                 // CRITICAL: Preserve the original state so returnPath survives
                 if (!string.IsNullOrEmpty(oauthState))
                 {
                     state = oauthState;
                 }
-                
-                logger.LogInformation("Extracted OAuth params from ReturnUrl: ClientId={ClientId}, RedirectUri={RedirectUri}, State={State}", 
-                    clientId, finalRedirectUri, state);
+
+                // Preserve the original scope list verbatim if present —
+                // anything narrower than `openid email …` produces a token
+                // that the BFF can't identify a user from.
+                if (!string.IsNullOrEmpty(oauthScope))
+                {
+                    requestedScopes = oauthScope
+                        .Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)
+                        .ToList();
+                }
+
+                logger.LogInformation("Extracted OAuth params from ReturnUrl: ClientId={ClientId}, RedirectUri={RedirectUri}, State={State}, Scopes={Scopes}",
+                    clientId, finalRedirectUri, state, string.Join(",", requestedScopes));
             }
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Failed to extract OAuth params from ReturnUrl: {ReturnUrl}", ReturnUrl);
             }
 
-            var authCode = await authService.CreateAuthorizationCodeAsync(user.Email, finalRedirectUri, state, clientId);
+            var authCode = await authService.CreateAuthorizationCodeAsync(
+                user.Email,
+                finalRedirectUri,
+                state,
+                clientId,
+                scopes: requestedScopes,
+                authTime: DateTimeOffset.UtcNow);
 
             // Build callback URL
             AuthorizationUrl = $"{finalRedirectUri}{(finalRedirectUri.Contains("?") ? "&" : "?")}code={authCode}&state={state}";
