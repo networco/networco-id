@@ -28,6 +28,9 @@ public class RegisterModel(
     public string ReturnUrl { get; set; } = string.Empty;
     public bool RegistrationSuccess { get; set; }
 
+    /// <summary>Cookie name for the same-browser verification binding (see Verify).</summary>
+    public const string VerifyCookieName = "nwid_verify_session";
+
     private string SanitizeReturnUrl(string? url) =>
         string.IsNullOrWhiteSpace(url) ? _config.FrontendUrl : url;
 
@@ -93,23 +96,13 @@ public class RegisterModel(
                 return Page();
             }
 
-            // Generate verification token. Use URL-safe Base64 (same pattern as
-            // the password-reset flow in AuthService) so the token can sit in
-            // the email link without being URL-encoded — `+` would otherwise be
-            // decoded as a space and the lookup in Verify would fail.
-            var verificationToken = Convert.ToBase64String(
-                System.Security.Cryptography.RandomNumberGenerator.GetBytes(32))
-                .Replace("+", "-").Replace("/", "_").TrimEnd('=');
-
-            // Create user
+            // Create user (token + session id will be set by the helper).
             var user = new UserEntity
             {
                 Id = Guid.NewGuid(),
                 Email = email,
                 FirstName = firstName,
                 LastName = lastName,
-                EmailVerificationToken = verificationToken,
-                EmailVerificationTokenExpiresAt = DateTimeOffset.UtcNow.AddHours(24),
                 EmailVerified = false,
                 IsActive = true,
                 CreatedAt = DateTimeOffset.UtcNow
@@ -127,14 +120,11 @@ public class RegisterModel(
             dbContext.UserCredentials.Add(credential);
             await dbContext.SaveChangesAsync();
 
-            // Send NATS message via IEmailService to follow project convention
-            // The NatsEmailService will handle publishing the EmailNotificationMessage
-            var verifyUrl = $"{_config.BaseUrl.TrimEnd('/')}/verify?token={verificationToken}&return_url={HttpUtility.UrlEncode(ReturnUrl)}";
-            await emailService.SendEmailAsync(
-                email,
-                "Verify your NetworcoID account",
-                $"Please verify your account using this link: {verifyUrl}",
-                firstName);
+            // Generate the verification token + same-browser binding cookie and
+            // queue the email. Centralised in EmailVerificationHelper so the
+            // resend flows on Login + Verify use exactly the same shape.
+            await EmailVerificationHelper.SendAsync(
+                HttpContext, dbContext, emailService, user, _config.BaseUrl, ReturnUrl);
 
             logger.LogInformation("User {Email} registered, verification email queued", email);
 

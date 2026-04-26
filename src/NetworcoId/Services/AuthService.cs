@@ -918,6 +918,19 @@ public class AuthService : IAuthService
         user.PasswordResetToken = null;
         user.PasswordResetTokenExpiresAt = null;
 
+        // Completing a password reset is functionally email-ownership proof —
+        // the user received the reset link in their inbox and acted on it.
+        // Treating it as verification too means anyone who never finished the
+        // initial verify flow can recover by resetting their password instead.
+        if (!user.EmailVerified)
+        {
+            user.EmailVerified = true;
+            user.EmailVerificationToken = null;
+            user.EmailVerificationTokenExpiresAt = null;
+            user.EmailVerificationSessionId = null;
+            _logger.LogInformation("Marked email verified for {Id} via password-reset completion", user.Id);
+        }
+
         _context.Users.Update(user);
         _context.UserCredentials.Update(user.Credential);
         await _context.SaveChangesAsync();

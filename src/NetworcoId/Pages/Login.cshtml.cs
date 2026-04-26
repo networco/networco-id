@@ -9,13 +9,14 @@ using Microsoft.EntityFrameworkCore;
 using NetworcoId.Infrastructure.Database;
 using NetworcoId.Models.Auth;
 using NetworcoId.Services;
+using NetworcoId.Services.Messaging;
 using NetworcoId.Services.Security;
 
 namespace NetworcoId.Pages;
 
 [IgnoreAntiforgeryToken]
 [EnableRateLimiting("auth-login-strict")]
-public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthDbContext dbContext, ILogger<LoginModel> logger, ILockoutService lockoutService) : PageModel
+public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthDbContext dbContext, IEmailService emailService, ILogger<LoginModel> logger, ILockoutService lockoutService) : PageModel
 {
     [BindProperty(SupportsGet = true)]
     public string? client_id { get; set; }
@@ -66,6 +67,14 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
     public string? ErrorMessage { get; set; }
     public bool IsRegistration => Registration == "true";
     public bool IsClientError { get; set; }
+    /// <summary>True when the entered credentials were valid but the email
+    /// hasn't been verified yet — surfaces the "send a new link" CTA.</summary>
+    public bool RequiresEmailVerification { get; set; }
+    /// <summary>True when a fresh verification email was just sent so the page
+    /// can confirm "ny lenke sendt" to the user.</summary>
+    public bool VerificationEmailResent { get; set; }
+    /// <summary>Email being verified — pre-filled for the resend form.</summary>
+    public string? UnverifiedEmail { get; set; }
 
     public async Task<IActionResult> OnGetAsync()
     {
@@ -249,6 +258,18 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
             var ipSuccess = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
             await lockoutService.ResetAsync(ipSuccess);
 
+            // Block login until the user has verified their email. We surface a
+            // resend CTA so anyone whose verification link expired (or got lost)
+            // can request a fresh one without re-registering.
+            if (!user.EmailVerified)
+            {
+                logger.LogInformation("Login blocked for {Email}: email not verified", Email);
+                ErrorMessage = "E-postadressen din er ikke bekreftet ennå. Sjekk innboksen din eller send en ny lenke.";
+                RequiresEmailVerification = true;
+                UnverifiedEmail = Email;
+                return Page();
+            }
+
             if (user.MustChangePassword)
             {
                 logger.LogInformation("User {Email} must change password. Redirecting to /ChangePassword", Email);
@@ -322,5 +343,54 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
             logger.LogError(ex, "Error in Login OnPostAsync");
             return StatusCode(500, ex.ToString());
         }
+    }
+
+    /// <summary>
+    /// POST handler for the "Send ny lenke" button on the unverified-email
+    /// fallback. Issues a fresh verification token + cookie and queues the
+    /// email. Always reports success even if the email doesn't match a real
+    /// user — avoids leaking which addresses are registered.
+    /// </summary>
+    public async Task<IActionResult> OnPostResendVerificationAsync()
+    {
+        // Re-bind OAuth carry-through params so the page renders correctly on return.
+        client_id ??= Request.Form["client_id"];
+        redirect_uri ??= Request.Form["redirect_uri"];
+        state ??= Request.Form["state"];
+        scope ??= Request.Form["scope"];
+        code_challenge ??= Request.Form["code_challenge"];
+        code_challenge_method ??= Request.Form["code_challenge_method"];
+        nonce ??= Request.Form["nonce"];
+
+        var resendEmail = Request.Form["resendEmail"].ToString().Trim();
+        UnverifiedEmail = resendEmail;
+        VerificationEmailResent = true;
+
+        if (string.IsNullOrWhiteSpace(resendEmail))
+        {
+            return Page();
+        }
+
+        var user = await dbContext.Users.AsTracking()
+            .FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == resendEmail.ToLower());
+
+        // Silently no-op for unknown emails or already-verified accounts.
+        if (user == null || user.EmailVerified)
+        {
+            logger.LogInformation("Resend-verification requested for {Email} (no-op: not found or already verified)", resendEmail);
+            return Page();
+        }
+
+        // Carry the original OAuth params through the verify return_url so the
+        // user lands back on the same auth flow after they finally verify.
+        var returnUrl = !string.IsNullOrEmpty(redirect_uri)
+            ? $"/Login?{Request.Form.Where(kv => new[] { "client_id", "redirect_uri", "state", "scope" }.Contains(kv.Key)).Aggregate(string.Empty, (acc, kv) => acc + (acc.Length > 0 ? "&" : "") + $"{kv.Key}={Uri.EscapeDataString(kv.Value!)}")}"
+            : config.FrontendUrl;
+
+        await EmailVerificationHelper.SendAsync(
+            HttpContext, dbContext, emailService, user, config.BaseUrl, returnUrl);
+
+        logger.LogInformation("Resent verification email for {Email}", resendEmail);
+        return Page();
     }
 }
