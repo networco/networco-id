@@ -251,14 +251,14 @@
                     matchText.classList.remove('text-gray-400', 'text-red-500');
                     matchText.classList.add('text-green-600');
                     matchIcon.textContent = '✓';
-                    matchIcon.classList.remove('border-current');
+                    matchIcon.classList.remove('border-current', 'bg-red-500', 'border-red-500');
                     matchIcon.classList.add('bg-green-600', 'border-green-600', 'text-white');
                     matchText.lastChild.textContent = ' Passordene er like';
                 } else {
                     matchText.classList.remove('text-gray-400', 'text-green-600');
                     matchText.classList.add('text-red-500');
                     matchIcon.textContent = '✕';
-                    matchIcon.classList.remove('border-current');
+                    matchIcon.classList.remove('border-current', 'bg-green-600', 'border-green-600');
                     matchIcon.classList.add('bg-red-500', 'border-red-500', 'text-white');
                     matchText.lastChild.textContent = ' Passordene må være like';
                 }
