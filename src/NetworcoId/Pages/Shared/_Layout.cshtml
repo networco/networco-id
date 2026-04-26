@@ -4,25 +4,98 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - NETWORCO ID</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        // Critical: Anti-flash script
-        (function() {
-            const theme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-            if (theme === 'dark') {
-                document.documentElement.classList.add('dark');
-            } else {
-                document.documentElement.classList.remove('dark');
+        // Critical: Anti-flash theme script.
+        // Resolution order: explicit user choice (localStorage.theme) -> system preference -> light fallback.
+        (function () {
+            var theme = 'light';
+            try {
+                var stored = localStorage.getItem('theme');
+                if (stored === 'dark' || stored === 'light') {
+                    theme = stored;
+                } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    theme = 'dark';
+                }
+            } catch (e) {
+                theme = 'light';
             }
+            document.documentElement.classList.toggle('dark', theme === 'dark');
+
+            // Track system changes while the user has not made an explicit choice.
+            try {
+                if (window.matchMedia) {
+                    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+                    var handler = function (ev) {
+                        var explicit = null;
+                        try { explicit = localStorage.getItem('theme'); } catch (e) { }
+                        if (explicit !== 'dark' && explicit !== 'light') {
+                            document.documentElement.classList.toggle('dark', ev.matches);
+                            document.dispatchEvent(new CustomEvent('themechange'));
+                        }
+                    };
+                    if (mq.addEventListener) { mq.addEventListener('change', handler); }
+                    else if (mq.addListener) { mq.addListener(handler); }
+                }
+            } catch (e) { }
         })();
-        
+
         tailwind.config = {
             darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+                        heading: ['"Cocomat Pro"', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif']
+                    },
+                    colors: {
+                        networco: {
+                            // Baby blue — backgrounds & large surfaces
+                            'baby-50':  '#EEF5F8',
+                            'baby-100': '#D6E5EC',
+                            'baby-200': '#A9C7D6',
+                            'baby-300': '#8FB3C1',
+                            'baby-400': '#6E9AAE',
+                            light:      '#B2CDD8',
+                            // Primary blue — workhorse (links, icons, secondary buttons)
+                            'primary':        '#4A809F',
+                            'primary-light':  '#6FA3BF',
+                            'primary-dark':   '#3A6A83',
+                            'primary-darker': '#2E5568',
+                            // Authority — dark blue for text weight
+                            'dark':            '#355371',
+                            'authority-light': '#4E6B88',
+                            'authority-dark':  '#253B52',
+                            // Cognac — warmth/differentiation
+                            'cognac':       '#7F5F53',
+                            'cognac-light': '#A07A6D',
+                            'cognac-dark':  '#5E463D',
+                            // Coral — CTA only
+                            'coral':       '#FF6F61',
+                            'coral-light': '#FF8A7F',
+                            'coral-dark':  '#E85C4F',
+                            // Neutrals
+                            'neutral': '#F7F9FB',
+                            'border':  '#E3E8ED',
+                            'text':    '#2B2B2B',
+                            // Supplementary
+                            'bluegreen': '#4C899F',
+                            'beige':     '#E2D5C7'
+                        }
+                    }
+                }
+            }
         }
     </script>
+    <style>
+        html, body { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
+    </style>
     @await RenderSectionAsync("Styles", required: false)
 </head>
-<body class="bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+<body class="bg-networco-neutral dark:bg-gray-900 text-networco-text dark:text-gray-100 transition-colors duration-300">
     @RenderBody()
     @await RenderSectionAsync("Scripts", required: false)
     <script src="~/js/password-toggle.js"></script>

@@ -17,34 +17,34 @@
         <partial name="_ThemeToggle" />
     </div>
 
-    <div class="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 max-w-md w-full p-10 transition-colors duration-300">
+    <div class="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-networco-border dark:border-gray-700 max-w-md w-full p-10 transition-colors duration-300">
         @if (Model.IsVerified)
         {
             <div class="text-center">
-                <div class="mx-auto w-20 h-20 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full flex items-center justify-center mb-6">
+                <div class="mx-auto w-20 h-20 bg-networco-baby-50 dark:bg-green-900/30 text-networco-primary dark:text-green-400 rounded-full flex items-center justify-center mb-6">
                     <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
                     </svg>
                 </div>
-                <h1 class="text-3xl font-black text-gray-900 dark:text-white tracking-tight mb-3">Suksess!</h1>
-                <p class="text-gray-500 dark:text-gray-400 font-medium mb-8 leading-relaxed">Din e-post er bekreftet og kontoen din er nå aktivert.</p>
-                <div class="flex items-center justify-center gap-3 py-4 px-6 bg-gray-50 dark:bg-gray-900/50 rounded-2xl border border-gray-100 dark:border-gray-700">
-                    <div class="w-2 h-2 bg-indigo-600 dark:bg-indigo-400 rounded-full animate-pulse"></div>
-                    <p class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Logger deg inn...</p>
+                <h1 class="font-heading text-3xl font-black text-networco-authority-dark dark:text-white tracking-tight mb-3">Suksess!</h1>
+                <p class="text-networco-text dark:text-gray-400 font-medium mb-8 leading-relaxed">Din e-post er bekreftet og kontoen din er nå aktivert.</p>
+                <div class="flex items-center justify-center gap-3 py-4 px-6 bg-networco-baby-50 dark:bg-gray-900/50 rounded-2xl border border-networco-border dark:border-gray-700">
+                    <div class="w-2 h-2 bg-networco-primary dark:bg-indigo-400 rounded-full animate-pulse"></div>
+                    <p class="text-xs font-bold text-networco-authority-light/80 dark:text-gray-500 uppercase tracking-widest">Logger deg inn...</p>
                 </div>
             </div>
         }
         else if (!string.IsNullOrEmpty(Model.ErrorMessage))
         {
             <div class="text-center">
-                <div class="mx-auto w-20 h-20 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center mb-6">
+                <div class="mx-auto w-20 h-20 bg-networco-coral/10 dark:bg-red-900/30 text-networco-coral-dark dark:text-red-400 rounded-full flex items-center justify-center mb-6">
                     <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path>
                     </svg>
                 </div>
-                <h1 class="text-3xl font-black text-gray-900 dark:text-white tracking-tight mb-3">Oisann!</h1>
-                <p class="text-red-500 dark:text-red-400 font-bold mb-10 leading-relaxed">@Model.ErrorMessage</p>
-                <a href="/Login" class="inline-block w-full bg-indigo-600 text-white font-bold py-4 px-6 rounded-2xl hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-500/20 transition-all duration-200 text-lg">
+                <h1 class="font-heading text-3xl font-black text-networco-authority-dark dark:text-white tracking-tight mb-3">Oisann!</h1>
+                <p class="text-networco-coral-dark dark:text-red-400 font-bold mb-10 leading-relaxed">@Model.ErrorMessage</p>
+                <a href="/Login" class="inline-block w-full bg-networco-coral text-white font-bold py-4 px-6 rounded-2xl hover:bg-networco-coral-light hover:shadow-lg hover:shadow-networco-coral/30 transition-all duration-200 text-lg">
                     Gå til innlogging
                 </a>
             </div>
@@ -52,11 +52,11 @@
         else
         {
             <div class="text-center">
-                <div class="mx-auto w-20 h-20 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mb-6">
-                    <div class="animate-spin rounded-full h-10 w-10 border-4 border-indigo-600 dark:border-indigo-400 border-t-transparent"></div>
+                <div class="mx-auto w-20 h-20 bg-networco-baby-50 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mb-6">
+                    <div class="animate-spin rounded-full h-10 w-10 border-4 border-networco-primary dark:border-indigo-400 border-t-transparent"></div>
                 </div>
-                <h1 class="text-3xl font-black text-gray-900 dark:text-white tracking-tight mb-3">Bekrefter...</h1>
-                <p class="text-gray-500 dark:text-gray-400 font-medium mb-6">Et lite øyeblikk mens vi verifiserer din identitet.</p>
+                <h1 class="font-heading text-3xl font-black text-networco-authority-dark dark:text-white tracking-tight mb-3">Bekrefter...</h1>
+                <p class="text-networco-text dark:text-gray-400 font-medium mb-6">Et lite øyeblikk mens vi verifiserer din identitet.</p>
             </div>
         }
     </div>

@@ -5,24 +5,24 @@
     ViewData["Title"] = "NETWORCO ID";
 }
 
-<div class="bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 dark:from-gray-900 dark:via-gray-800 dark:to-indigo-950 min-h-screen flex flex-col transition-colors duration-300">
-    
+<div class="bg-gradient-to-br from-networco-baby-50 via-networco-neutral to-networco-baby-100 dark:from-gray-900 dark:via-gray-800 dark:to-indigo-950 min-h-screen flex flex-col transition-colors duration-300">
+
     <!-- Header -->
-    <header class="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 sticky top-0 z-50">
+    <header class="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-networco-border dark:border-gray-800 sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
             <div class="flex items-center gap-2">
-                <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold text-xl">N</div>
-                <span class="text-xl font-bold text-gray-900 dark:text-white">NETWORCO ID</span>
+                <div class="w-8 h-8 bg-networco-primary rounded-lg flex items-center justify-center text-white font-bold text-xl">N</div>
+                <span class="font-heading text-xl font-bold text-networco-authority-dark dark:text-white">NETWORCO ID</span>
             </div>
             <nav class="hidden md:flex gap-6">
-                <a href="/.well-known/openid-configuration" class="text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium transition-colors">OpenID Config</a>
-                <a href="/swagger" class="text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium transition-colors">API Docs</a>
+                <a href="/.well-known/openid-configuration" class="text-networco-authority-light dark:text-gray-400 hover:text-networco-primary dark:hover:text-networco-baby-200 font-medium transition-colors">OpenID Config</a>
+                <a href="/swagger" class="text-networco-authority-light dark:text-gray-400 hover:text-networco-primary dark:hover:text-networco-baby-200 font-medium transition-colors">API Docs</a>
             </nav>
             <div class="flex items-center gap-4">
                 <partial name="_ThemeToggle" />
-                <a href="/swagger" class="text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium transition-colors hidden sm:block">API Docs</a>
-                <a href="/Login?client_id=@Model.SystemClientId&redirect_uri=@(HttpUtility.UrlEncode($"{Model.BaseUrl.TrimEnd('/')}/admin/callback"))&response_type=code&scope=openid profile email admin" 
-                   class="bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors shadow-sm">
+                <a href="/swagger" class="text-networco-authority-light dark:text-gray-400 hover:text-networco-primary dark:hover:text-networco-baby-200 font-medium transition-colors hidden sm:block">API Docs</a>
+                <a href="/Login?client_id=@Model.SystemClientId&redirect_uri=@(HttpUtility.UrlEncode($"{Model.BaseUrl.TrimEnd('/')}/admin/callback"))&response_type=code&scope=openid profile email admin"
+                   class="bg-networco-coral text-white px-4 py-2 rounded-lg font-medium hover:bg-networco-coral-light hover:shadow-lg hover:shadow-networco-coral/30 transition-all shadow-sm">
                     Logg inn
                 </a>
             </div>
@@ -32,59 +32,59 @@
     <!-- Hero Section -->
     <main class="flex-grow flex items-center justify-center px-4 py-12">
         <div class="max-w-4xl w-full text-center">
-            <div class="inline-block mb-6 px-4 py-1.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-full text-sm font-semibold tracking-wide uppercase">
+            <div class="inline-block mb-6 px-4 py-1.5 bg-networco-baby-50 dark:bg-indigo-900/40 text-networco-primary-dark dark:text-indigo-300 rounded-full text-sm font-semibold tracking-wide uppercase border border-networco-primary/20">
                 Sikker Identitet
             </div>
-            <h1 class="text-5xl md:text-7xl font-extrabold text-gray-900 dark:text-white tracking-tight mb-8">
+            <h1 class="font-heading text-5xl md:text-7xl font-extrabold text-networco-authority-dark dark:text-white tracking-tight mb-8">
                 Én konto for hele <br/>
-                <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400">NETWORCO-universet</span>
+                <span class="text-transparent bg-clip-text bg-gradient-to-r from-networco-primary to-networco-cognac dark:from-indigo-400 dark:to-purple-400">NETWORCO-universet</span>
             </h1>
-            <p class="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto mb-12 leading-relaxed">
-                NETWORCO ID gir deg trygg og enkel tilgang til alle våre tjenester. 
+            <p class="text-xl text-networco-text dark:text-gray-400 max-w-2xl mx-auto mb-12 leading-relaxed">
+                NETWORCO ID gir deg trygg og enkel tilgang til alle våre tjenester.
                 Logg inn med Vipps, BankID eller e-post.
             </p>
-            
+
             <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                <a href="/Register?return_url=@(HttpUtility.UrlEncode($"/Login?client_id=networco-admin&redirect_uri={Model.BaseUrl.TrimEnd('/')}/admin/callback&response_type=code&scope=openid profile email admin"))" 
-                   class="w-full sm:w-auto px-8 py-4 bg-gray-900 dark:bg-white dark:text-gray-900 text-white rounded-xl font-bold text-lg hover:bg-gray-800 dark:hover:bg-gray-100 transition-all transform hover:scale-105 shadow-lg">
+                <a href="/Register?return_url=@(HttpUtility.UrlEncode($"/Login?client_id=networco-admin&redirect_uri={Model.BaseUrl.TrimEnd('/')}/admin/callback&response_type=code&scope=openid profile email admin"))"
+                   class="w-full sm:w-auto px-8 py-4 bg-networco-coral text-white rounded-xl font-bold text-lg hover:bg-networco-coral-light transition-all transform hover:scale-105 shadow-lg hover:shadow-networco-coral/30">
                     Opprett konto
                 </a>
-                <a href="/.well-known/openid-configuration" 
-                   class="w-full sm:w-auto px-8 py-4 bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 rounded-xl font-bold text-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-all hover:border-gray-300 dark:hover:border-gray-600 shadow-sm">
+                <a href="/.well-known/openid-configuration"
+                   class="w-full sm:w-auto px-8 py-4 bg-white dark:bg-gray-800 text-networco-authority-dark dark:text-white border border-networco-border dark:border-gray-700 rounded-xl font-bold text-lg hover:bg-networco-baby-50 dark:hover:bg-gray-700 transition-all hover:border-networco-primary/40 dark:hover:border-gray-600 shadow-sm">
                     Utviklerinfo
                 </a>
             </div>
 
             <!-- Features Grid -->
             <div class="grid md:grid-cols-3 gap-8 mt-24 text-left">
-                <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-                    <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center text-blue-600 dark:text-blue-400 mb-4">
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-networco-border dark:border-gray-700">
+                    <div class="w-12 h-12 bg-networco-baby-50 dark:bg-blue-900/30 rounded-xl flex items-center justify-center text-networco-primary dark:text-blue-400 mb-4">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
                     </div>
-                    <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">Trygg & Sikker</h3>
-                    <p class="text-gray-600 dark:text-gray-400">Vi bruker moderne sikkerhetsstandarder og støtter BankID for verifisering.</p>
+                    <h3 class="font-heading text-xl font-bold text-networco-authority-dark dark:text-white mb-2">Trygg & Sikker</h3>
+                    <p class="text-networco-text dark:text-gray-400">Vi bruker moderne sikkerhetsstandarder og støtter BankID for verifisering.</p>
                 </div>
-                <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-                    <div class="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center text-purple-600 dark:text-purple-400 mb-4">
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-networco-border dark:border-gray-700">
+                    <div class="w-12 h-12 bg-networco-cognac/10 dark:bg-purple-900/30 rounded-xl flex items-center justify-center text-networco-cognac dark:text-purple-400 mb-4">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                     </div>
-                    <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">Lynrask Login</h3>
-                    <p class="text-gray-600 dark:text-gray-400">Kom i gang på sekunder med Vipps eller din eksisterende konto.</p>
+                    <h3 class="font-heading text-xl font-bold text-networco-authority-dark dark:text-white mb-2">Lynrask Login</h3>
+                    <p class="text-networco-text dark:text-gray-400">Kom i gang på sekunder med Vipps eller din eksisterende konto.</p>
                 </div>
-                <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-                    <div class="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center text-green-600 dark:text-green-400 mb-4">
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-networco-border dark:border-gray-700">
+                    <div class="w-12 h-12 bg-networco-bluegreen/15 dark:bg-green-900/30 rounded-xl flex items-center justify-center text-networco-bluegreen dark:text-green-400 mb-4">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
                     </div>
-                    <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">Utviklervennlig</h3>
-                    <p class="text-gray-600 dark:text-gray-400">Standard OAuth2 og OpenID Connect støtte for enkel integrasjon.</p>
+                    <h3 class="font-heading text-xl font-bold text-networco-authority-dark dark:text-white mb-2">Utviklervennlig</h3>
+                    <p class="text-networco-text dark:text-gray-400">Standard OAuth2 og OpenID Connect støtte for enkel integrasjon.</p>
                 </div>
             </div>
         </div>
     </main>
 
     <!-- Footer -->
-    <footer class="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 py-8">
-        <div class="max-w-7xl mx-auto px-4 text-center text-gray-500 dark:text-gray-400 text-sm">
+    <footer class="bg-white dark:bg-gray-900 border-t border-networco-border dark:border-gray-800 py-8">
+        <div class="max-w-7xl mx-auto px-4 text-center text-networco-authority-light dark:text-gray-400 text-sm">
             <p>&copy; @DateTime.Now.Year NETWORCO AS. Alle rettigheter reservert. v@Model.Version</p>
         </div>
     </footer>
