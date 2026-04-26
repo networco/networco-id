@@ -223,6 +223,14 @@ public class EmailWorker(
     {
         var baseUrl = data.BaseUrl?.TrimEnd('/') ?? "https://id.networco.no";
         var resetUrl = $"{baseUrl}/Auth/ResetPassword?token={data.Token}";
+        // Carry the originating /Login URL through the reset flow so that
+        // after a successful password change the "Logg inn" button drops the
+        // user back into the OAuth handshake they started, instead of a
+        // bare /Login page.
+        if (!string.IsNullOrWhiteSpace(data.ReturnUrl))
+        {
+            resetUrl += $"&return_url={System.Web.HttpUtility.UrlEncode(data.ReturnUrl)}";
+        }
         var firstName = string.IsNullOrWhiteSpace(data.FirstName) ? null : data.FirstName;
         var greeting = firstName is null ? "Hei!" : $"Hei {firstName},";
 

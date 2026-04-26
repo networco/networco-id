@@ -32,7 +32,7 @@ public interface IAuthService
     Task<bool> ChangePasswordAsync(string emailOrNationalId, string currentPassword, string newPassword);
     
     // Password Reset
-    Task<bool> InitiatePasswordResetAsync(string email);
+    Task<bool> InitiatePasswordResetAsync(string email, string? returnUrl = null);
     Task<bool> ResetPasswordWithTokenAsync(string token, string newPassword);
 }
 
@@ -822,7 +822,7 @@ public class AuthService : IAuthService
         return true;
     }
 
-    public async Task<bool> InitiatePasswordResetAsync(string email)
+    public async Task<bool> InitiatePasswordResetAsync(string email, string? returnUrl = null)
     {
         var user = await _context.Users
             .Where(u => u.Email != null && EF.Functions.ILike(u.Email, email))
@@ -846,8 +846,11 @@ public class AuthService : IAuthService
         _context.Users.Update(user);
         await _context.SaveChangesAsync();
 
-        // Publish to NATS using the specialized message type for better worker handling
-        var resetMessage = new PasswordResetMessage(user.Email, token, user.FirstName, _config.BaseUrl);
+        // Publish to NATS using the specialized message type for better worker handling.
+        // ReturnUrl carries the OAuth params from the originating /Login through the
+        // reset-email link → reset-password page → "Logg inn" button, so the user
+        // lands back in the OAuth flow they started instead of a bare /Login.
+        var resetMessage = new PasswordResetMessage(user.Email, token, user.FirstName, _config.BaseUrl, returnUrl);
         var jsonBytes = global::System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(resetMessage);
         
         _logger.LogInformation("Publishing password reset message to NATS: {Email} ({ByteCount} bytes)", user.Email, jsonBytes.Length);
