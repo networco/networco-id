@@ -12,92 +12,170 @@ public class EmailWorker(
     IBrevoEmailService brevoEmail,
     ILogger<EmailWorker> logger) : BackgroundService
 {
+    private const string ConsumerName = "email-worker";
+    private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromMinutes(1);
+
+    private long _processedSinceHeartbeat;
+    private DateTimeOffset _lastActivityAt = DateTimeOffset.UtcNow;
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         logger.LogInformation("NetworcoID Email Worker starting...");
 
+        // Background heartbeat so we can SEE the worker is alive even when no
+        // mail traffic is flowing. Without this, an idle period is
+        // indistinguishable from a stuck consumer.
+        _ = Task.Run(() => HeartbeatAsync(stoppingToken), stoppingToken);
+
+        // Outer loop: if the consume pump exits for ANY reason (stream
+        // disconnect, transient NATS error, or — most importantly — the
+        // ConsumeAsync enumerator silently completing), log loudly and
+        // reconnect rather than sitting silently. Previously the foreach
+        // could exit without exception and the worker would idle forever
+        // with K8s still reporting the pod as Ready.
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                await RunConsumeLoopAsync(stoppingToken);
+
+                // ConsumeAsync should only complete on cancellation. If we get
+                // here without cancellation, the stream/consumer ended on us.
+                if (!stoppingToken.IsCancellationRequested)
+                {
+                    logger.LogError("Consume loop exited unexpectedly without cancellation. Reconnecting in {Delay}s...", ReconnectDelay.TotalSeconds);
+                }
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                logger.LogInformation("Worker shutdown requested");
+                return;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Consume loop crashed. Reconnecting in {Delay}s...", ReconnectDelay.TotalSeconds);
+            }
+
+            try
+            {
+                await Task.Delay(ReconnectDelay, stoppingToken);
+            }
+            catch (OperationCanceledException) { return; }
+        }
+    }
+
+    private async Task RunConsumeLoopAsync(CancellationToken stoppingToken)
+    {
         var js = new NatsJSContext(nats);
 
         // Ensure stream exists
         await nats.ProvisionStreamsAsync(logger);
-
-        var consumerName = "email-worker";
 
         // To handle WorkQueue streams reliably:
         // 1. We use a single durable consumer for the worker.
         // 2. This consumer handles ALL subjects on the NETWORCOID_IDENTITY stream.
         // 3. Since it's a WorkQueue, multiple instances of this worker will automatically
         //    load-balance messages by attaching to the same durable consumer.
-        INatsJSConsumer consumer;
-        logger.LogInformation("Ensuring durable consumer: {Name} on stream {Stream}", consumerName, NetworcoIdSubjects.StreamName);
-        
-        consumer = await js.CreateOrUpdateConsumerAsync(NetworcoIdSubjects.StreamName, new ConsumerConfig
+        logger.LogInformation("Ensuring durable consumer: {Name} on stream {Stream}", ConsumerName, NetworcoIdSubjects.StreamName);
+
+        var consumer = await js.CreateOrUpdateConsumerAsync(NetworcoIdSubjects.StreamName, new ConsumerConfig
         {
-            Name = consumerName,
-            DurableName = consumerName,
+            Name = ConsumerName,
+            DurableName = ConsumerName,
             AckPolicy = ConsumerConfigAckPolicy.Explicit,
             DeliverPolicy = ConsumerConfigDeliverPolicy.All,
             AckWait = TimeSpan.FromSeconds(30),
-            MaxDeliver = 3
+            MaxDeliver = 3,
         }, stoppingToken);
 
-        logger.LogInformation("Consumer {Name} active and ready.", consumerName);
-
-        logger.LogInformation("Consumer {Name} active. Listening for identity.email.>", consumerName);
+        logger.LogInformation("Consumer {Name} active. Listening for identity.email.>", ConsumerName);
+        _lastActivityAt = DateTimeOffset.UtcNow;
 
         await foreach (var msg in consumer.ConsumeAsync<byte[]>(cancellationToken: stoppingToken))
         {
+            _lastActivityAt = DateTimeOffset.UtcNow;
+            await ProcessMessageAsync(msg, stoppingToken);
+            Interlocked.Increment(ref _processedSinceHeartbeat);
+        }
+    }
+
+    private async Task ProcessMessageAsync(INatsJSMsg<byte[]> msg, CancellationToken stoppingToken)
+    {
+        try
+        {
+            var subject = msg.Subject;
+            logger.LogInformation(">>> RECEIVED MESSAGE: {Subject}", subject);
+
+            if (msg.Data == null || msg.Data.Length == 0)
+            {
+                logger.LogWarning("Received empty message data on subject {Subject}", subject);
+                await msg.AckAsync(cancellationToken: stoppingToken);
+                return;
+            }
+
+            // For messages published via NatsEmailService, they go to 'identity.email.notification'
+            if (subject == NetworcoIdSubjects.EmailNotification)
+            {
+                var data = System.Text.Json.JsonSerializer.Deserialize<EmailNotificationMessage>(msg.Data);
+                if (data != null)
+                {
+                    logger.LogInformation("Processing EmailNotification for {Email}: {Subject}", data.Email, data.Subject);
+                    await HandleNotificationEmail(data, stoppingToken);
+                }
+            }
+            else if (subject == NetworcoIdSubjects.EmailVerify)
+            {
+                var data = System.Text.Json.JsonSerializer.Deserialize<EmailVerificationMessage>(msg.Data);
+                if (data != null) await HandleVerificationEmail(data, stoppingToken);
+            }
+            else if (subject == NetworcoIdSubjects.PasswordReset)
+            {
+                var data = System.Text.Json.JsonSerializer.Deserialize<PasswordResetMessage>(msg.Data);
+                if (data != null) await HandlePasswordResetEmail(data, stoppingToken);
+            }
+            else
+            {
+                logger.LogWarning("Received message on unhandled subject: {Subject}", subject);
+            }
+
+            await msg.AckAsync(cancellationToken: stoppingToken);
+        }
+        catch (System.Text.Json.JsonException jsonEx)
+        {
+            var dataStr = msg.Data != null ? System.Text.Encoding.UTF8.GetString(msg.Data) : "NULL";
+            logger.LogError(jsonEx, "JSON Deserialization failed for message on {Subject}. Data: {Data}",
+                msg.Subject, dataStr);
+            // Ack bad messages to remove them from the WorkQueue so they don't block
+            await msg.AckAsync(cancellationToken: stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Shutdown — don't ack so the message will be redelivered after restart.
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to process message on subject {Subject}. Will be retried (MaxDeliver=3).", msg.Subject);
+            // Don't ack — let NATS redeliver per the consumer config.
+        }
+    }
+
+    private async Task HeartbeatAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
             try
             {
-                var subject = msg.Subject;
-                logger.LogInformation(">>> RECEIVED MESSAGE: {Subject}", subject);
-
-                if (msg.Data == null || msg.Data.Length == 0)
-                {
-                    logger.LogWarning("Received empty message data on subject {Subject}", subject);
-                    await msg.AckAsync(cancellationToken: stoppingToken);
-                    continue;
-                }
-
-                // For messages published via NatsEmailService, they go to 'identity.email.notification'
-                if (subject == NetworcoIdSubjects.EmailNotification)
-                {
-                    var data = System.Text.Json.JsonSerializer.Deserialize<EmailNotificationMessage>(msg.Data);
-                    if (data != null)
-                    {
-                        logger.LogInformation("Processing EmailNotification for {Email}: {Subject}", data.Email, data.Subject);
-                        await HandleNotificationEmail(data, stoppingToken);
-                    }
-                }
-                else if (subject == NetworcoIdSubjects.EmailVerify)
-                {
-                    var data = System.Text.Json.JsonSerializer.Deserialize<EmailVerificationMessage>(msg.Data);
-                    if (data != null) await HandleVerificationEmail(data, stoppingToken);
-                }
-                else if (subject == NetworcoIdSubjects.PasswordReset)
-                {
-                    var data = System.Text.Json.JsonSerializer.Deserialize<PasswordResetMessage>(msg.Data);
-                    if (data != null) await HandlePasswordResetEmail(data, stoppingToken);
-                }
-                else
-                {
-                    logger.LogWarning("Received message on unhandled subject: {Subject}", subject);
-                }
-
-                await msg.AckAsync(cancellationToken: stoppingToken);
+                await Task.Delay(HeartbeatInterval, stoppingToken);
             }
-            catch (System.Text.Json.JsonException jsonEx)
-            {
-                var dataStr = msg.Data != null ? System.Text.Encoding.UTF8.GetString(msg.Data) : "NULL";
-                logger.LogError(jsonEx, "JSON Deserialization failed for message on {Subject}. Data: {Data}", 
-                    msg.Subject, dataStr);
-                // Ack bad messages to remove them from the WorkQueue so they don't block
-                await msg.AckAsync(cancellationToken: stoppingToken);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to process message on subject {Subject}", msg.Subject);
-            }
+            catch (OperationCanceledException) { return; }
+
+            var processed = Interlocked.Exchange(ref _processedSinceHeartbeat, 0);
+            var idleFor = DateTimeOffset.UtcNow - _lastActivityAt;
+            logger.LogInformation(
+                "EmailWorker heartbeat: processed {Count} message(s) in last {Interval}s; last activity {IdleSeconds:F0}s ago",
+                processed, HeartbeatInterval.TotalSeconds, idleFor.TotalSeconds);
         }
     }
 
