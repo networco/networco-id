@@ -17,6 +17,11 @@ public interface IBrevoEmailService
 
 public class BrevoEmailService : IBrevoEmailService
 {
+    private static readonly System.Text.Json.JsonSerializerOptions NullIgnoringJsonOptions = new()
+    {
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+    };
+
     private readonly HttpClient _httpClient;
     private readonly BrevoSettings _settings;
     private readonly ILogger<BrevoEmailService> _logger;
@@ -42,22 +47,18 @@ public class BrevoEmailService : IBrevoEmailService
         // Brevo accepts both htmlContent and textContent; including the
         // plaintext alternative improves deliverability and ensures clients
         // that can't render HTML still see something useful.
-        object requestBody = string.IsNullOrWhiteSpace(textContent)
-            ? new
-            {
-                sender = new { name = _settings.SenderName, email = _settings.SenderEmail },
-                to = new[] { new { email = toEmail, name = toName } },
-                subject = subject,
-                htmlContent = htmlContent
-            }
-            : new
-            {
-                sender = new { name = _settings.SenderName, email = _settings.SenderEmail },
-                to = new[] { new { email = toEmail, name = toName } },
-                subject = subject,
-                htmlContent = htmlContent,
-                textContent = textContent
-            };
+        // IMPORTANT: keep this a single anonymous type so JsonContent.Create
+        // can infer the type. Splitting into two `?:` branches assigned to
+        // `object` causes System.Text.Json to serialise `object` (no
+        // properties) → empty `{}` body → Brevo 400 → email silently dropped.
+        var requestBody = new
+        {
+            sender = new { name = _settings.SenderName, email = _settings.SenderEmail },
+            to = new[] { new { email = toEmail, name = toName } },
+            subject = subject,
+            htmlContent = htmlContent,
+            textContent = string.IsNullOrWhiteSpace(textContent) ? null : textContent,
+        };
 
         try
         {
@@ -66,7 +67,9 @@ public class BrevoEmailService : IBrevoEmailService
             using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.brevo.com/v3/smtp/email");
             request.Headers.TryAddWithoutValidation("api-key", _settings.ApiKey);
             request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
-            request.Content = JsonContent.Create(requestBody);
+            // Use the JsonSerializerOptions that drop null properties so the
+            // request stays clean when no plaintext alternative was supplied.
+            request.Content = JsonContent.Create(requestBody, options: NullIgnoringJsonOptions);
 
             var response = await _httpClient.SendAsync(request, ct);
             
