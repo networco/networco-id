@@ -25,10 +25,10 @@
         <partial name="_ThemeToggle" />
     </div>
 
-    <div class="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 max-w-md w-full p-10 transition-colors duration-300">
+    <div class="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-networco-border dark:border-gray-700 max-w-md w-full p-10 transition-colors duration-300">
         <div class="text-center mb-10">
-            <h1 class="text-3xl font-black text-gray-900 dark:text-white tracking-tight mb-2">NETWORCO</h1>
-            <p class="text-gray-500 dark:text-gray-400 font-medium">Opprett din konto for å komme i gang</p>
+            <h1 class="font-heading text-3xl font-black text-networco-authority-dark dark:text-white tracking-tight mb-2">NETWORCO</h1>
+            <p class="text-networco-authority-light dark:text-gray-400 font-medium">Opprett din konto for å komme i gang</p>
         </div>
 
         @if (Model.RegistrationSuccess)
@@ -40,11 +40,11 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-bold text-gray-900 dark:text-white">Sjekk e-posten din!</h3>
-                    <p class="text-gray-600 dark:text-gray-400 font-medium leading-relaxed">
+                    <h3 class="font-heading text-xl font-bold text-networco-authority-dark dark:text-white">Sjekk e-posten din!</h3>
+                    <p class="text-networco-text dark:text-gray-400 font-medium leading-relaxed">
                         Vi har sendt en bekreftelseslenke til din e-postadresse. Klikk på lenken for å aktivere kontoen din.
                     </p>
-                    <p class="text-xs text-gray-400 font-bold uppercase tracking-wider mt-4">
+                    <p class="text-xs text-networco-authority-light/80 font-bold uppercase tracking-wider mt-4">
                         Ser du den ikke? Sjekk søppelposten.
                     </p>
                 </div>
@@ -84,10 +84,10 @@
 
             <div class="relative my-10">
                 <div class="absolute inset-0 flex items-center">
-                    <div class="w-full border-t border-gray-100 dark:border-gray-700"></div>
+                    <div class="w-full border-t border-networco-border dark:border-gray-700"></div>
                 </div>
                 <div class="relative flex justify-center text-xs">
-                    <span class="px-4 bg-white dark:bg-gray-800 text-gray-400 font-bold uppercase tracking-widest transition-colors duration-300">eller bruk e-post</span>
+                    <span class="px-4 bg-white dark:bg-gray-800 text-networco-authority-light/70 font-bold uppercase tracking-widest transition-colors duration-300">eller bruk e-post</span>
                 </div>
             </div>
 
@@ -96,28 +96,28 @@
                 <input type="hidden" name="return_url" value="@Model.ReturnUrl" />
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label for="firstName" class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Fornavn</label>
+                        <label for="firstName" class="block text-xs font-bold text-networco-authority-light/80 uppercase tracking-widest mb-2 ml-1">Fornavn</label>
                         <input type="text" id="firstName" name="firstName" required
-                            class="w-full px-5 py-4 bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white dark:focus:bg-gray-950 transition-all outline-none text-gray-900 dark:text-white font-medium placeholder:text-gray-400" placeholder="Ola" />
+                            class="w-full px-5 py-4 bg-networco-baby-50 dark:bg-gray-900 border border-networco-border dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-networco-primary/15 focus:border-networco-primary focus:bg-white dark:focus:bg-gray-950 transition-all outline-none text-networco-text dark:text-white font-medium placeholder:text-networco-authority-light/50" placeholder="Ola" />
                     </div>
                     <div>
-                        <label for="lastName" class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Etternavn</label>
+                        <label for="lastName" class="block text-xs font-bold text-networco-authority-light/80 uppercase tracking-widest mb-2 ml-1">Etternavn</label>
                         <input type="text" id="lastName" name="lastName" required
-                            class="w-full px-5 py-4 bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white dark:focus:bg-gray-950 transition-all outline-none text-gray-900 dark:text-white font-medium placeholder:text-gray-400" placeholder="Nordmann" />
+                            class="w-full px-5 py-4 bg-networco-baby-50 dark:bg-gray-900 border border-networco-border dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-networco-primary/15 focus:border-networco-primary focus:bg-white dark:focus:bg-gray-950 transition-all outline-none text-networco-text dark:text-white font-medium placeholder:text-networco-authority-light/50" placeholder="Nordmann" />
                     </div>
                 </div>
 
                 <div>
-                    <label for="email" class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">E-post</label>
+                    <label for="email" class="block text-xs font-bold text-networco-authority-light/80 uppercase tracking-widest mb-2 ml-1">E-post</label>
                     <input type="email" id="email" name="email" required
-                        class="w-full px-5 py-4 bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white dark:focus:bg-gray-950 transition-all outline-none text-gray-900 dark:text-white font-medium placeholder:text-gray-400" placeholder="ola@@networco.dev" />
+                        class="w-full px-5 py-4 bg-networco-baby-50 dark:bg-gray-900 border border-networco-border dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-networco-primary/15 focus:border-networco-primary focus:bg-white dark:focus:bg-gray-950 transition-all outline-none text-networco-text dark:text-white font-medium placeholder:text-networco-authority-light/50" placeholder="ola@@networco.dev" />
                 </div>
 
                 <div class="space-y-6">
                     <div>
-                        <label for="password" class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Passord</label>
+                        <label for="password" class="block text-xs font-bold text-networco-authority-light/80 uppercase tracking-widest mb-2 ml-1">Passord</label>
                         <input type="password" id="password" name="password" required minlength="@Model.MinPasswordLength"
-                            class="w-full px-5 py-4 bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white dark:focus:bg-gray-950 transition-all outline-none text-gray-900 dark:text-white font-medium placeholder:text-gray-400" placeholder="••••••••" />
+                            class="w-full px-5 py-4 bg-networco-baby-50 dark:bg-gray-900 border border-networco-border dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-networco-primary/15 focus:border-networco-primary focus:bg-white dark:focus:bg-gray-950 transition-all outline-none text-networco-text dark:text-white font-medium placeholder:text-networco-authority-light/50" placeholder="••••••••" />
 
                         <!-- Strength Indicator -->
                         <div class="mt-4 space-y-3 px-1">
@@ -147,9 +147,9 @@
                         </ul>
                     </div>
                     <div>
-                        <label for="confirmPassword" class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Gjenta passord</label>
+                        <label for="confirmPassword" class="block text-xs font-bold text-networco-authority-light/80 uppercase tracking-widest mb-2 ml-1">Gjenta passord</label>
                         <input type="password" id="confirmPassword" name="confirmPassword" required minlength="@Model.MinPasswordLength"
-                            class="w-full px-5 py-4 bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white dark:focus:bg-gray-950 transition-all outline-none text-gray-900 dark:text-white font-medium placeholder:text-gray-400" placeholder="••••••••" />
+                            class="w-full px-5 py-4 bg-networco-baby-50 dark:bg-gray-900 border border-networco-border dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-networco-primary/15 focus:border-networco-primary focus:bg-white dark:focus:bg-gray-950 transition-all outline-none text-networco-text dark:text-white font-medium placeholder:text-networco-authority-light/50" placeholder="••••••••" />
                         <p id="match-text" class="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-3 px-1 flex items-center gap-3 transition-colors" style="visibility: hidden;">
                             <span id="match-icon" class="w-4 h-4 rounded-full border-2 border-current flex items-center justify-center text-[8px]"></span> Passordene må være like
                         </p>
@@ -159,31 +159,31 @@
                 <div id="clientErrorMessage" class="hidden bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/30 text-red-700 dark:text-red-400 rounded-2xl p-4 text-sm font-medium">
                 </div>
 
-                <div class="bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-800/20 rounded-2xl p-5">
+                <div class="bg-networco-baby-50 dark:bg-indigo-900/10 border border-networco-primary/20 dark:border-indigo-800/20 rounded-2xl p-5">
                     <div class="flex gap-3">
                         <span class="text-xl">📧</span>
-                        <p class="text-[11px] font-bold uppercase tracking-wider text-indigo-900/60 dark:text-indigo-400/60 leading-relaxed">
+                        <p class="text-[11px] font-bold uppercase tracking-wider text-networco-primary-darker dark:text-indigo-400/60 leading-relaxed">
                             <strong>E-postbekreftelse</strong><br />
                             Vi sender en bekreftelseslenke for å sikre din identitet.
                         </p>
                     </div>
                 </div>
 
-                <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-4 px-6 rounded-2xl hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-500/20 transition-all duration-200 text-lg">
+                <button type="submit" class="w-full bg-networco-coral text-white font-bold py-4 px-6 rounded-2xl hover:bg-networco-coral-light hover:shadow-lg hover:shadow-networco-coral/30 transition-all duration-200 text-lg">
                     Opprett konto
                 </button>
             </form>
 
             <div class="mt-10 text-center">
-                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">
+                <p class="text-sm font-medium text-networco-authority-light dark:text-gray-400">
                     Har du allerede en konto?
-                    <a href="/Login?return_url=@System.Net.WebUtility.UrlEncode(Model.ReturnUrl)" class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-bold ml-1">Logg inn i stedet</a>
+                    <a href="/Login?return_url=@System.Net.WebUtility.UrlEncode(Model.ReturnUrl)" class="text-networco-primary dark:text-networco-baby-200 hover:text-networco-primary-dark dark:hover:text-white font-bold ml-1">Logg inn i stedet</a>
                 </p>
             </div>
         }
 
-        <div class="mt-10 pt-8 border-t border-gray-100 dark:border-gray-700">
-            <p class="text-[10px] leading-relaxed text-center text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wider">
+        <div class="mt-10 pt-8 border-t border-networco-border dark:border-gray-700">
+            <p class="text-[10px] leading-relaxed text-center text-networco-authority-light/70 dark:text-gray-500 font-medium uppercase tracking-wider">
                 Sikker registrering fra Networco. Du kan also bruke Vipps og BankID for rask tilgang.
             </p>
         </div>
