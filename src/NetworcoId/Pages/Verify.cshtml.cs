@@ -36,8 +36,17 @@ public class VerifyModel(
 
         try
         {
+            // Tolerate both the URL-safe Base64 form (current) and the legacy
+            // raw-Base64 form (before the Register.cshtml.cs fix). The query
+            // parser also turns `+` into a space; restore it before lookup.
+            var normalizedToken = token.Replace(' ', '+');
+            var legacyToken = normalizedToken.Replace('-', '+').Replace('_', '/');
+
             var user = await dbContext.Users.AsTracking()
-                .FirstOrDefaultAsync(u => u.EmailVerificationToken == token);
+                .FirstOrDefaultAsync(u =>
+                    u.EmailVerificationToken == token ||
+                    u.EmailVerificationToken == normalizedToken ||
+                    u.EmailVerificationToken == legacyToken);
 
             if (user == null)
             {

@@ -93,9 +93,13 @@ public class RegisterModel(
                 return Page();
             }
 
-            // Generate verification token
+            // Generate verification token. Use URL-safe Base64 (same pattern as
+            // the password-reset flow in AuthService) so the token can sit in
+            // the email link without being URL-encoded — `+` would otherwise be
+            // decoded as a space and the lookup in Verify would fail.
             var verificationToken = Convert.ToBase64String(
-                System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+                System.Security.Cryptography.RandomNumberGenerator.GetBytes(32))
+                .Replace("+", "-").Replace("/", "_").TrimEnd('=');
 
             // Create user
             var user = new UserEntity
