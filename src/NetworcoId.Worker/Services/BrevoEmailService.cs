@@ -12,7 +12,7 @@ public class BrevoSettings
 
 public interface IBrevoEmailService
 {
-    Task SendEmailAsync(string toEmail, string toName, string subject, string htmlContent, CancellationToken ct = default);
+    Task SendEmailAsync(string toEmail, string toName, string subject, string htmlContent, string? textContent = null, CancellationToken ct = default);
 }
 
 public class BrevoEmailService : IBrevoEmailService
@@ -31,7 +31,7 @@ public class BrevoEmailService : IBrevoEmailService
         _logger = logger;
     }
 
-    public async Task SendEmailAsync(string toEmail, string toName, string subject, string htmlContent, CancellationToken ct = default)
+    public async Task SendEmailAsync(string toEmail, string toName, string subject, string htmlContent, string? textContent = null, CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(_settings.ApiKey))
         {
@@ -39,13 +39,25 @@ public class BrevoEmailService : IBrevoEmailService
             throw new InvalidOperationException("Brevo API Key is missing");
         }
 
-        var requestBody = new
-        {
-            sender = new { name = _settings.SenderName, email = _settings.SenderEmail },
-            to = new[] { new { email = toEmail, name = toName } },
-            subject = subject,
-            htmlContent = htmlContent
-        };
+        // Brevo accepts both htmlContent and textContent; including the
+        // plaintext alternative improves deliverability and ensures clients
+        // that can't render HTML still see something useful.
+        object requestBody = string.IsNullOrWhiteSpace(textContent)
+            ? new
+            {
+                sender = new { name = _settings.SenderName, email = _settings.SenderEmail },
+                to = new[] { new { email = toEmail, name = toName } },
+                subject = subject,
+                htmlContent = htmlContent
+            }
+            : new
+            {
+                sender = new { name = _settings.SenderName, email = _settings.SenderEmail },
+                to = new[] { new { email = toEmail, name = toName } },
+                subject = subject,
+                htmlContent = htmlContent,
+                textContent = textContent
+            };
 
         try
         {

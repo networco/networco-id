@@ -5,7 +5,7 @@
 }
 
 @section Styles {
-    @if (Model.IsVerified && !string.IsNullOrEmpty(Model.AuthorizationUrl))
+    @if (Model.IsVerified && !Model.RequiresManualLogin && !string.IsNullOrEmpty(Model.AuthorizationUrl))
     {
         <meta http-equiv="refresh" content="2;url=@Model.AuthorizationUrl" />
     }
@@ -18,7 +18,24 @@
     </div>
 
     <div class="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-networco-border dark:border-gray-700 max-w-md w-full p-10 transition-colors duration-300">
-        @if (Model.IsVerified)
+        @if (Model.IsVerified && Model.RequiresManualLogin)
+        {
+            <div class="text-center">
+                <div class="mx-auto w-20 h-20 bg-networco-baby-50 dark:bg-green-900/30 text-networco-primary dark:text-green-400 rounded-full flex items-center justify-center mb-6">
+                    <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                </div>
+                <h1 class="font-heading text-3xl font-black text-networco-authority-dark dark:text-white tracking-tight mb-3">E-post bekreftet</h1>
+                <p class="text-networco-text dark:text-gray-400 font-medium mb-8 leading-relaxed">
+                    Av sikkerhetshensyn må du logge inn med passordet ditt for å fortsette.
+                </p>
+                <a href="@Model.LoginUrl" class="inline-block w-full bg-networco-coral text-white font-bold py-4 px-6 rounded-2xl hover:bg-networco-coral-light hover:shadow-lg hover:shadow-networco-coral/30 transition-all duration-200 text-lg">
+                    Logg inn
+                </a>
+            </div>
+        }
+        else if (Model.IsVerified)
         {
             <div class="text-center">
                 <div class="mx-auto w-20 h-20 bg-networco-baby-50 dark:bg-green-900/30 text-networco-primary dark:text-green-400 rounded-full flex items-center justify-center mb-6">
@@ -34,6 +51,23 @@
                 </div>
             </div>
         }
+        else if (Model.VerificationEmailResent)
+        {
+            <div class="text-center">
+                <div class="mx-auto w-20 h-20 bg-networco-baby-50 dark:bg-green-900/30 text-networco-primary dark:text-green-400 rounded-full flex items-center justify-center mb-6">
+                    <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                    </svg>
+                </div>
+                <h1 class="font-heading text-3xl font-black text-networco-authority-dark dark:text-white tracking-tight mb-3">Sjekk innboksen din</h1>
+                <p class="text-networco-text dark:text-gray-400 font-medium mb-8 leading-relaxed">
+                    Hvis e-postadressen er registrert hos oss, har vi sendt en ny bekreftelseslenke. Sjekk innboksen din (og kanskje søppelpost-mappen).
+                </p>
+                <a href="/Login" class="inline-block w-full bg-networco-coral text-white font-bold py-4 px-6 rounded-2xl hover:bg-networco-coral-light hover:shadow-lg hover:shadow-networco-coral/30 transition-all duration-200 text-lg">
+                    Tilbake til innlogging
+                </a>
+            </div>
+        }
         else if (!string.IsNullOrEmpty(Model.ErrorMessage))
         {
             <div class="text-center">
@@ -43,8 +77,22 @@
                     </svg>
                 </div>
                 <h1 class="font-heading text-3xl font-black text-networco-authority-dark dark:text-white tracking-tight mb-3">Oisann!</h1>
-                <p class="text-networco-coral-dark dark:text-red-400 font-bold mb-10 leading-relaxed">@Model.ErrorMessage</p>
-                <a href="/Login" class="inline-block w-full bg-networco-coral text-white font-bold py-4 px-6 rounded-2xl hover:bg-networco-coral-light hover:shadow-lg hover:shadow-networco-coral/30 transition-all duration-200 text-lg">
+                <p class="text-networco-coral-dark dark:text-red-400 font-bold mb-6 leading-relaxed">@Model.ErrorMessage</p>
+
+                @if (Model.CanResendVerification)
+                {
+                    <p class="text-networco-text dark:text-gray-400 text-sm mb-4">Skriv inn e-postadressen din så sender vi en ny bekreftelseslenke.</p>
+                    <form method="post" asp-page-handler="Resend" class="space-y-3 mb-4">
+                        <input type="hidden" name="return_url" value="@Model.ReturnUrl" />
+                        <input type="email" name="resendEmail" required placeholder="din@e-post.no"
+                               class="w-full px-4 py-3 rounded-2xl border border-networco-border dark:border-gray-700 bg-white dark:bg-gray-900 text-networco-authority-dark dark:text-white focus:outline-none focus:ring-2 focus:ring-networco-primary" />
+                        <button type="submit" class="w-full bg-networco-coral text-white font-bold py-4 px-6 rounded-2xl hover:bg-networco-coral-light hover:shadow-lg hover:shadow-networco-coral/30 transition-all duration-200 text-lg">
+                            Send ny lenke
+                        </button>
+                    </form>
+                }
+
+                <a href="/Login" class="inline-block text-sm text-networco-authority-light dark:text-gray-400 hover:text-networco-primary dark:hover:text-indigo-400">
                     Gå til innlogging
                 </a>
             </div>

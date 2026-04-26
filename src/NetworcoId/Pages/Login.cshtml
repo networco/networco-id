@@ -28,7 +28,32 @@
             <p class="text-networco-authority-light dark:text-gray-400 font-medium">Logg inn med din konto</p>
         </div>
 
-        @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+        @if (Model.VerificationEmailResent)
+        {
+            <div class="bg-networco-baby-50 dark:bg-green-900/20 border border-networco-primary/20 dark:border-green-800/30 text-networco-primary dark:text-green-400 rounded-2xl p-4 mb-8 text-center text-sm font-medium">
+                Vi har sendt en ny bekreftelseslenke hvis e-postadressen er registrert. Sjekk innboksen din.
+            </div>
+        }
+        else if (Model.RequiresEmailVerification)
+        {
+            <div class="bg-networco-baby-50 dark:bg-yellow-900/20 border border-networco-primary/20 dark:border-yellow-800/30 text-networco-authority-dark dark:text-yellow-200 rounded-2xl p-4 mb-6 text-sm">
+                <p class="font-bold mb-2">@Model.ErrorMessage</p>
+                <p class="mb-3 text-networco-text dark:text-gray-400">
+                    Klikk under for å få tilsendt en ny bekreftelseslenke (gyldig i 30 minutter).
+                </p>
+                <form method="post" asp-page-handler="ResendVerification">
+                    <input type="hidden" name="resendEmail" value="@Model.UnverifiedEmail" />
+                    <input type="hidden" name="client_id" value="@Model.ClientId" />
+                    <input type="hidden" name="redirect_uri" value="@Model.RedirectUri" />
+                    <input type="hidden" name="state" value="@Model.State" />
+                    <input type="hidden" name="scope" value="@Model.Scope" />
+                    <button type="submit" class="w-full bg-networco-coral text-white font-bold py-3 px-6 rounded-2xl hover:bg-networco-coral-light hover:shadow-lg hover:shadow-networco-coral/30 transition-all duration-200">
+                        Send ny bekreftelseslenke
+                    </button>
+                </form>
+            </div>
+        }
+        else if (!string.IsNullOrEmpty(Model.ErrorMessage))
         {
             <div class="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/30 text-red-700 dark:text-red-400 rounded-2xl p-4 mb-8 text-center text-sm font-medium">
                 @if (Model.IsClientError)

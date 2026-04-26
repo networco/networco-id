@@ -26,6 +26,14 @@ public class UserEntity
     public string? EmailVerificationToken { get; set; }
     public DateTimeOffset? EmailVerificationTokenExpiresAt { get; set; }
     public bool EmailVerified { get; set; } = false;
+    /// <summary>
+    /// Identifier shared with an HttpOnly cookie set on the registering browser.
+    /// The verify endpoint only auto-logs the user in when the cookie matches —
+    /// if the link is opened on a different browser/device (e.g. an attacker who
+    /// intercepted the email) the cookie is absent and the user is forced to log
+    /// in with their password instead.
+    /// </summary>
+    public string? EmailVerificationSessionId { get; set; }
     
     // Password reset
     public string? PasswordResetToken { get; set; }
