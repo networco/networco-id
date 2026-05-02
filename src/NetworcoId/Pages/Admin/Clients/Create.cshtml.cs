@@ -36,6 +36,9 @@ public class CreateModel(IClientManagementService clientManagementService) : Pag
     [BindProperty]
     public bool IsTrustedForExchange { get; set; }
 
+    [BindProperty]
+    public bool IsDefault { get; set; }
+
     public string? CreatedClientId { get; set; }
     public string? CreatedSecret { get; set; }
 
@@ -63,7 +66,7 @@ public class CreateModel(IClientManagementService clientManagementService) : Pag
             }
         }
 
-        var (client, secret) = await clientManagementService.CreateClientAsync(DisplayName, Audience, redirectUriList, scopeList, IsTrustedForExchange);
+        var (client, secret) = await clientManagementService.CreateClientAsync(DisplayName, Audience, redirectUriList, scopeList, IsTrustedForExchange, IsDefault);
 
         CreatedClientId = client.ClientId;
         CreatedSecret = secret;

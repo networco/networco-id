@@ -119,6 +119,10 @@
                                     {
                                         <span class="inline-flex items-center rounded-lg bg-indigo-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-800/30">System</span>
                                     }
+                                    @if (client.IsDefault)
+                                    {
+                                        <span class="inline-flex items-center rounded-lg bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 border border-amber-100 dark:border-amber-800/30" title="Used when /Login is hit without OAuth params">Default</span>
+                                    }
 
                                     <a asp-page="./Edit" asp-route-id="@client.ClientId" class="text-xs font-bold uppercase tracking-widest text-indigo-600 dark:text-indigo-400 hover:text-indigo-700">Edit</a>
                                     

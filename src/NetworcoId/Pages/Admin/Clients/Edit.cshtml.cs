@@ -42,6 +42,9 @@ public class EditModel(IClientManagementService clientService, IAuditService aud
     [BindProperty]
     public bool IsTrustedForExchange { get; set; }
 
+    [BindProperty]
+    public bool IsDefault { get; set; }
+
     public string? NewSecret { get; set; }
     public string? SecretType { get; set; } // "Primary" or "Secondary"
 
@@ -67,6 +70,7 @@ public class EditModel(IClientManagementService clientService, IAuditService aud
         Scopes = string.Join(", ", client.AllowedScopes);
         SelectedScopes = client.AllowedScopes;
         IsTrustedForExchange = client.IsTrustedForExchange;
+        IsDefault = client.IsDefault;
         IsActive = client.IsActive;
         HasSecondarySecret = !string.IsNullOrEmpty(client.SecondaryClientSecretHash);
 
@@ -104,7 +108,7 @@ public class EditModel(IClientManagementService clientService, IAuditService aud
             await clientService.ToggleClientStatusAsync(ClientId);
         }
 
-        await clientService.UpdateClientAsync(ClientId, DisplayName, Audience, redirectUriList, scopeList, IsTrustedForExchange);
+        await clientService.UpdateClientAsync(ClientId, DisplayName, Audience, redirectUriList, scopeList, IsTrustedForExchange, IsDefault);
         await auditService.LogAsync("ClientUpdated", $"OAuth client {ClientId} was updated.");
 
         return RedirectToPage(new { id = ClientId });
@@ -161,6 +165,7 @@ public class EditModel(IClientManagementService clientService, IAuditService aud
             HasSecondarySecret = !string.IsNullOrEmpty(client.SecondaryClientSecretHash);
             IsActive = client.IsActive;
             IsTrustedForExchange = client.IsTrustedForExchange;
+            IsDefault = client.IsDefault;
             SelectedScopes = client.AllowedScopes;
         }
     }

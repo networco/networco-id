@@ -249,5 +249,15 @@ public class OAuthClientEntityConfiguration : IEntityTypeConfiguration<OAuthClie
 
         builder.Property(c => c.IsActive)
             .HasDefaultValue(true);
+
+        builder.Property(c => c.IsDefault)
+            .HasDefaultValue(false);
+
+        // Partial unique index — at most one client can hold the default flag.
+        // The service layer also clears any prior default before saving, but
+        // this is the hard guarantee.
+        builder.HasIndex(c => c.IsDefault)
+            .IsUnique()
+            .HasFilter("is_default = true");
     }
 }

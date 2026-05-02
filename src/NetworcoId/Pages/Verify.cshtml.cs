@@ -34,20 +34,27 @@ public class VerifyModel(
     public string LoginUrl { get; set; } = "/Login";
     /// <summary>True after a fresh verification email has been requested via the resend form.</summary>
     public bool VerificationEmailResent { get; set; }
-    /// <summary>True when the failure is recoverable by sending a new link
-    /// (expired or token-not-found, but NOT for missing token).</summary>
+    /// <summary>True when the failure is recoverable by sending a new link.
+    /// Set on every error path so the user always has a recovery option.</summary>
     public bool CanResendVerification { get; set; }
+    /// <summary>Main site URL, surfaced as a fallback escape from any error
+    /// state so users aren't stranded on the verification page.</summary>
+    public string HomeUrl => _config.FrontendUrl;
 
     public async Task<IActionResult> OnGetAsync(string? token, string? return_url)
     {
+        ReturnUrl = !string.IsNullOrWhiteSpace(return_url) ? return_url : _config.FrontendUrl;
+
         if (string.IsNullOrEmpty(token))
         {
             ErrorMessage = "Mangler bekreftelsestoken";
+            // Direct visit to /Verify with no token. Offer the resend form so
+            // the user can request a fresh link instead of being stranded.
+            CanResendVerification = true;
             return Page();
         }
 
         Token = token;
-        ReturnUrl = !string.IsNullOrWhiteSpace(return_url) ? return_url : _config.FrontendUrl;
 
         try
         {
@@ -195,6 +202,9 @@ public class VerifyModel(
         {
             logger.LogError(ex, "Error during email verification");
             ErrorMessage = "Bekreftelse feilet";
+            // Even for unexpected failures, give the user a recovery path
+            // (resend form + main-site link) instead of a dead-end error.
+            CanResendVerification = true;
             return Page();
         }
     }

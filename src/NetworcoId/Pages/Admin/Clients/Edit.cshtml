@@ -154,7 +154,7 @@
                         </div>
                     </div>
 
-                    <div class="flex items-center justify-between p-4 rounded-xl border border-indigo-500/20 bg-indigo-500/5">
+                    <label class="flex items-center justify-between p-4 rounded-xl border border-indigo-500/20 bg-indigo-500/5 hover:bg-indigo-500/10 transition-colors cursor-pointer group">
                         <div class="flex items-center">
                             <div class="h-10 w-10 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-600">
                                 <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -162,7 +162,7 @@
                                 </svg>
                             </div>
                             <div class="ml-4">
-                                <p class="text-sm font-bold text-gray-900 dark:text-white">Trusted for Exchange (BFF/API)</p>
+                                <p class="text-sm font-bold text-gray-900 dark:text-white group-hover:text-indigo-600 transition-colors">Trusted for Exchange (BFF/API)</p>
                                 <p class="text-xs text-gray-500 dark:text-gray-400">Allows client to exchange codes for other clients (BFF pattern).</p>
                             </div>
                         </div>
@@ -171,7 +171,26 @@
                             <div class="peer-checked:bg-indigo-600 bg-gray-200 dark:bg-gray-700 absolute inset-0 rounded-full transition-colors duration-200"></div>
                             <div class="peer-checked:translate-x-5 translate-x-0 pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"></div>
                         </div>
-                    </div>
+                    </label>
+
+                    <label class="flex items-center justify-between p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors cursor-pointer group">
+                        <div class="flex items-center">
+                            <div class="h-10 w-10 rounded-lg bg-amber-500/20 flex items-center justify-center text-amber-600">
+                                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                                </svg>
+                            </div>
+                            <div class="ml-4">
+                                <p class="text-sm font-bold text-gray-900 dark:text-white group-hover:text-amber-600 transition-colors">Default Client</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">Used when /Login is reached without OAuth params (e.g. a bookmark). The first registered Redirect URI is used. Only one client can be default — promoting this one demotes any prior default.</p>
+                            </div>
+                        </div>
+                        <div class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2">
+                            <input type="checkbox" asp-for="IsDefault" class="peer sr-only" />
+                            <div class="peer-checked:bg-amber-600 bg-gray-200 dark:bg-gray-700 absolute inset-0 rounded-full transition-colors duration-200"></div>
+                            <div class="peer-checked:translate-x-5 translate-x-0 pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"></div>
+                        </div>
+                    </label>
                 </fieldset>
             </div>
         </div>

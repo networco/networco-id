@@ -76,8 +76,8 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path>
                     </svg>
                 </div>
-                <h1 class="font-heading text-3xl font-black text-networco-authority-dark dark:text-white tracking-tight mb-3">Oisann!</h1>
-                <p class="text-networco-coral-dark dark:text-red-400 font-bold mb-6 leading-relaxed">@Model.ErrorMessage</p>
+                <h1 class="font-heading text-3xl font-black text-networco-authority-dark dark:text-white tracking-tight mb-3">Bekreftelse mislyktes</h1>
+                <p class="text-networco-coral-dark dark:text-red-400 font-medium mb-6 leading-relaxed">@Model.ErrorMessage</p>
 
                 @if (Model.CanResendVerification)
                 {
@@ -92,9 +92,14 @@
                     </form>
                 }
 
-                <a href="/Login" class="inline-block text-sm text-networco-authority-light dark:text-gray-400 hover:text-networco-primary dark:hover:text-indigo-400">
-                    Gå til innlogging
-                </a>
+                <div class="flex flex-col items-center gap-2 text-sm">
+                    <a href="/Login" class="text-networco-authority-light dark:text-gray-400 hover:text-networco-primary dark:hover:text-indigo-400">
+                        Gå til innlogging
+                    </a>
+                    <a href="@Model.HomeUrl" class="text-networco-authority-light dark:text-gray-400 hover:text-networco-primary dark:hover:text-indigo-400">
+                        Tilbake til hovedsiden
+                    </a>
+                </div>
             </div>
         }
         else
