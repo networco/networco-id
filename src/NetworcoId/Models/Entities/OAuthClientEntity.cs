@@ -15,6 +15,12 @@ public class OAuthClientEntity
     public List<string> AllowedScopes { get; set; } = new();
     public bool IsTrustedForExchange { get; set; } = false;
     public bool IsActive { get; set; } = true;
+    /// <summary>
+    /// Marks this client as the default fallback when /Login is hit without
+    /// OAuth params (e.g. someone bookmarked the bare login page). At most one
+    /// active client may carry this flag — enforced by a partial unique index.
+    /// </summary>
+    public bool IsDefault { get; set; } = false;
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }
 }

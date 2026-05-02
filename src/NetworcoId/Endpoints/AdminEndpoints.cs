@@ -39,11 +39,12 @@ public static class AdminEndpoints
             }
 
             var result = await clientService.CreateClientAsync(
-                request.DisplayName, 
+                request.DisplayName,
                 request.Audience,
-                request.RedirectUris ?? new List<string>(), 
+                request.RedirectUris ?? new List<string>(),
                 request.AllowedScopes ?? new List<string>(),
-                request.IsTrustedForExchange);
+                request.IsTrustedForExchange,
+                request.IsDefault);
 
             return Results.Ok(new 
             { 
@@ -105,9 +106,10 @@ public static class AdminEndpoints
     }
 
     public record CreateClientRequest(
-        string DisplayName, 
+        string DisplayName,
         string Audience,
-        List<string>? RedirectUris, 
+        List<string>? RedirectUris,
         List<string>? AllowedScopes,
-        bool IsTrustedForExchange = false);
+        bool IsTrustedForExchange = false,
+        bool IsDefault = false);
 }

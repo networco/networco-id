@@ -16,7 +16,7 @@ namespace NetworcoId.Pages;
 
 [IgnoreAntiforgeryToken]
 [EnableRateLimiting("auth-login-strict")]
-public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthDbContext dbContext, IEmailService emailService, ILogger<LoginModel> logger, ILockoutService lockoutService) : PageModel
+public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthDbContext dbContext, IEmailService emailService, ILogger<LoginModel> logger, ILockoutService lockoutService, IClientManagementService clientService) : PageModel
 {
     [BindProperty(SupportsGet = true)]
     public string? client_id { get; set; }
@@ -103,6 +103,14 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
             return RedirectToPage("/Register", new { return_url = returnUrl });
         }
 
+        // Direct visit (e.g. bookmark) with no OAuth context — bounce somewhere
+        // sensible so the user isn't stranded on a login form they can't submit.
+        // Order: a client flagged as Default in admin → FrontendUrl as last resort.
+        if (string.IsNullOrEmpty(ClientId) && string.IsNullOrEmpty(RedirectUri))
+        {
+            return Redirect(await ResolveFallbackDestinationAsync());
+        }
+
         if (string.IsNullOrEmpty(ClientId) || string.IsNullOrEmpty(RedirectUri))
         {
             return Page();
@@ -177,8 +185,12 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
 
             if (string.IsNullOrEmpty(RedirectUri))
             {
-                logger.LogWarning("Login Post: redirect_uri is missing. ClientId={ClientId}", ClientId);
-                return BadRequest("redirect_uri er påkrevd");
+                // Defensive fallback — the GET handler should have bounced the
+                // user already, so this only fires on direct POSTs without the
+                // proper OAuth carry-through. Resolve through the same default-
+                // client → FrontendUrl chain instead of returning a 400.
+                logger.LogWarning("Login Post: redirect_uri is missing. Resolving fallback destination. ClientId={ClientId}", ClientId);
+                return Redirect(await ResolveFallbackDestinationAsync());
             }
 
             logger.LogInformation("Login Post: Email={Email}, ClientId={ClientId}, RedirectUri={RedirectUri}", Email, ClientId, RedirectUri);
@@ -392,5 +404,31 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
 
         logger.LogInformation("Resent verification email for {Email}", resendEmail);
         return Page();
+    }
+
+    /// <summary>
+    /// Resolves where to bounce a user who hit /Login without OAuth params.
+    /// Prefers the client flagged Default in admin (its first registered
+    /// RedirectUri's origin → likely the app's home page), falling back to
+    /// the configured FrontendUrl. Self-resolution: never returns an empty
+    /// or absolute /Login URL that would loop back into this handler.
+    /// </summary>
+    private async Task<string> ResolveFallbackDestinationAsync()
+    {
+        var defaultClient = await clientService.GetDefaultClientAsync();
+        var firstRedirect = defaultClient?.RedirectUris.FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(firstRedirect)
+            && Uri.TryCreate(firstRedirect, UriKind.Absolute, out var redirectUri))
+        {
+            // Use the redirect URI's origin (scheme + host[:port]) — the
+            // raw RedirectUri is typically a callback path that errors out
+            // when hit without an auth code.
+            var origin = $"{redirectUri.Scheme}://{redirectUri.Authority}";
+            logger.LogInformation("Login fallback: bouncing to default client {ClientId} origin {Origin}", defaultClient!.ClientId, origin);
+            return origin;
+        }
+
+        logger.LogInformation("Login fallback: no default client configured — bouncing to FrontendUrl");
+        return config.FrontendUrl;
     }
 }
