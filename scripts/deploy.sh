@@ -104,7 +104,9 @@ fi
 echo -e "${YELLOW}Step 3: Applying Kubernetes manifests...${NC}"
 kubectl apply -f "$DEPLOY_DIR/00-namespace.yaml"
 kubectl apply -f "$DEPLOY_DIR/01-nats.yaml"
-kubectl apply -f "$DEPLOY_DIR/02-postgres.yaml"
+# Postgres now runs on the shared CloudNativePG HA cluster (networco-db/pg);
+# the old in-namespace StatefulSet was decommissioned 2026-06-06. db-host points
+# at pg-rw.networco-db.svc.cluster.local via networcoid-secrets (POSTGRES_HOST).
 # Skip 03-secrets.yaml as it's handled by sync-secrets.sh in Step 1
 kubectl apply -f "$DEPLOY_DIR/04-api.yaml"
 kubectl apply -f "$DEPLOY_DIR/05-worker.yaml"
