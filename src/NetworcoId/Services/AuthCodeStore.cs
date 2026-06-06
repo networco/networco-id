@@ -78,6 +78,7 @@ public sealed class NatsKvAuthCodeStore : IAuthCodeStore
                 MaxAge = CodeLifetime,
                 Description = "OAuth authorization codes — short-lived single-use sessions",
                 History = 1,
+                NumberOfReplicas = 3, // HA: replicate across the 3-node networco-nats cluster
             }, ct);
             _logger.LogInformation("AuthCodeStore: bucket {Bucket} ready (TTL {Ttl}s)", BucketName, CodeLifetime.TotalSeconds);
             return _kv;

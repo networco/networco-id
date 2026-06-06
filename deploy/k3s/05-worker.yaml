@@ -42,7 +42,8 @@ spec:
               name: networcoid-secrets
               key: db-password
         - name: NATS_URL
-          value: "nats://nats.networco-id.svc.cluster.local:4222"
+          # HA NATS: shared 3-node cluster in networco-nats (cut over 2026-06-06).
+          value: "nats://nats.networco-nats.svc.cluster.local:4222"
         - name: SMTP_HOST
           value: "smtp-relay.brevo.com"
         - name: SMTP_PORT

@@ -58,7 +58,8 @@ public static class NatsExtensions
                 Retention = StreamConfigRetention.Workqueue,
                 Storage = StreamConfigStorage.File,
                 Discard = StreamConfigDiscard.Old,
-                DuplicateWindow = TimeSpan.FromMinutes(2)
+                DuplicateWindow = TimeSpan.FromMinutes(2),
+                NumReplicas = 3 // HA: replicate across the 3-node networco-nats cluster
             };
 
             try 
