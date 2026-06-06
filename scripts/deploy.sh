@@ -103,7 +103,9 @@ fi
 # 3. Apply Kubernetes manifests
 echo -e "${YELLOW}Step 3: Applying Kubernetes manifests...${NC}"
 kubectl apply -f "$DEPLOY_DIR/00-namespace.yaml"
-kubectl apply -f "$DEPLOY_DIR/01-nats.yaml"
+# NATS now runs on the shared 3-node HA JetStream cluster (networco-nats);
+# the old in-namespace StatefulSet was decommissioned 2026-06-06. NATS_URL points
+# at nats.networco-nats.svc.cluster.local via 04-api.yaml / 05-worker.yaml.
 # Postgres now runs on the shared CloudNativePG HA cluster (networco-db/pg);
 # the old in-namespace StatefulSet was decommissioned 2026-06-06. db-host points
 # at pg-rw.networco-db.svc.cluster.local via networcoid-secrets (POSTGRES_HOST).
