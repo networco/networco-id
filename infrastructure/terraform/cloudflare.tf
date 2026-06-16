@@ -60,15 +60,15 @@ provider "cloudflare" {
   api_token = var.cloudflare_api_token
 }
 
-data "cloudflare_zone" "countdown" {
-  name = "countdown.no"
+data "cloudflare_zone" "networco" {
+  name = "networco.no"
 }
 
 # NetworcoID subdomain - creates one A record per server
 resource "cloudflare_record" "networcoid" {
   for_each = { for idx, node in var.vps_nodes : node.name => node if node.ip != "" }
 
-  zone_id = data.cloudflare_zone.countdown.id
+  zone_id = data.cloudflare_zone.networco.id
   name    = "id.networco"
   type    = "A"
   content = each.value.ip
@@ -83,5 +83,5 @@ output "networcoid_ips" {
 }
 
 output "networcoid_url" {
-  value = "https://id.networco.countdown.no"
+  value = "https://id.networco.no"
 }
