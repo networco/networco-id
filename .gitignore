@@ -502,3 +502,6 @@ src/NetworcoId/Endpoints/OAuthEndpoints.cs
 
 # Kubernetes secrets
 deploy/k3s/03-secrets.yaml
+.kubeconfig
+*.kubeconfig
+.kubeconfig.*
