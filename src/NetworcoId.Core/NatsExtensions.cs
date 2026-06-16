@@ -59,7 +59,7 @@ public static class NatsExtensions
                 Storage = StreamConfigStorage.File,
                 Discard = StreamConfigDiscard.Old,
                 DuplicateWindow = TimeSpan.FromMinutes(2),
-                NumReplicas = 3 // HA: replicate across the 3-node networco-nats cluster
+                NumReplicas = GetStreamReplicas() // 3 in prod (HA); 1 on single-node test
             };
 
             try 
@@ -76,7 +76,19 @@ public static class NatsExtensions
         catch (Exception ex)
         {
             logger.LogError(ex, "CRITICAL: Failed to provision NATS JetStream stream {Stream}. Error: {Message}", NetworcoIdSubjects.StreamName, ex.Message);
-            throw; 
+            throw;
         }
+    }
+
+    /// <summary>
+    /// JetStream replica factor for streams/KV. Defaults to 3 (the prod 3-node HA
+    /// cluster). Single-node environments (e.g. the test cluster) set
+    /// NATS_STREAM_REPLICAS=1 — a lone server can only host R=1, so R=3 fails with
+    /// "replicas &gt; peers".
+    /// </summary>
+    public static int GetStreamReplicas()
+    {
+        var raw = Environment.GetEnvironmentVariable("NATS_STREAM_REPLICAS");
+        return int.TryParse(raw, out var n) && n >= 1 ? n : 3;
     }
 }
