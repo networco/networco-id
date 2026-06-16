@@ -10,9 +10,9 @@ metadata:
 spec:
   tls:
   - hosts:
-    - id.networco.countdown.no
+    - id.networco.no
   rules:
-  - host: id.networco.countdown.no
+  - host: id.networco.no
     http:
       paths:
       - path: /
