@@ -125,4 +125,4 @@ kubectl rollout status deployment networcoid -n "$NAMESPACE"
 kubectl rollout status deployment networcoid-worker -n "$NAMESPACE"
 
 echo -e "${GREEN}✓ Deployment successful!${NC}"
-echo -e "🌐 URL: ${BLUE}https://id.networco.countdown.no${NC}"
+echo -e "🌐 URL: ${BLUE}https://id.networco.no${NC}"
