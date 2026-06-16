@@ -1,0 +1,158 @@
+# =============================================================================
+# NetworcoID Test — Continuous Deploy to id.test.networco.no on every merge to main
+# =============================================================================
+#
+# Mirrors the main app's deploy-test workflow. Builds the IdP api + worker images
+# (test version) and deploys to the single-node test cluster (tst01) over the
+# tailnet as an ephemeral tag:ci node, then runs the IdP rollout.
+#
+# Secrets in the (ungated) `test` GitHub environment of this repo:
+#   ENV_ID_TEST       — env file for the IdP test secrets (see keys below)
+#   KUBECONFIG_TEST   — kubeconfig targeting tst01's tailnet IP (https://100.118.34.4:6443)
+#   TS_OAUTH_CLIENT_ID / TS_OAUTH_SECRET — Tailscale OAuth client (tag:ci)
+# Repo-level (optional): DOCKERHUB_USERNAME / DOCKERHUB_TOKEN (authenticated
+#   buildkit base pulls — omit to pull anonymously).
+#
+# ENV_ID_TEST keys: POSTGRES_HOST POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD
+#   JWT_SECRET ISSUER BASE_URL INITIAL_ADMIN_EMAIL INITIAL_ADMIN_PASSWORD
+#   ADMIN_ACCESS_KEY INITIAL_CLIENT_ID INITIAL_CLIENT_SECRET BREVO_API_KEY
+#   NATS_URL NATS_STREAM_REPLICAS GHCR_USERNAME GHCR_TOKEN
+#   APP_CALLBACK (e.g. https://test.networco.no/auth/callback)
+#   CLIENT_AUDIENCE (e.g. https://api.test.networco.no)
+# =============================================================================
+
+name: Deploy Test
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/networco
+
+jobs:
+  version:
+    name: Compute test version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - id: ver
+        run: echo "version=0.1.0-test.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.svc }} image
+    needs: version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - { svc: networco-id,        dockerfile: src/NetworcoId/Dockerfile }
+          - { svc: networco-id-worker, dockerfile: src/NetworcoId.Worker/Dockerfile }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push ${{ matrix.svc }}
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ env.IMAGE_PREFIX }}/${{ matrix.svc }}:${{ needs.version.outputs.version }}
+          build-args: |
+            APP_VERSION=${{ needs.version.outputs.version }}
+          cache-from: type=gha,scope=idtest-${{ matrix.svc }}
+          cache-to: type=gha,mode=max,scope=idtest-${{ matrix.svc }}
+          platforms: linux/amd64
+
+  deploy:
+    name: Deploy to Test
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    environment: test
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      NS: networco-id
+    steps:
+      - uses: actions/checkout@v5
+      - name: Restore test secret files
+        run: |
+          mkdir -p _ci
+          printf '%s' "${{ secrets.ENV_ID_TEST }}"     > _ci/.env.test
+          printf '%s' "${{ secrets.KUBECONFIG_TEST }}" > _ci/kubeconfig
+          chmod 600 _ci/kubeconfig
+      - name: Connect to the tailnet (ephemeral tag:ci node)
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+      - name: Wait for the test k3s API over the tailnet
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sk --max-time 5 https://100.118.34.4:6443/healthz -o /dev/null; then
+              echo "✓ k3s API reachable"; exit 0
+            fi
+            echo "waiting for tailnet path ($i/30)…"
+            tailscale ping --c 1 --until-direct=false 100.118.34.4 || true
+            sleep 5
+          done
+          echo "::error::test k3s API never became reachable"; exit 1
+      - name: Deploy id-test
+        env:
+          KUBECONFIG: ${{ github.workspace }}/_ci/kubeconfig
+        run: |
+          set -a; . _ci/.env.test; set +a
+          kubectl create namespace "$NS" --dry-run=client -o yaml | kubectl apply -f -
+          # Registry pull secret
+          kubectl create secret docker-registry ghcr-secret -n "$NS" \
+            --docker-server=ghcr.io --docker-username="$GHCR_USERNAME" --docker-password="$GHCR_TOKEN" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          # IdP secrets
+          kubectl create secret generic networcoid-secrets -n "$NS" \
+            --from-literal=db-host="$POSTGRES_HOST" \
+            --from-literal=db-name="$POSTGRES_DB" \
+            --from-literal=db-user="$POSTGRES_USER" \
+            --from-literal=db-password="$POSTGRES_PASSWORD" \
+            --from-literal=jwt-secret="$JWT_SECRET" \
+            --from-literal=admin-access-key="$ADMIN_ACCESS_KEY" \
+            --from-literal=admin-password="$INITIAL_ADMIN_PASSWORD" \
+            --from-literal=admin-email="$INITIAL_ADMIN_EMAIL" \
+            --from-literal=client-id="$INITIAL_CLIENT_ID" \
+            --from-literal=client-secret="$INITIAL_CLIENT_SECRET" \
+            --from-literal=brevo-api-key="$BREVO_API_KEY" \
+            --from-literal=issuer="$ISSUER" \
+            --from-literal=base-url="$BASE_URL" \
+            --from-literal=NATS_URL="$NATS_URL" \
+            --from-literal=nats-stream-replicas="$NATS_STREAM_REPLICAS" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          # Hydrate manifests: id.test host + test image tags
+          tmp=$(mktemp -d); cp deploy/k3s/0*.yaml "$tmp/"
+          sed -i "s|id\\.networco\\.no|$(echo "$BASE_URL" | sed 's|https://||')|g" "$tmp"/06-ingress.yaml
+          sed -i "s|ghcr.io/networco/networco-id:latest|$IMAGE_PREFIX/networco-id:$VERSION|g" "$tmp"/04-api.yaml
+          sed -i "s|ghcr.io/networco/networco-id-worker:latest|$IMAGE_PREFIX/networco-id-worker:$VERSION|g" "$tmp"/05-worker.yaml
+          kubectl apply -f "$tmp"/00-namespace.yaml -f "$tmp"/04-api.yaml -f "$tmp"/05-worker.yaml -f "$tmp"/06-ingress.yaml
+          kubectl rollout restart deployment/networcoid deployment/networcoid-worker -n "$NS"
+          kubectl rollout status deployment/networcoid -n "$NS" --timeout=180s
+          kubectl rollout status deployment/networcoid-worker -n "$NS" --timeout=180s
+      - name: Register app redirect URI + audience on the OAuth client
+        env:
+          KUBECONFIG: ${{ github.workspace }}/_ci/kubeconfig
+        run: |
+          set -a; . _ci/.env.test; set +a
+          # The IdP bootstraps the client with only its own /admin/callback. Add
+          # the app callback + set the audience so the API accepts the token.
+          kubectl exec -n networco-db pg-1 -c postgres -- psql -d networco_id -v ON_ERROR_STOP=1 -c \
+            "UPDATE o_auth_clients SET redirect_uris = (SELECT array_agg(DISTINCT u) FROM unnest(redirect_uris || ARRAY['${APP_CALLBACK}']) u), audience = '${CLIENT_AUDIENCE}' WHERE client_id = '${INITIAL_CLIENT_ID}';"

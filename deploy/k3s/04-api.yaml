@@ -59,6 +59,14 @@ spec:
         - name: NATS_URL
           # HA NATS: shared 3-node cluster in networco-nats (cut over 2026-06-06).
           value: "nats://nats.networco-nats.svc.cluster.local:4222"
+        - name: NATS_STREAM_REPLICAS
+          # Absent on prod → code defaults to 3 (HA cluster). Single-node test
+          # sets this to 1 via the secret (a lone NATS server can't host R=3).
+          valueFrom:
+            secretKeyRef:
+              name: networcoid-secrets
+              key: nats-stream-replicas
+              optional: true
         - name: NETWORCO_EXTRA_ADMINS
           value: "andre@biseth.net"
         - name: Admin__AccessKey
