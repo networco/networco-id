@@ -166,7 +166,12 @@ jobs:
           KUBECONFIG: ${{ github.workspace }}/_ci/kubeconfig
         run: |
           set -a; . _ci/.env.test; set +a
-          # The IdP bootstraps the client with only its own /admin/callback. Add
-          # the app callback + set the audience so the API accepts the token.
+          # The IdP bootstraps the client with only its own /admin/callback and a
+          # default scope set. Add the app callback, the audience the API
+          # validates, and the scopes the app requests (incl. offline_access).
           kubectl exec -n networco-db pg-1 -c postgres -- psql -d networco_id -v ON_ERROR_STOP=1 -c \
-            "UPDATE o_auth_clients SET redirect_uris = (SELECT array_agg(DISTINCT u) FROM unnest(redirect_uris || ARRAY['${APP_CALLBACK}']) u), audience = '${CLIENT_AUDIENCE}' WHERE client_id = '${INITIAL_CLIENT_ID}';"
+            "UPDATE o_auth_clients SET \
+               redirect_uris  = (SELECT array_agg(DISTINCT u) FROM unnest(redirect_uris  || ARRAY['${APP_CALLBACK}']) u), \
+               allowed_scopes = (SELECT array_agg(DISTINCT u) FROM unnest(allowed_scopes || ARRAY['openid','profile','email','offline_access']) u), \
+               audience = '${CLIENT_AUDIENCE}' \
+             WHERE client_id = '${INITIAL_CLIENT_ID}';"
