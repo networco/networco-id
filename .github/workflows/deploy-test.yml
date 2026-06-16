@@ -56,6 +56,17 @@ jobs:
           - { svc: networco-id-worker, dockerfile: src/NetworcoId.Worker/Dockerfile }
     steps:
       - uses: actions/checkout@v5
+      - name: Generate a throwaway data-protection cert
+        # The Dockerfile COPYs src/NetworcoId/dataprotection.pfx, which is
+        # gitignored (a secret) so it's absent in CI. At runtime the IdP only
+        # uses it when DATA_PROTECTION_CERT_PATH is set (the test deploy doesn't —
+        # keys persist to the DB), so a fresh self-signed pfx just satisfies the
+        # build COPY. No real secret enters the repo or image.
+        run: |
+          openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
+            -subj "/CN=networco-id-test" -keyout /tmp/dp.key -out /tmp/dp.crt
+          openssl pkcs12 -export -out src/NetworcoId/dataprotection.pfx \
+            -inkey /tmp/dp.key -in /tmp/dp.crt -passout pass:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
       - name: Log in to GHCR
