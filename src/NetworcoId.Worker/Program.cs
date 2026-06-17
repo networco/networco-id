@@ -49,11 +49,23 @@ builder.Configuration["Nats:Url"] = Environment.GetEnvironmentVariable("NATS_URL
 var brevoKey = Environment.GetEnvironmentVariable("BREVO_API_KEY") ?? Environment.GetEnvironmentVariable("BREVO_APIKEY");
 builder.Configuration["Brevo:ApiKey"] = brevoKey;
 
-var senderName = Environment.GetEnvironmentVariable("BREVO_SENDER_NAME");
+var senderName = Environment.GetEnvironmentVariable("EMAIL_SENDER_NAME");
 if (!string.IsNullOrEmpty(senderName)) builder.Configuration["Brevo:SenderName"] = senderName;
 
-var senderEmail = Environment.GetEnvironmentVariable("BREVO_SENDER_EMAIL");
+var senderEmail = Environment.GetEnvironmentVariable("EMAIL_SENDER_EMAIL");
 if (!string.IsNullOrEmpty(senderEmail)) builder.Configuration["Brevo:SenderEmail"] = senderEmail;
+
+// Resend mapping (optional second provider for failover). Sender defaults to
+// the Brevo sender identity unless overridden — the sender domain must be
+// verified in BOTH providers for failover to actually deliver.
+var resendKey = Environment.GetEnvironmentVariable("RESEND_API_KEY");
+if (!string.IsNullOrEmpty(resendKey)) builder.Configuration["Resend:ApiKey"] = resendKey;
+
+var resendSenderName = Environment.GetEnvironmentVariable("RESEND_SENDER_NAME") ?? senderName;
+if (!string.IsNullOrEmpty(resendSenderName)) builder.Configuration["Resend:SenderName"] = resendSenderName;
+
+var resendSenderEmail = Environment.GetEnvironmentVariable("RESEND_SENDER_EMAIL") ?? senderEmail;
+if (!string.IsNullOrEmpty(resendSenderEmail)) builder.Configuration["Resend:SenderEmail"] = resendSenderEmail;
 
 if (string.IsNullOrEmpty(brevoKey))
 {
@@ -66,9 +78,48 @@ else
 
 builder.Services.AddNatsMessaging(builder.Configuration, "NetworcoId.Worker");
 
-// Configure Brevo Email Service
+// Configure email providers + failover chain. EMAIL_PROVIDERS (comma-separated,
+// ordered) selects providers and their failover order; defaults to "brevo" so
+// the prior single-provider behaviour is unchanged. A provider is only included
+// when its API key is set, so leaving RESEND_API_KEY empty yields Brevo-only.
 builder.Services.Configure<BrevoSettings>(builder.Configuration.GetSection("Brevo"));
-builder.Services.AddHttpClient<IBrevoEmailService, BrevoEmailService>();
+builder.Services.Configure<ResendSettings>(builder.Configuration.GetSection("Resend"));
+builder.Services.AddHttpClient<BrevoEmailService>();
+builder.Services.AddHttpClient<ResendEmailService>();
+
+var emailProviders = (Environment.GetEnvironmentVariable("EMAIL_PROVIDERS") ?? "brevo")
+    .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+builder.Services.AddSingleton<IEmailSender>(sp =>
+{
+    var senders = new List<IEmailSender>();
+    foreach (var p in emailProviders)
+    {
+        switch (p.ToLowerInvariant())
+        {
+            case "brevo":
+                if (!string.IsNullOrEmpty(brevoKey)) senders.Add(sp.GetRequiredService<BrevoEmailService>());
+                break;
+            case "resend":
+                if (!string.IsNullOrEmpty(resendKey)) senders.Add(sp.GetRequiredService<ResendEmailService>());
+                break;
+        }
+    }
+
+    var logger = sp.GetRequiredService<ILogger<FailoverEmailService>>();
+    if (senders.Count == 0)
+    {
+        logger.LogError("No email providers configured (BREVO_API_KEY / RESEND_API_KEY) — sends will fail");
+        return sp.GetRequiredService<BrevoEmailService>(); // throws a clear 'key missing' error on send
+    }
+    if (senders.Count == 1)
+    {
+        logger.LogInformation("Email provider configured: {Provider}", senders[0].ProviderName);
+        return senders[0];
+    }
+    logger.LogInformation("Email failover chain configured: {Order}", string.Join(",", senders.Select(s => s.ProviderName)));
+    return new FailoverEmailService(senders, logger);
+});
 
 // Add FluentEmail (keeping as secondary/local fallback if needed)
 builder.Services

@@ -7,16 +7,13 @@ public class BrevoSettings
 {
     public required string ApiKey { get; set; }
     public string SenderName { get; set; } = "NETWORCO";
-    public string SenderEmail { get; set; } = "networco@bogentech.no";
+    public string SenderEmail { get; set; } = "noreply@networco.no";
 }
 
-public interface IBrevoEmailService
+public class BrevoEmailService : IEmailSender
 {
-    Task SendEmailAsync(string toEmail, string toName, string subject, string htmlContent, string? textContent = null, CancellationToken ct = default);
-}
+    public string ProviderName => "brevo";
 
-public class BrevoEmailService : IBrevoEmailService
-{
     private static readonly System.Text.Json.JsonSerializerOptions NullIgnoringJsonOptions = new()
     {
         DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,

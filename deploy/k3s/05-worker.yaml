@@ -56,13 +56,21 @@ spec:
         - name: SMTP_PORT
           value: "587"
         - name: SMTP_USER
-          value: "networco@bogentech.no"
+          value: "noreply@networco.no"
         - name: BREVO_API_KEY
           valueFrom:
             secretKeyRef:
               name: networcoid-secrets
               key: brevo-api-key
-        - name: BREVO_SENDER_NAME
+        - name: EMAIL_SENDER_NAME
           value: "NETWORCO"
-        - name: BREVO_SENDER_EMAIL
-          value: "networco@bogentech.no"
+        - name: EMAIL_SENDER_EMAIL
+          value: "noreply@networco.no"
+        - name: RESEND_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: networcoid-secrets
+              key: resend-api-key
+              optional: true
+        - name: EMAIL_PROVIDERS
+          value: "brevo,resend"

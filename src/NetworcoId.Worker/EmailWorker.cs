@@ -9,7 +9,7 @@ namespace NetworcoId.Worker;
 
 public class EmailWorker(
     INatsConnection nats,
-    IBrevoEmailService brevoEmail,
+    IEmailSender brevoEmail,
     ILogger<EmailWorker> logger) : BackgroundService
 {
     private const string ConsumerName = "email-worker";
