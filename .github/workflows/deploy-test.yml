@@ -147,6 +147,7 @@ jobs:
             --from-literal=client-id="$INITIAL_CLIENT_ID" \
             --from-literal=client-secret="$INITIAL_CLIENT_SECRET" \
             --from-literal=brevo-api-key="$BREVO_API_KEY" \
+            --from-literal=resend-api-key="$RESEND_API_KEY" \
             --from-literal=issuer="$ISSUER" \
             --from-literal=base-url="$BASE_URL" \
             --from-literal=NATS_URL="$NATS_URL" \
