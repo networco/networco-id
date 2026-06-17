@@ -128,7 +128,15 @@ jobs:
         env:
           KUBECONFIG: ${{ github.workspace }}/_ci/kubeconfig
         run: |
-          set -a; . _ci/.env.test; set +a
+          # Robust env load: tolerates spaces and quotes in values (a bare space
+          # in a value once failed the deploy via `source`). Skips comments/blanks.
+          while IFS= read -r _l || [ -n "$_l" ]; do
+            case "$_l" in ''|\#*) continue;; esac
+            _k=${_l%%=*}; _v=${_l#*=}
+            case "$_k" in *[!A-Za-z0-9_]*|'') continue;; esac
+            _v=${_v#\"}; _v=${_v%\"}; _v=${_v#\'}; _v=${_v%\'}
+            export "$_k=$_v"
+          done < _ci/.env.test
           kubectl create namespace "$NS" --dry-run=client -o yaml | kubectl apply -f -
           # Registry pull secret
           kubectl create secret docker-registry ghcr-secret -n "$NS" \
@@ -158,6 +166,10 @@ jobs:
           sed -i "s|id\\.networco\\.no|$(echo "$BASE_URL" | sed 's|https://||')|g" "$tmp"/06-ingress.yaml
           sed -i "s|ghcr.io/networco/networco-id:latest|$IMAGE_PREFIX/networco-id:$VERSION|g" "$tmp"/04-api.yaml
           sed -i "s|ghcr.io/networco/networco-id-worker:latest|$IMAGE_PREFIX/networco-id-worker:$VERSION|g" "$tmp"/05-worker.yaml
+          # Env-aware sender identity (test → "NETWORCO TEST") instead of the
+          # prod literal baked into the manifest. Only overrides when set.
+          [ -n "$EMAIL_SENDER_NAME" ] && sed -i "/name: EMAIL_SENDER_NAME/{n;s|value: .*|value: \"$EMAIL_SENDER_NAME\"|;}" "$tmp"/05-worker.yaml
+          [ -n "$EMAIL_SENDER_EMAIL" ] && sed -i "/name: EMAIL_SENDER_EMAIL/{n;s|value: .*|value: \"$EMAIL_SENDER_EMAIL\"|;}" "$tmp"/05-worker.yaml
           kubectl apply -f "$tmp"/00-namespace.yaml -f "$tmp"/04-api.yaml -f "$tmp"/05-worker.yaml -f "$tmp"/06-ingress.yaml
           kubectl rollout restart deployment/networcoid deployment/networcoid-worker -n "$NS"
           kubectl rollout status deployment/networcoid -n "$NS" --timeout=180s
@@ -166,7 +178,15 @@ jobs:
         env:
           KUBECONFIG: ${{ github.workspace }}/_ci/kubeconfig
         run: |
-          set -a; . _ci/.env.test; set +a
+          # Robust env load: tolerates spaces and quotes in values (a bare space
+          # in a value once failed the deploy via `source`). Skips comments/blanks.
+          while IFS= read -r _l || [ -n "$_l" ]; do
+            case "$_l" in ''|\#*) continue;; esac
+            _k=${_l%%=*}; _v=${_l#*=}
+            case "$_k" in *[!A-Za-z0-9_]*|'') continue;; esac
+            _v=${_v#\"}; _v=${_v%\"}; _v=${_v#\'}; _v=${_v%\'}
+            export "$_k=$_v"
+          done < _ci/.env.test
           # The IdP bootstraps the client with only its own /admin/callback and a
           # default scope set. Add the app callback, the audience the API
           # validates, and the scopes the app requests (incl. offline_access).
