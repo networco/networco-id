@@ -12,10 +12,14 @@ RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages \
 # Copy remaining source code
 COPY . .
 
-# Build and publish with mount cache
+# Build and publish with mount cache.
+# No --no-restore: the NuGet cache mount is ephemeral and can be evicted between
+# the restore and publish RUNs, which fails non-deterministically with "Package …
+# was not found, might have been deleted since NuGet restore". Letting publish
+# restore is idempotent (cache-backed) and self-heals.
 WORKDIR /app/src/NetworcoId
 RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages \
-    dotnet publish -c Release -o /app/publish --no-restore /p:InformationalVersion=$APP_VERSION /p:Version=$APP_VERSION
+    dotnet publish -c Release -o /app/publish /p:InformationalVersion=$APP_VERSION /p:Version=$APP_VERSION
 
 # Final stage/image
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine
