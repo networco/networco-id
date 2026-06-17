@@ -166,11 +166,12 @@ jobs:
           sed -i "s|id\\.networco\\.no|$(echo "$BASE_URL" | sed 's|https://||')|g" "$tmp"/06-ingress.yaml
           sed -i "s|ghcr.io/networco/networco-id:latest|$IMAGE_PREFIX/networco-id:$VERSION|g" "$tmp"/04-api.yaml
           sed -i "s|ghcr.io/networco/networco-id-worker:latest|$IMAGE_PREFIX/networco-id-worker:$VERSION|g" "$tmp"/05-worker.yaml
-          # Env-aware sender identity (test → "NETWORCO TEST") instead of the
-          # prod literal baked into the manifest. Only overrides when set.
-          [ -n "$EMAIL_SENDER_NAME" ] && sed -i "/name: EMAIL_SENDER_NAME/{n;s|value: .*|value: \"$EMAIL_SENDER_NAME\"|;}" "$tmp"/05-worker.yaml
-          [ -n "$EMAIL_SENDER_EMAIL" ] && sed -i "/name: EMAIL_SENDER_EMAIL/{n;s|value: .*|value: \"$EMAIL_SENDER_EMAIL\"|;}" "$tmp"/05-worker.yaml
           kubectl apply -f "$tmp"/00-namespace.yaml -f "$tmp"/04-api.yaml -f "$tmp"/05-worker.yaml -f "$tmp"/06-ingress.yaml
+          # Env-aware sender from the env file (test → "NETWORCO TEST") instead of
+          # the prod literal in the manifest. Use `set env` not sed: an embedded
+          # space inside a YAML-run sed silently dropped it. Only overrides when set.
+          [ -n "$EMAIL_SENDER_NAME" ]  && kubectl set env deployment/networcoid-worker -n "$NS" "EMAIL_SENDER_NAME=$EMAIL_SENDER_NAME"
+          [ -n "$EMAIL_SENDER_EMAIL" ] && kubectl set env deployment/networcoid-worker -n "$NS" "EMAIL_SENDER_EMAIL=$EMAIL_SENDER_EMAIL"
           kubectl rollout restart deployment/networcoid deployment/networcoid-worker -n "$NS"
           kubectl rollout status deployment/networcoid -n "$NS" --timeout=180s
           kubectl rollout status deployment/networcoid-worker -n "$NS" --timeout=180s
