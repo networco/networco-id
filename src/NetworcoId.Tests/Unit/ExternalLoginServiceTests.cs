@@ -112,7 +112,7 @@ public class ExternalLoginServiceTests
         Assert.NotEqual(existing.Id, result.Id);
         Assert.Equal(2, await context.Users.CountAsync());
         Assert.False(result.EmailVerified);
-        Assert.EndsWith("@no-reply.networco.no", result.Email); // placeholder
+        Assert.EndsWith("@id.networco.no", result.Email); // placeholder
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public class ExternalLoginServiceTests
         Assert.Single(await context.Users.ToListAsync());
         Assert.False(result.EmailVerified);
         // Short, deterministic placeholder: bankid-<12 hex>@no-reply.networco.no
-        Assert.Matches(@"^bankid-[0-9a-f]{12}@no-reply\.networco\.no$", result.Email);
+        Assert.Matches(@"^bankid-[0-9a-f]{12}@id\.networco\.no$", result.Email);
         Assert.Equal("1990-01-01", result.BirthDate);
         Assert.Null(await context.UserCredentials.FirstOrDefaultAsync()); // password-less
     }
@@ -188,7 +188,7 @@ public class ExternalLoginServiceTests
             FirstName = "Kari",
             LastName = "Nordmann"
         });
-        Assert.EndsWith("@no-reply.networco.no", first.Email);
+        Assert.EndsWith("@id.networco.no", first.Email);
 
         // Same identity logs in again, now providing an email → backfilled onto the account.
         var second = await service.FindOrCreateExternalUserAsync(Provider, new ExternalUserInfo

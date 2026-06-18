@@ -315,10 +315,16 @@ public class AuthService : IAuthService
 
     // Generated address for BankID users with no usable email; also used to detect
     // accounts that should be enriched once the provider supplies a real one.
-    private const string PlaceholderEmailSuffix = "@no-reply.networco.no";
+    private const string PlaceholderEmailSuffix = "@id.networco.no";
+    // Earlier placeholder domain — still recognized so pre-existing placeholder
+    // accounts keep getting backfilled when a real email later arrives.
+    private const string LegacyPlaceholderEmailSuffix = "@no-reply.networco.no";
 
     private static bool IsPlaceholderEmail(string? email) =>
-        !string.IsNullOrEmpty(email) && email.EndsWith(PlaceholderEmailSuffix, StringComparison.OrdinalIgnoreCase);
+        !string.IsNullOrEmpty(email)
+        && email.StartsWith("bankid-", StringComparison.OrdinalIgnoreCase)
+        && (email.EndsWith(PlaceholderEmailSuffix, StringComparison.OrdinalIgnoreCase)
+            || email.EndsWith(LegacyPlaceholderEmailSuffix, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// Synthesizes a short, deterministic placeholder email for an external identity
