@@ -401,6 +401,13 @@ public static class AuthEndpoints
                 if (!string.IsNullOrEmpty(name))
                     claims.Add("name", name);
             }
+
+            if (context.User.HasClaim(c => c.Type == "birthdate"))
+            {
+                var birthdate = context.User.FindFirst("birthdate")?.Value;
+                if (!string.IsNullOrEmpty(birthdate))
+                    claims.Add("birthdate", birthdate);
+            }
             
             // Add preferred_username if present in token
             if (context.User.HasClaim(c => c.Type == "preferred_username"))

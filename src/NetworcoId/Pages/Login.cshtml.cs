@@ -47,6 +47,39 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
     public string? CodeChallengeMethod => code_challenge_method;
     public string? Nonce => nonce;
 
+    /// <summary>Whether external BankID login (via IDura) is configured/enabled.</summary>
+    public bool IduraEnabled => config.IduraEnabled;
+
+    /// <summary>
+    /// Link target for the BankID button: initiates the external challenge and
+    /// carries the original /oauth/authorize request as a returnUrl so the OAuth
+    /// flow resumes after BankID completes. Falls back to a bare challenge when
+    /// there's no OAuth context (direct visit).
+    /// </summary>
+    public string BankIdChallengeUrl
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(ClientId) || string.IsNullOrEmpty(RedirectUri))
+            {
+                return "/auth/external/bankid";
+            }
+
+            var q = HttpUtility.ParseQueryString("");
+            q["response_type"] = "code";
+            q["client_id"] = ClientId;
+            q["redirect_uri"] = RedirectUri;
+            if (!string.IsNullOrEmpty(Scope)) q["scope"] = Scope;
+            if (!string.IsNullOrEmpty(State)) q["state"] = State;
+            if (!string.IsNullOrEmpty(CodeChallenge)) q["code_challenge"] = CodeChallenge;
+            if (!string.IsNullOrEmpty(CodeChallengeMethod)) q["code_challenge_method"] = CodeChallengeMethod;
+            if (!string.IsNullOrEmpty(Nonce)) q["nonce"] = Nonce;
+
+            var authorizeUrl = "/oauth/authorize?" + q;
+            return "/auth/external/bankid?returnUrl=" + Uri.EscapeDataString(authorizeUrl);
+        }
+    }
+
     [BindProperty(SupportsGet = true, Name = "registration")]
     public string? Registration { get; set; }
 

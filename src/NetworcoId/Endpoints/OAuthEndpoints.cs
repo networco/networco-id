@@ -76,25 +76,79 @@ public static class OAuthEndpoints
             .Produces(302);
     }
 
-    private static IResult Logout(
+    private static async Task<IResult> Logout(
         [FromQuery] string? post_logout_redirect_uri,
         [FromQuery] string? state,
-        HttpContext context)
+        [FromQuery] string? id_token_hint,
+        HttpContext context,
+        NetworcoId.Infrastructure.Database.AuthDbContext dbContext,
+        IJwtService jwtService,
+        ILoggerFactory loggerFactory)
     {
-        // For OIDC, we usually clear the application session
-        // In this implementation, we can clear cookies or just redirect
+        var logger = loggerFactory.CreateLogger("OAuthLogout");
 
-        // If a redirect URI is provided, validate it (in a real system)
-        // For now, we allow redirecting back to the provided URI or the home page
-        var redirectUrl = post_logout_redirect_uri ?? "/";
+        // Invalidate the IdP session so logout actually logs the user out. Without
+        // this the NetworcoId.Session cookie survives logout and the SSO short-circuit
+        // in /oauth/authorize would silently re-authenticate the last user — a serious
+        // risk for shared devices, especially for BankID logins. Idempotent + safe.
+        await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
 
+        // No redirect requested → go home.
+        if (string.IsNullOrEmpty(post_logout_redirect_uri))
+        {
+            return Results.Redirect("/");
+        }
+
+        // Validate the redirect target before honoring it (open-redirect protection).
+        // Site-relative paths are same-origin and safe.
+        bool allowed = post_logout_redirect_uri.StartsWith("/") && !post_logout_redirect_uri.StartsWith("//");
+
+        if (!allowed && Uri.TryCreate(post_logout_redirect_uri, UriKind.Absolute, out var target))
+        {
+            // If an id_token_hint is supplied, validate it (signature + issuer) and
+            // bind the redirect to THAT client's registered origins (CSRF/spec
+            // hardening). Without a valid hint we still block open redirects by
+            // requiring the origin to match some active client's redirect URI.
+            string? hintClientId = string.IsNullOrEmpty(id_token_hint)
+                ? null
+                : await jwtService.GetClientIdFromIdTokenHintAsync(id_token_hint);
+
+            if (!string.IsNullOrEmpty(id_token_hint) && hintClientId == null)
+            {
+                logger.LogWarning("Logout: id_token_hint failed validation; ignoring it");
+            }
+
+            List<string> registeredUris;
+            if (hintClientId != null)
+            {
+                var client = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                    .FirstOrDefaultAsync(dbContext.OAuthClients, c => c.ClientId == hintClientId);
+                registeredUris = client?.RedirectUris ?? new List<string>();
+            }
+            else
+            {
+                var activeClients = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+                    .ToListAsync(dbContext.OAuthClients.Where(c => c.IsActive));
+                registeredUris = activeClients.SelectMany(c => c.RedirectUris).ToList();
+            }
+
+            allowed = registeredUris.Any(u =>
+                Uri.TryCreate(u, UriKind.Absolute, out var ru)
+                && ru.Scheme == target.Scheme
+                && string.Equals(ru.Authority, target.Authority, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!allowed)
+        {
+            logger.LogWarning("Logout: rejected post_logout_redirect_uri '{Uri}' (unregistered origin or invalid id_token_hint)", post_logout_redirect_uri);
+            return Results.Redirect("/");
+        }
+
+        var redirectUrl = post_logout_redirect_uri;
         if (!string.IsNullOrEmpty(state))
         {
-            var uriBuilder = new UriBuilder(redirectUrl);
-            var query = HttpUtility.ParseQueryString(uriBuilder.Query);
-            query["state"] = state;
-            uriBuilder.Query = query.ToString();
-            redirectUrl = uriBuilder.ToString();
+            // Works for both absolute and site-relative targets.
+            redirectUrl += (redirectUrl.Contains('?') ? "&" : "?") + "state=" + Uri.EscapeDataString(state);
         }
 
         return Results.Redirect(redirectUrl);
@@ -125,7 +179,7 @@ public static class OAuthEndpoints
             id_token_signing_alg_values_supported = new[] { "HS256", "RS256" },
             scopes_supported = new[] { "openid", "profile", "email", "phone", "address", "offline_access" },
             token_endpoint_auth_methods_supported = new[] { "client_secret_post", "client_secret_basic" },
-            claims_supported = new[] { "sub", "iss", "aud", "exp", "iat", "email", "email_verified", "name", "family_name", "given_name", "phone_number", "role", "national_id" },
+            claims_supported = new[] { "sub", "iss", "aud", "exp", "iat", "email", "email_verified", "name", "family_name", "given_name", "birthdate", "phone_number", "role", "national_id" },
             grant_types_supported = new[] { "authorization_code", "refresh_token" },
             code_challenge_methods_supported = new[] { "S256" },
             request_parameter_supported = true
@@ -439,13 +493,19 @@ public static class OAuthEndpoints
             }
         }
 
-        // 3b. Silent Success for max_age (Short Circuit)
-        // If user is authenticated, max_age is satisfied, and we are not forced to show UI.
+        // 3b. Silent Success (SSO short-circuit)
+        // If the user already has a valid session and nothing forces interaction
+        // (prompt=login/consent/select_account, or an exceeded max_age), issue the
+        // code without showing the login form again. This is required for external
+        // logins (e.g. BankID) to resume the original /oauth/authorize request, and
+        // gives normal SSO for password sessions too. Note: max_age is NOT required
+        // here — when absent, maxAgeSatisfied stays true; when present and exceeded,
+        // it is false and we fall through to force re-login below.
         bool isPromptLogin = prompt?.Contains("login") == true;
         bool isPromptConsent = prompt?.Contains("consent") == true;
         bool isPromptSelectAccount = prompt?.Contains("select_account") == true;
 
-        if (isAuthenticated && max_age.HasValue && maxAgeSatisfied && !isPromptLogin && !isPromptConsent && !isPromptSelectAccount)
+        if (isAuthenticated && maxAgeSatisfied && !isPromptLogin && !isPromptConsent && !isPromptSelectAccount)
         {
              // Proceed silently: Generate code using ORIGINAL authTime
              var email = result?.Principal?.FindFirst(ClaimTypes.Email)?.Value;

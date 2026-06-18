@@ -46,11 +46,49 @@ public class UserEntityConfiguration : IEntityTypeConfiguration<UserEntity>
         builder.Property(u => u.IsActive)
             .HasDefaultValue(true);
 
+        builder.Property(u => u.BirthDate)
+            .HasMaxLength(10); // OIDC birthdate "YYYY-MM-DD"
+
         // 1:1 relationship with credentials
         builder.HasOne(u => u.Credential)
             .WithOne(c => c.User)
             .HasForeignKey<UserCredentialEntity>(c => c.Id)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // 1:many external logins
+        builder.HasMany(u => u.ExternalLogins)
+            .WithOne(e => e.User)
+            .HasForeignKey(e => e.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+/// <summary>
+/// EF Core configuration for UserExternalLoginEntity.
+/// </summary>
+public class UserExternalLoginEntityConfiguration : IEntityTypeConfiguration<UserExternalLoginEntity>
+{
+    public void Configure(EntityTypeBuilder<UserExternalLoginEntity> builder)
+    {
+        builder.HasKey(e => e.Id);
+
+        builder.Property(e => e.Id)
+            .HasDefaultValueSql("gen_random_uuid()");
+
+        builder.Property(e => e.Provider)
+            .HasMaxLength(50)
+            .IsRequired();
+
+        builder.Property(e => e.Subject)
+            .HasMaxLength(255)
+            .IsRequired();
+
+        builder.Property(e => e.CreatedAt)
+            .HasDefaultValueSql("now()");
+
+        // One link per (provider, subject) — the identity at the external IdP.
+        builder.HasIndex(e => new { e.Provider, e.Subject })
+            .IsUnique();
     }
 }
 

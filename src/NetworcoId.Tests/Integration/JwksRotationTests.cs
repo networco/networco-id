@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Caching.Memory;
 using NetworcoId.Infrastructure.Database;
 using NetworcoId.Models.Entities;
+using NetworcoId.Models.Auth;
 using Xunit;
 using NetworcoId.Infrastructure.Auth;
 using System.Security.Cryptography;
@@ -111,23 +112,27 @@ public class JwksRotationTests : IClassFixture<WebApplicationFactory<Program>>, 
             var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
             var keyManager = scope.ServiceProvider.GetRequiredService<IKeyManagementService>();
             var jwtService = scope.ServiceProvider.GetRequiredService<IJwtService>();
+            // Sign with the issuer/audience that ValidateTokenAsync actually validates
+            // against (resolved from config) so the test is robust across environments
+            // instead of hardcoding a value tied to one appsettings.
+            var config = scope.ServiceProvider.GetRequiredService<NetworcoIdConfig>();
 
             // Generate initial keys
             await keyManager.RotateKeysAsync();
-            
+
             // Get the current active key to sign manually (simulating "old" key later)
             var activeKey = await db.SigningKeys.FirstAsync(k => k.Status == KeyStatus.Active);
-            
+
             // Create a token manually with this key
             var rsa = RSA.Create();
             rsa.ImportFromPem(activeKey.PrivateKeyPem);
             var securityKey = new RsaSecurityKey(rsa) { KeyId = activeKey.KeyId };
             var creds = new SigningCredentials(securityKey, SecurityAlgorithms.RsaSha256);
-            
+
             // NOTE: Must match what ValidationParameters expects (from config)
             var token = new JwtSecurityToken(
-                issuer: "https://host.docker.internal:5001", // Config default in test env (re-checked)
-                audience: "networco-dev",    // Config default
+                issuer: config.Issuer,
+                audience: config.Audience,
                 claims: new[] { new System.Security.Claims.Claim("sub", "test-user") },
                 expires: DateTime.UtcNow.AddMinutes(5),
                 signingCredentials: creds

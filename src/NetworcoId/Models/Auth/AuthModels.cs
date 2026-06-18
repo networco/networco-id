@@ -55,6 +55,35 @@ public class NetworcoIdConfig
 
     // Runtime tracked system client ID
     public string? SystemManagementClientId { get; set; }
+
+    // External login via IDura (Norwegian BankID broker).
+    // When IduraEnabled is false (or credentials are missing) the OpenIdConnect
+    // scheme is not registered and the BankID button is hidden.
+    public bool IduraEnabled { get; set; } = false;
+    /// <summary>IDura dashboard "Domain" — authority becomes https://{IduraDomain}/.</summary>
+    public string? IduraDomain { get; set; }
+    public string? IduraClientId { get; set; }
+    public string? IduraClientSecret { get; set; }
+    /// <summary>Space-separated scopes requested from IDura.</summary>
+    public string IduraScopes { get; set; } = "openid email birthdate";
+    /// <summary>Callback path registered with IDura. Handled by the OIDC middleware.</summary>
+    public string IduraCallbackPath { get; set; } = "/auth/callback/external";
+    /// <summary>Optional acr_values to pin a BankID assurance level. Empty = let IDura/device decide.</summary>
+    public string? IduraAcrValues { get; set; }
+}
+
+/// <summary>
+/// Identity returned by an external OIDC provider (e.g. IDura/BankID), used to
+/// find-or-create a local user.
+/// </summary>
+public class ExternalUserInfo
+{
+    public required string Subject { get; set; }
+    public string? Email { get; set; }
+    public bool EmailVerified { get; set; }
+    public string? FirstName { get; set; }
+    public string? LastName { get; set; }
+    public string? BirthDate { get; set; }
 }
 
 /// <summary>
@@ -77,6 +106,9 @@ public class NetworcoIdUserDto
     // Verification status
     public bool EmailVerified { get; set; }
     public bool PhoneNumberVerified { get; set; }
+
+    // OIDC birthdate claim (YYYY-MM-DD), populated from external providers like BankID.
+    public string? BirthDate { get; set; }
     
     // Address (OIDC Standard Claims)
     public string? AddressFormatted { get; set; }

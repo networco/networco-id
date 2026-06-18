@@ -65,6 +65,36 @@ public static class ServiceConfiguration
         config.BaseUrl = baseUrl;
         config.FrontendUrl = frontendUrl;
 
+        // External login (IDura / BankID). Read process env vars FIRST — .env is
+        // loaded by DotNetEnv after WebApplicationBuilder snapshots its env-var
+        // configuration provider, so configuration["IDURA_*"] would miss .env
+        // values. This mirrors how DATABASE_URL/NATS_URL are read in Program.cs.
+        static string? EnvOr(IConfiguration cfg, string envKey, string cfgKey)
+            => Environment.GetEnvironmentVariable(envKey) ?? cfg[envKey] ?? cfg[cfgKey];
+
+        var iduraDomain = EnvOr(configuration, "IDURA_DOMAIN", "NetworcoId:IduraDomain");
+        var iduraClientId = EnvOr(configuration, "IDURA_CLIENT_ID", "NetworcoId:IduraClientId");
+        var iduraClientSecret = EnvOr(configuration, "IDURA_CLIENT_SECRET", "NetworcoId:IduraClientSecret");
+        var iduraScopes = EnvOr(configuration, "IDURA_SCOPES", "NetworcoId:IduraScopes") ?? "openid email birthdate";
+        var iduraCallbackPath = EnvOr(configuration, "IDURA_CALLBACK_PATH", "NetworcoId:IduraCallbackPath") ?? "/auth/callback/external";
+        var iduraAcrValues = EnvOr(configuration, "IDURA_ACR_VALUES", "NetworcoId:IduraAcrValues");
+        // Only enable when explicitly turned on AND fully configured — otherwise the
+        // OIDC scheme (which needs a reachable authority) isn't registered at all.
+        var iduraEnabledRaw = Environment.GetEnvironmentVariable("IDURA_ENABLED") ?? configuration["IDURA_ENABLED"];
+        var iduraEnabled = (string.Equals(iduraEnabledRaw, "true", StringComparison.OrdinalIgnoreCase)
+                || configuration.GetValue<bool>("NetworcoId:IduraEnabled"))
+            && !string.IsNullOrWhiteSpace(iduraDomain)
+            && !string.IsNullOrWhiteSpace(iduraClientId)
+            && !string.IsNullOrWhiteSpace(iduraClientSecret);
+
+        config.IduraEnabled = iduraEnabled;
+        config.IduraDomain = iduraDomain;
+        config.IduraClientId = iduraClientId;
+        config.IduraClientSecret = iduraClientSecret;
+        config.IduraScopes = iduraScopes;
+        config.IduraCallbackPath = iduraCallbackPath;
+        config.IduraAcrValues = iduraAcrValues;
+
         services.AddSingleton(provider =>
         {
             var optionsConfig = provider.GetRequiredService<IOptions<NetworcoIdConfig>>().Value;
@@ -90,6 +120,16 @@ public static class ServiceConfiguration
             // Data Protection Config
             optionsConfig.DataProtectionCertificatePath ??= configuration["DATA_PROTECTION_CERT_PATH"];
             optionsConfig.DataProtectionCertificatePassword ??= configuration["DATA_PROTECTION_CERT_PASSWORD"];
+
+            // External login (IDura / BankID) — mirror onto the runtime options object
+            // so pages/endpoints (e.g. the BankID button gate) can read it.
+            optionsConfig.IduraEnabled = iduraEnabled;
+            optionsConfig.IduraDomain = iduraDomain;
+            optionsConfig.IduraClientId = iduraClientId;
+            optionsConfig.IduraClientSecret = iduraClientSecret;
+            optionsConfig.IduraScopes = iduraScopes;
+            optionsConfig.IduraCallbackPath = iduraCallbackPath;
+            optionsConfig.IduraAcrValues = iduraAcrValues;
 
             return optionsConfig;
         });
@@ -121,7 +161,7 @@ public static class ServiceConfiguration
 
         // Add ASP.NET Core Authentication & Authorization
         services.AddAuthorization();
-        services.AddAuthentication(options =>
+        var authBuilder = services.AddAuthentication(options =>
             {
                 options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
                 options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -186,6 +226,64 @@ public static class ServiceConfiguration
                     }
                 };
             });
+
+        // External login via IDura (BankID broker). Registered only when fully
+        // configured so the app still boots without IDura credentials (and tests,
+        // which never set them, are unaffected).
+        if (iduraEnabled)
+        {
+            authBuilder
+                // Short-lived first-party cookie that holds the external identity
+                // between the OIDC callback and our /auth/external/complete handler.
+                .AddCookie("ExternalLogin", options =>
+                {
+                    options.Cookie.Name = "NetworcoId.External";
+                    options.ExpireTimeSpan = TimeSpan.FromMinutes(5);
+                    options.Cookie.HttpOnly = true;
+                    options.Cookie.SameSite = SameSiteMode.Lax;
+                })
+                .AddOpenIdConnect("idura", options =>
+                {
+                    options.Authority = $"https://{iduraDomain!.Trim().TrimEnd('/')}/";
+                    options.ClientId = iduraClientId;
+                    options.ClientSecret = iduraClientSecret;
+                    options.ResponseType = "code";
+                    options.UsePkce = true;
+                    options.CallbackPath = iduraCallbackPath;
+                    options.SignInScheme = "ExternalLogin";
+                    options.SaveTokens = false;
+                    // IDura returns the identity claims inside the ID token (its default
+                    // "fromTokenEndpoint" strategy), so we must NOT call the UserInfo
+                    // endpoint — doing so returns 400. Read claims from the ID token.
+                    options.GetClaimsFromUserInfoEndpoint = false;
+                    options.MapInboundClaims = false;
+
+                    options.Scope.Clear();
+                    foreach (var s in iduraScopes.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        options.Scope.Add(s);
+                    }
+
+                    options.Events = new Microsoft.AspNetCore.Authentication.OpenIdConnect.OpenIdConnectEvents
+                    {
+                        OnRedirectToIdentityProvider = ctx =>
+                        {
+                            if (!string.IsNullOrWhiteSpace(iduraAcrValues))
+                            {
+                                ctx.ProtocolMessage.AcrValues = iduraAcrValues;
+                            }
+                            return Task.CompletedTask;
+                        },
+                        OnRemoteFailure = ctx =>
+                        {
+                            ctx.Response.Redirect("/Login?error=external&error_description="
+                                + Uri.EscapeDataString("BankID-pålogging mislyktes. Prøv igjen."));
+                            ctx.HandleResponse();
+                            return Task.CompletedTask;
+                        }
+                    };
+                });
+        }
 
         // Configure JwtBearerOptions with dependency injection to access IMemoryCache
         services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)

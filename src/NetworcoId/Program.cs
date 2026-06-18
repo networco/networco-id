@@ -237,6 +237,7 @@ app.UseAuthorization();
 app.MapRazorPages();
 app.MapOAuth();
 app.MapAuth();
+app.MapExternalAuth();
 app.MapAdmin();
 
 // Health check
