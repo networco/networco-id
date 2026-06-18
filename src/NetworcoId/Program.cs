@@ -207,11 +207,14 @@ builder.Services.AddRateLimiter(options =>
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline
-app.UseForwardedHeaders(new ForwardedHeadersOptions
-{
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
-});
+// Configure the HTTP request pipeline.
+// Use the DI-configured ForwardedHeadersOptions (which clear KnownProxies /
+// KnownNetworks) so the ingress's X-Forwarded-Proto is actually honored.
+// Passing an inline options object here would bypass that config and keep the
+// default loopback-only proxy allowlist — leaving Request.Scheme as "http"
+// behind the TLS-terminating ingress, which made the OIDC handler build an
+// http:// redirect_uri that IDura rejects.
+app.UseForwardedHeaders();
 
 if (app.Environment.IsDevelopment())
 {
