@@ -41,12 +41,38 @@ public class UserEntity
     
     // Phone verification
     public bool PhoneNumberVerified { get; set; } = false;
-    
+
+    // OIDC birthdate claim (YYYY-MM-DD), e.g. from BankID via IDura.
+    public string? BirthDate { get; set; }
+
     public bool IsActive { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; }
 
     // Navigation property
     public UserCredentialEntity? Credential { get; set; }
+
+    // External federated logins (e.g. IDura/BankID). A user may have none
+    // (password-only) or several (one per provider).
+    public List<UserExternalLoginEntity> ExternalLogins { get; set; } = new();
+}
+
+/// <summary>
+/// Links a local user to an identity at an external OIDC provider (e.g. IDura,
+/// which brokers Norwegian BankID). Keyed by (Provider, Subject).
+/// </summary>
+public class UserExternalLoginEntity
+{
+    public Guid Id { get; set; }
+    public Guid UserId { get; set; }
+    /// <summary>Provider key, e.g. "idura".</summary>
+    public required string Provider { get; set; }
+    /// <summary>The provider's stable subject identifier (the OIDC `sub`).</summary>
+    public required string Subject { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? LastLoginAt { get; set; }
+
+    // Navigation property
+    public UserEntity User { get; set; } = null!;
 }
 
 /// <summary>

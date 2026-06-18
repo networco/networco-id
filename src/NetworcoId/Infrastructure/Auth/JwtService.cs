@@ -173,6 +173,11 @@ public class JwtService : IJwtService
             claims.Add(new Claim("name", $"{user.FirstName} {user.LastName}"));
             claims.Add(new Claim("preferred_username", user.Email));
             claims.Add(new Claim("updated_at", DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64));
+
+            if (!string.IsNullOrEmpty(user.BirthDate))
+            {
+                claims.Add(new Claim("birthdate", user.BirthDate));
+            }
             
             // Add roles to the token (removed redundant check as we add them above)
             

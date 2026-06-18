@@ -21,6 +21,7 @@ public class AuthDbContext : DbContext, IDataProtectionKeyContext
     // Authentication entities
     public DbSet<UserEntity> Users => Set<UserEntity>();
     public DbSet<UserCredentialEntity> UserCredentials => Set<UserCredentialEntity>();
+    public DbSet<UserExternalLoginEntity> UserExternalLogins => Set<UserExternalLoginEntity>();
     public DbSet<RefreshTokenEntity> RefreshTokens => Set<RefreshTokenEntity>();
     public DbSet<AuthSessionEntity> AuthSessions => Set<AuthSessionEntity>();
     public DbSet<OAuthClientEntity> OAuthClients => Set<OAuthClientEntity>();

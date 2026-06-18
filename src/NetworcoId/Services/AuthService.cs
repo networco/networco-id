@@ -23,6 +23,18 @@ public interface IAuthService
     Task<NetworcoIdUserDto?> GetUserByEmailOrNationalIdAsync(string emailOrNationalId);
     Task<(NetworcoIdUserDto? User, List<string>? Scopes, DateTimeOffset? AuthTime)> ValidateAuthorizationCodeAsync(string code, string redirectUri, string? clientId = null, string? codeVerifier = null, bool isRegistration = false);
     Task<NetworcoIdUserDto?> RegisterUserAsync(string email, string password, string firstName, string lastName, string? nationalId, string? phoneNumber);
+
+    /// <summary>
+    /// Finds the local user linked to an external provider identity, or creates/links
+    /// one from the supplied claims. See the linking rules in the BankID/IDura plan.
+    /// </summary>
+    Task<NetworcoIdUserDto> FindOrCreateExternalUserAsync(string provider, ExternalUserInfo info);
+
+    /// <summary>Sets (or replaces) a user's password, creating the credential row if absent.</summary>
+    Task<bool> SetPasswordAsync(Guid userId, string newPassword);
+
+    /// <summary>True when the user already has a password credential.</summary>
+    Task<bool> HasPasswordAsync(Guid userId);
     Task<string> CreateAuthorizationCodeAsync(string emailOrNationalId, string redirectUri, string? state, string? clientId = null, string? codeChallenge = null, string? codeChallengeMethod = null, string? nonce = null, IEnumerable<string>? scopes = null, DateTimeOffset? authTime = null);
     Task StoreRefreshTokenAsync(Guid userId, string tokenHash, DateTimeOffset expiresAt, string? clientId = null);
     Task<NetworcoIdUserDto?> GetUserByRefreshTokenAsync(string tokenHash);
@@ -191,6 +203,7 @@ public class AuthService : IAuthService
             PhoneNumber = user.PhoneNumber,
             EmailVerified = user.EmailVerified,
             PhoneNumberVerified = user.PhoneNumberVerified,
+            BirthDate = user.BirthDate,
             // Removed: Role - authorization handled by resource server
             Password = null,
             MustChangePassword = user.Credential.MustChangePassword,
@@ -286,6 +299,7 @@ public class AuthService : IAuthService
             PhoneNumber = user.PhoneNumber,
             EmailVerified = user.EmailVerified,
             PhoneNumberVerified = user.PhoneNumberVerified,
+            BirthDate = user.BirthDate,
             // Removed: Role - authorization handled by resource server
             Password = null,
             
@@ -298,6 +312,160 @@ public class AuthService : IAuthService
             AddressCountry = user.AddressCountry
         };
     }
+
+    public async Task<NetworcoIdUserDto> FindOrCreateExternalUserAsync(string provider, ExternalUserInfo info)
+    {
+        if (string.IsNullOrWhiteSpace(info.Subject))
+        {
+            throw new ArgumentException("External subject is required", nameof(info));
+        }
+
+        // 1. Returning user: an existing link for (provider, subject).
+        var link = await _context.UserExternalLogins
+            .Include(l => l.User)
+            .FirstOrDefaultAsync(l => l.Provider == provider && l.Subject == info.Subject);
+
+        if (link != null)
+        {
+            var existing = link.User;
+            // Refresh profile data the provider asserts each login.
+            if (!string.IsNullOrWhiteSpace(info.FirstName)) existing.FirstName = info.FirstName;
+            if (!string.IsNullOrWhiteSpace(info.LastName)) existing.LastName = info.LastName;
+            if (!string.IsNullOrWhiteSpace(info.BirthDate)) existing.BirthDate = info.BirthDate;
+            link.LastLoginAt = DateTimeOffset.UtcNow;
+            await _context.SaveChangesAsync();
+            return MapToDto(existing);
+        }
+
+        // 2. First login for this external identity.
+        // Only auto-link to an existing account when the provider asserts a VERIFIED
+        // email — never attach an unproven email to someone else's account.
+        var hasVerifiedEmail = !string.IsNullOrWhiteSpace(info.Email) && info.EmailVerified;
+
+        UserEntity? user = null;
+        if (hasVerifiedEmail)
+        {
+            user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Email.ToLower() == info.Email!.Trim().ToLower());
+        }
+
+        if (user == null)
+        {
+            // Create a new account. Use the verified email if present; otherwise a unique
+            // placeholder so login works and the unique-email constraint holds. The user
+            // can register/verify a real email later to enrich the account.
+            var email = hasVerifiedEmail
+                ? info.Email!.Trim()
+                : $"bankid-{Guid.NewGuid():N}@no-reply.networco.no";
+
+            user = new UserEntity
+            {
+                Id = Guid.NewGuid(),
+                Email = email,
+                FirstName = info.FirstName ?? string.Empty,
+                LastName = info.LastName ?? string.Empty,
+                BirthDate = info.BirthDate,
+                EmailVerified = hasVerifiedEmail,
+                IsActive = true,
+                CreatedAt = DateTimeOffset.UtcNow
+            };
+            _context.Users.Add(user);
+            await _auditService.LogAsync("AccountCreated", $"Account created via {provider}: {email}", user.Id);
+        }
+        else
+        {
+            // Linking to an existing account matched by verified email.
+            if (!string.IsNullOrWhiteSpace(info.BirthDate)) user.BirthDate = info.BirthDate;
+            await _auditService.LogAsync("ExternalLoginLinked", $"{provider} linked to existing account: {user.Email}", user.Id);
+        }
+
+        _context.UserExternalLogins.Add(new UserExternalLoginEntity
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            Provider = provider,
+            Subject = info.Subject,
+            CreatedAt = DateTimeOffset.UtcNow,
+            LastLoginAt = DateTimeOffset.UtcNow,
+            User = user
+        });
+
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("Linked {Provider} identity to user {UserId}", provider, user.Id);
+        return MapToDto(user);
+    }
+
+    public async Task<bool> SetPasswordAsync(Guid userId, string newPassword)
+    {
+        if (string.IsNullOrEmpty(newPassword)) return false;
+
+        var user = await _context.Users
+            .Include(u => u.Credential)
+            .FirstOrDefaultAsync(u => u.Id == userId);
+        if (user == null) return false;
+
+        var validationResult = _passwordValidator.Validate(
+            newPassword,
+            _config.MinPasswordLength,
+            _config.RequireDigit,
+            _config.RequireUppercase,
+            _config.RequireLowercase,
+            _config.RequireNonAlphanumeric);
+        if (!validationResult.IsValid)
+        {
+            throw new ArgumentException(validationResult.ErrorMessage);
+        }
+
+        var hash = _passwordHasher.HashPassword(newPassword);
+        if (user.Credential == null)
+        {
+            _context.UserCredentials.Add(new UserCredentialEntity
+            {
+                Id = user.Id, // 1:1 with user
+                PasswordHash = hash,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
+        }
+        else
+        {
+            user.Credential.PasswordHash = hash;
+            user.Credential.MustChangePassword = false;
+            user.Credential.UpdatedAt = DateTimeOffset.UtcNow;
+            _context.UserCredentials.Update(user.Credential);
+        }
+
+        await _context.SaveChangesAsync();
+        await _auditService.LogAsync("PasswordSet", $"User set/updated password: {user.Email}", user.Id);
+        return true;
+    }
+
+    public async Task<bool> HasPasswordAsync(Guid userId)
+    {
+        return await _context.UserCredentials.AsNoTracking().AnyAsync(c => c.Id == userId);
+    }
+
+    /// <summary>Maps a tracked/loaded user entity to the public DTO.</summary>
+    private static NetworcoIdUserDto MapToDto(UserEntity user) => new()
+    {
+        Id = user.Id,
+        NationalId = user.NationalId ?? user.PhoneNumber ?? user.Email,
+        FirstName = user.FirstName,
+        LastName = user.LastName,
+        Email = user.Email,
+        Roles = user.Roles,
+        PhoneNumber = user.PhoneNumber,
+        EmailVerified = user.EmailVerified,
+        PhoneNumberVerified = user.PhoneNumberVerified,
+        BirthDate = user.BirthDate,
+        Password = null,
+        AddressFormatted = user.AddressFormatted,
+        AddressStreetAddress = user.AddressStreetAddress,
+        AddressLocality = user.AddressLocality,
+        AddressRegion = user.AddressRegion,
+        AddressPostalCode = user.AddressPostalCode,
+        AddressCountry = user.AddressCountry
+    };
 
     public async Task<NetworcoIdUserDto?> GetUserByEmailOrNationalIdAsync(string emailOrNationalId)
     {
@@ -330,6 +498,7 @@ public class AuthService : IAuthService
             PhoneNumber = user.PhoneNumber,
             EmailVerified = user.EmailVerified,
             PhoneNumberVerified = user.PhoneNumberVerified,
+            BirthDate = user.BirthDate,
             // Removed: Role - authorization handled by resource server
             Password = null,
             
