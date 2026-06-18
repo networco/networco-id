@@ -1,0 +1,249 @@
+# =============================================================================
+# NetworcoID Release — Build prod images & deploy to id.networco.no on release
+# =============================================================================
+#
+# Triggered when a GitHub Release is published (tag must match v* — e.g. v1.2.3).
+# Mirrors networco-app's release.yml (trigger + VERSION bump + build) but reuses
+# this repo's self-contained deploy-test.yml deploy style (tailnet + inline
+# kubectl) for the prod rollout. No approval gate — publishing a release deploys
+# straight to production. (Add required reviewers to the `production` GitHub
+# Environment later if you want a manual gate.)
+#
+# Flow:
+#   1. update-version — strips the leading 'v' from the tag, appends the run
+#      number → writes major.minor.patch.build to VERSION, commits to main
+#      with [skip ci] (so the version commit does NOT trigger Deploy Test).
+#   2. build — builds networco-id + worker images, tags latest / {semver} /
+#      {version}, pushes to GHCR.
+#   3. deploy — deploys to the prod cluster over the tailnet, pinning the
+#      manifests to {version}.
+#
+# Secrets in the `production` GitHub Environment of this repo:
+#   ENV_ID_PROD     — env file for the IdP prod secrets (same keys as ENV_ID_TEST)
+#   KUBECONFIG_PROD — kubeconfig targeting the prod control-plane's tailnet IP
+# Repo-level (shared with Deploy Test):
+#   TS_OAUTH_CLIENT_ID / TS_OAUTH_SECRET — Tailscale OAuth client (tag:ci)
+#   GHCR_USERNAME / GHCR_TOKEN           — GHCR PAT (write:packages)
+#
+# ENV_ID_PROD keys: POSTGRES_HOST POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD
+#   JWT_SECRET ISSUER BASE_URL INITIAL_ADMIN_EMAIL INITIAL_ADMIN_PASSWORD
+#   ADMIN_ACCESS_KEY INITIAL_CLIENT_ID INITIAL_CLIENT_SECRET BREVO_API_KEY
+#   RESEND_API_KEY NATS_URL NATS_STREAM_REPLICAS GHCR_USERNAME GHCR_TOKEN
+#   EMAIL_SENDER_NAME EMAIL_SENDER_EMAIL
+#   APP_CALLBACK (e.g. https://networco.no/auth/callback)
+#   CLIENT_AUDIENCE (e.g. https://api.networco.no)
+# =============================================================================
+
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/networco
+
+jobs:
+  update-version:
+    name: Update VERSION file
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      semver: ${{ steps.ver.outputs.semver }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compute version
+        id: ver
+        run: |
+          # v1.2.3 → 1.2.3 ; then 1.2.3.<run_number> (major.minor.patch.build)
+          SEMVER=$(echo "${{ github.event.release.tag_name || 'v0.0.0' }}" | sed 's/^v//')
+          echo "semver=${SEMVER}" >> "$GITHUB_OUTPUT"
+          echo "version=${SEMVER}.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+      - name: Write & commit VERSION
+        run: |
+          echo "${{ steps.ver.outputs.version }}" > VERSION
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add VERSION
+          git diff --cached --quiet && { echo "VERSION unchanged"; exit 0; }
+          git commit -m "chore: release ${{ github.event.release.tag_name }} — bump VERSION to ${{ steps.ver.outputs.version }} [skip ci]"
+          git push origin main
+
+  build:
+    name: Build ${{ matrix.svc }} image
+    needs: update-version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - { svc: networco-id,        dockerfile: src/NetworcoId/Dockerfile }
+          - { svc: networco-id-worker, dockerfile: src/NetworcoId.Worker/Dockerfile }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Generate a throwaway data-protection cert
+        # The Dockerfile COPYs src/NetworcoId/dataprotection.pfx (gitignored, a
+        # secret) so it's absent in CI. At runtime the IdP only uses it when
+        # DATA_PROTECTION_CERT_PATH is set (the deploy doesn't — keys persist to
+        # the DB), so a fresh self-signed pfx just satisfies the build COPY.
+        run: |
+          openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
+            -subj "/CN=networco-id" -keyout /tmp/dp.key -out /tmp/dp.crt
+          openssl pkcs12 -export -out src/NetworcoId/dataprotection.pfx \
+            -inkey /tmp/dp.key -in /tmp/dp.crt -passout pass:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Log in to GHCR
+        # GHCR PAT (write:packages) — the networco-id / -worker packages aren't
+        # linked to this repo, so GITHUB_TOKEN gets 403 on push.
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.GHCR_USERNAME }}
+          password: ${{ secrets.GHCR_TOKEN }}
+      - name: Build and push ${{ matrix.svc }}
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.svc }}:latest
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.svc }}:${{ needs.update-version.outputs.semver }}
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.svc }}:${{ needs.update-version.outputs.version }}
+          build-args: |
+            APP_VERSION=${{ needs.update-version.outputs.version }}
+          cache-from: type=gha,scope=idprod-${{ matrix.svc }}
+          cache-to: type=gha,mode=max,scope=idprod-${{ matrix.svc }}
+          platforms: linux/amd64
+
+  deploy:
+    name: Deploy to Production
+    needs: [update-version, build]
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      VERSION: ${{ needs.update-version.outputs.version }}
+      NS: networco-id
+    steps:
+      - uses: actions/checkout@v5
+      - name: Restore prod secret files
+        run: |
+          mkdir -p _ci
+          printf '%s' "${{ secrets.ENV_ID_PROD }}"     > _ci/.env.prod
+          printf '%s' "${{ secrets.KUBECONFIG_PROD }}" > _ci/kubeconfig
+          chmod 600 _ci/kubeconfig
+      - name: Connect to the tailnet (ephemeral tag:ci node)
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+      - name: Wait for the prod k3s API over the tailnet
+        env:
+          KUBECONFIG: ${{ github.workspace }}/_ci/kubeconfig
+        run: |
+          # Read the API server URL from the kubeconfig (no hardcoded IP).
+          SERVER=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
+          HOSTPORT=${SERVER#https://}; HOST=${HOSTPORT%%:*}
+          echo "Prod API server: $SERVER (host $HOST)"
+          for i in $(seq 1 30); do
+            if curl -sk --max-time 5 "$SERVER/healthz" -o /dev/null; then
+              echo "✓ k3s API reachable"; exit 0
+            fi
+            echo "waiting for tailnet path ($i/30)…"
+            tailscale ping --c 1 --until-direct=false "$HOST" || true
+            sleep 5
+          done
+          echo "::error::prod k3s API never became reachable"; exit 1
+      - name: Deploy id-prod
+        env:
+          KUBECONFIG: ${{ github.workspace }}/_ci/kubeconfig
+        run: |
+          # Robust env load: tolerates spaces/quotes; skips comments/blanks.
+          while IFS= read -r _l || [ -n "$_l" ]; do
+            case "$_l" in ''|\#*) continue;; esac
+            _k=${_l%%=*}; _v=${_l#*=}
+            case "$_k" in *[!A-Za-z0-9_]*|'') continue;; esac
+            _v=${_v#\"}; _v=${_v%\"}; _v=${_v#\'}; _v=${_v%\'}
+            export "$_k=$_v"
+          done < _ci/.env.prod
+          kubectl create namespace "$NS" --dry-run=client -o yaml | kubectl apply -f -
+          # Registry pull secret
+          kubectl create secret docker-registry ghcr-secret -n "$NS" \
+            --docker-server=ghcr.io --docker-username="$GHCR_USERNAME" --docker-password="$GHCR_TOKEN" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          # IdP secrets
+          kubectl create secret generic networcoid-secrets -n "$NS" \
+            --from-literal=db-host="$POSTGRES_HOST" \
+            --from-literal=db-name="$POSTGRES_DB" \
+            --from-literal=db-user="$POSTGRES_USER" \
+            --from-literal=db-password="$POSTGRES_PASSWORD" \
+            --from-literal=jwt-secret="$JWT_SECRET" \
+            --from-literal=admin-access-key="$ADMIN_ACCESS_KEY" \
+            --from-literal=admin-password="$INITIAL_ADMIN_PASSWORD" \
+            --from-literal=admin-email="$INITIAL_ADMIN_EMAIL" \
+            --from-literal=client-id="$INITIAL_CLIENT_ID" \
+            --from-literal=client-secret="$INITIAL_CLIENT_SECRET" \
+            --from-literal=brevo-api-key="$BREVO_API_KEY" \
+            --from-literal=resend-api-key="$RESEND_API_KEY" \
+            --from-literal=issuer="$ISSUER" \
+            --from-literal=base-url="$BASE_URL" \
+            --from-literal=NATS_URL="$NATS_URL" \
+            --from-literal=nats-stream-replicas="$NATS_STREAM_REPLICAS" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          # Hydrate manifests: prod host (from BASE_URL — a no-op when it's
+          # already id.networco.no) + pin image tags to this release version.
+          tmp=$(mktemp -d); cp deploy/k3s/0*.yaml "$tmp/"
+          sed -i "s|id\\.networco\\.no|$(echo "$BASE_URL" | sed 's|https://||')|g" "$tmp"/06-ingress.yaml
+          sed -i "s|ghcr.io/networco/networco-id:latest|$IMAGE_PREFIX/networco-id:$VERSION|g" "$tmp"/04-api.yaml
+          sed -i "s|ghcr.io/networco/networco-id-worker:latest|$IMAGE_PREFIX/networco-id-worker:$VERSION|g" "$tmp"/05-worker.yaml
+          kubectl apply -f "$tmp"/00-namespace.yaml -f "$tmp"/04-api.yaml -f "$tmp"/05-worker.yaml -f "$tmp"/06-ingress.yaml
+          # Env-aware email sender (only overrides when set).
+          [ -n "$EMAIL_SENDER_NAME" ]  && kubectl set env deployment/networcoid-worker -n "$NS" "EMAIL_SENDER_NAME=$EMAIL_SENDER_NAME"
+          [ -n "$EMAIL_SENDER_EMAIL" ] && kubectl set env deployment/networcoid-worker -n "$NS" "EMAIL_SENDER_EMAIL=$EMAIL_SENDER_EMAIL"
+          kubectl rollout restart deployment/networcoid deployment/networcoid-worker -n "$NS"
+          kubectl rollout status deployment/networcoid -n "$NS" --timeout=180s
+          kubectl rollout status deployment/networcoid-worker -n "$NS" --timeout=180s
+      - name: Register app redirect URI + audience on the OAuth client
+        env:
+          KUBECONFIG: ${{ github.workspace }}/_ci/kubeconfig
+        run: |
+          while IFS= read -r _l || [ -n "$_l" ]; do
+            case "$_l" in ''|\#*) continue;; esac
+            _k=${_l%%=*}; _v=${_l#*=}
+            case "$_k" in *[!A-Za-z0-9_]*|'') continue;; esac
+            _v=${_v#\"}; _v=${_v%\"}; _v=${_v#\'}; _v=${_v%\'}
+            export "$_k=$_v"
+          done < _ci/.env.prod
+          # Add the app callback, the audience the API validates, and the scopes
+          # the app requests (incl. offline_access) to the bootstrapped client.
+          kubectl exec -n networco-db pg-1 -c postgres -- psql -d networco_id -v ON_ERROR_STOP=1 -c \
+            "UPDATE o_auth_clients SET \
+               redirect_uris  = (SELECT array_agg(DISTINCT u) FROM unnest(redirect_uris  || ARRAY['${APP_CALLBACK}']) u), \
+               allowed_scopes = (SELECT array_agg(DISTINCT u) FROM unnest(allowed_scopes || ARRAY['openid','profile','email','offline_access']) u), \
+               audience = '${CLIENT_AUDIENCE}' \
+             WHERE client_id = '${INITIAL_CLIENT_ID}';"
+
+  summary:
+    name: Summary
+    needs: [update-version, build, deploy]
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "## 🚀 NetworcoID Production Release" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Tag:** \`${{ github.event.release.tag_name }}\`  **Version:** \`${{ needs.update-version.outputs.version }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Images \`ghcr.io/networco/networco-id\` and \`…/networco-id-worker\` pushed as \`latest\`, \`${{ needs.update-version.outputs.semver }}\`, \`${{ needs.update-version.outputs.version }}\`." >> "$GITHUB_STEP_SUMMARY"
+          echo "Deployed to **production** (id.networco.no), pinned to \`${{ needs.update-version.outputs.version }}\`." >> "$GITHUB_STEP_SUMMARY"
