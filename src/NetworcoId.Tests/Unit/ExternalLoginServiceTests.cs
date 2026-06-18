@@ -131,7 +131,8 @@ public class ExternalLoginServiceTests
 
         Assert.Single(await context.Users.ToListAsync());
         Assert.False(result.EmailVerified);
-        Assert.EndsWith("@no-reply.networco.no", result.Email);
+        // Short, deterministic placeholder: bankid-<12 hex>@no-reply.networco.no
+        Assert.Matches(@"^bankid-[0-9a-f]{12}@no-reply\.networco\.no$", result.Email);
         Assert.Equal("1990-01-01", result.BirthDate);
         Assert.Null(await context.UserCredentials.FirstOrDefaultAsync()); // password-less
     }

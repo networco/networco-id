@@ -320,6 +320,20 @@ public class AuthService : IAuthService
     private static bool IsPlaceholderEmail(string? email) =>
         !string.IsNullOrEmpty(email) && email.EndsWith(PlaceholderEmailSuffix, StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Synthesizes a short, deterministic placeholder email for an external identity
+    /// that supplied no email. Derived from the provider reference so the same person
+    /// always maps to the same address (idempotent, unique). The real reference is
+    /// kept verbatim in user_external_logins.subject for identity resolution.
+    /// </summary>
+    private static string GeneratePlaceholderEmail(string provider, string subject)
+    {
+        var hash = global::System.Security.Cryptography.SHA256.HashData(
+            global::System.Text.Encoding.UTF8.GetBytes($"{provider}:{subject}"));
+        var token = global::System.Convert.ToHexString(hash)[..12].ToLowerInvariant(); // 48 bits, plenty
+        return $"bankid-{token}{PlaceholderEmailSuffix}";
+    }
+
     public async Task<NetworcoIdUserDto> FindOrCreateExternalUserAsync(string provider, ExternalUserInfo info)
     {
         if (string.IsNullOrWhiteSpace(info.Subject))
@@ -386,7 +400,7 @@ public class AuthService : IAuthService
             }
             else
             {
-                accountEmail = $"bankid-{Guid.NewGuid():N}{PlaceholderEmailSuffix}";
+                accountEmail = GeneratePlaceholderEmail(provider, info.Subject);
                 verifiedFlag = false;
             }
 
