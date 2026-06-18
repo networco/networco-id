@@ -79,6 +79,12 @@ public static class ExternalAuthEndpoints
                 return Results.Redirect("/Login?error=external");
             }
 
+            // Log the claim names the provider returned (names only — no values) so we
+            // can see which BankID reference claims are available (sub, national id, etc.).
+            logger.LogInformation("External login claims: [{ClaimTypes}] (emailVerified={EmailVerified})",
+                string.Join(", ", principal.Claims.Select(c => c.Type).Distinct()),
+                principal.FindFirst("email_verified")?.Value ?? "<none>");
+
             var (firstName, lastName) = ResolveName(principal);
             var info = new ExternalUserInfo
             {

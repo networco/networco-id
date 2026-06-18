@@ -313,12 +313,25 @@ public class AuthService : IAuthService
         };
     }
 
+    // Generated address for BankID users with no usable email; also used to detect
+    // accounts that should be enriched once the provider supplies a real one.
+    private const string PlaceholderEmailSuffix = "@no-reply.networco.no";
+
+    private static bool IsPlaceholderEmail(string? email) =>
+        !string.IsNullOrEmpty(email) && email.EndsWith(PlaceholderEmailSuffix, StringComparison.OrdinalIgnoreCase);
+
     public async Task<NetworcoIdUserDto> FindOrCreateExternalUserAsync(string provider, ExternalUserInfo info)
     {
         if (string.IsNullOrWhiteSpace(info.Subject))
         {
             throw new ArgumentException("External subject is required", nameof(info));
         }
+
+        // Email the provider supplied. BankID's address is self-asserted (the
+        // editable field on the consent screen), so it's typically NOT verified —
+        // we still store it, just flagged unverified.
+        var providedEmail = string.IsNullOrWhiteSpace(info.Email) ? null : info.Email.Trim();
+        var emailVerified = providedEmail != null && info.EmailVerified;
 
         // 1. Returning user: an existing link for (provider, subject).
         var link = await _context.UserExternalLogins
@@ -332,45 +345,64 @@ public class AuthService : IAuthService
             if (!string.IsNullOrWhiteSpace(info.FirstName)) existing.FirstName = info.FirstName;
             if (!string.IsNullOrWhiteSpace(info.LastName)) existing.LastName = info.LastName;
             if (!string.IsNullOrWhiteSpace(info.BirthDate)) existing.BirthDate = info.BirthDate;
+
+            // Backfill a real provider-supplied email onto accounts still on the
+            // generated placeholder (only if no other user holds it). Stays
+            // unverified unless the provider asserts verification.
+            if (providedEmail != null && IsPlaceholderEmail(existing.Email)
+                && !await _context.Users.AnyAsync(u => u.Id != existing.Id && u.Email.ToLower() == providedEmail.ToLower()))
+            {
+                existing.Email = providedEmail;
+                existing.EmailVerified = emailVerified;
+            }
+
             link.LastLoginAt = DateTimeOffset.UtcNow;
             await _context.SaveChangesAsync();
             return MapToDto(existing);
         }
 
         // 2. First login for this external identity.
-        // Only auto-link to an existing account when the provider asserts a VERIFIED
+        // Only auto-link to an EXISTING account when the provider asserts a VERIFIED
         // email — never attach an unproven email to someone else's account.
-        var hasVerifiedEmail = !string.IsNullOrWhiteSpace(info.Email) && info.EmailVerified;
-
         UserEntity? user = null;
-        if (hasVerifiedEmail)
+        if (emailVerified)
         {
             user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Email.ToLower() == info.Email!.Trim().ToLower());
+                .FirstOrDefaultAsync(u => u.Email.ToLower() == providedEmail!.ToLower());
         }
 
         if (user == null)
         {
-            // Create a new account. Use the verified email if present; otherwise a unique
-            // placeholder so login works and the unique-email constraint holds. The user
-            // can register/verify a real email later to enrich the account.
-            var email = hasVerifiedEmail
-                ? info.Email!.Trim()
-                : $"bankid-{Guid.NewGuid():N}@no-reply.networco.no";
+            // New account. Use the provider's email when present and not already taken
+            // (stored unverified unless the provider proved it); otherwise a unique
+            // placeholder so login still works and the unique-email constraint holds.
+            string accountEmail;
+            bool verifiedFlag;
+            if (providedEmail != null
+                && !await _context.Users.AnyAsync(u => u.Email.ToLower() == providedEmail.ToLower()))
+            {
+                accountEmail = providedEmail;
+                verifiedFlag = emailVerified;
+            }
+            else
+            {
+                accountEmail = $"bankid-{Guid.NewGuid():N}{PlaceholderEmailSuffix}";
+                verifiedFlag = false;
+            }
 
             user = new UserEntity
             {
                 Id = Guid.NewGuid(),
-                Email = email,
+                Email = accountEmail,
                 FirstName = info.FirstName ?? string.Empty,
                 LastName = info.LastName ?? string.Empty,
                 BirthDate = info.BirthDate,
-                EmailVerified = hasVerifiedEmail,
+                EmailVerified = verifiedFlag,
                 IsActive = true,
                 CreatedAt = DateTimeOffset.UtcNow
             };
             _context.Users.Add(user);
-            await _auditService.LogAsync("AccountCreated", $"Account created via {provider}: {email}", user.Id);
+            await _auditService.LogAsync("AccountCreated", $"Account created via {provider}: {accountEmail}", user.Id);
         }
         else
         {

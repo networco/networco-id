@@ -154,4 +154,54 @@ public class ExternalLoginServiceTests
         Assert.Equal(1, await context.Users.CountAsync());
         Assert.Equal(1, await context.UserExternalLogins.CountAsync());
     }
+
+    [Fact]
+    public async Task UnverifiedEmail_NoCollision_StoredOnNewAccount()
+    {
+        var service = BuildService(out var context);
+        var info = new ExternalUserInfo
+        {
+            Subject = "idura-sub-5",
+            Email = "test@testesen.no",
+            EmailVerified = false, // self-asserted on the BankID consent screen
+            FirstName = "Test",
+            LastName = "Testesen"
+        };
+
+        var result = await service.FindOrCreateExternalUserAsync(Provider, info);
+
+        // The real (unverified) email is stored, not a placeholder.
+        Assert.Equal("test@testesen.no", result.Email);
+        Assert.False(result.EmailVerified);
+    }
+
+    [Fact]
+    public async Task SecondLogin_BackfillsPlaceholderEmail()
+    {
+        var service = BuildService(out var context);
+
+        // First login with no email → placeholder.
+        var first = await service.FindOrCreateExternalUserAsync(Provider, new ExternalUserInfo
+        {
+            Subject = "idura-sub-6",
+            FirstName = "Kari",
+            LastName = "Nordmann"
+        });
+        Assert.EndsWith("@no-reply.networco.no", first.Email);
+
+        // Same identity logs in again, now providing an email → backfilled onto the account.
+        var second = await service.FindOrCreateExternalUserAsync(Provider, new ExternalUserInfo
+        {
+            Subject = "idura-sub-6",
+            Email = "kari@example.com",
+            EmailVerified = false,
+            FirstName = "Kari",
+            LastName = "Nordmann"
+        });
+
+        Assert.Equal(first.Id, second.Id);
+        Assert.Equal("kari@example.com", second.Email);
+        Assert.False(second.EmailVerified);
+        Assert.Equal(1, await context.Users.CountAsync());
+    }
 }
