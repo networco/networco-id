@@ -439,13 +439,19 @@ public static class OAuthEndpoints
             }
         }
 
-        // 3b. Silent Success for max_age (Short Circuit)
-        // If user is authenticated, max_age is satisfied, and we are not forced to show UI.
+        // 3b. Silent Success (SSO short-circuit)
+        // If the user already has a valid session and nothing forces interaction
+        // (prompt=login/consent/select_account, or an exceeded max_age), issue the
+        // code without showing the login form again. This is required for external
+        // logins (e.g. BankID) to resume the original /oauth/authorize request, and
+        // gives normal SSO for password sessions too. Note: max_age is NOT required
+        // here — when absent, maxAgeSatisfied stays true; when present and exceeded,
+        // it is false and we fall through to force re-login below.
         bool isPromptLogin = prompt?.Contains("login") == true;
         bool isPromptConsent = prompt?.Contains("consent") == true;
         bool isPromptSelectAccount = prompt?.Contains("select_account") == true;
 
-        if (isAuthenticated && max_age.HasValue && maxAgeSatisfied && !isPromptLogin && !isPromptConsent && !isPromptSelectAccount)
+        if (isAuthenticated && maxAgeSatisfied && !isPromptLogin && !isPromptConsent && !isPromptSelectAccount)
         {
              // Proceed silently: Generate code using ORIGINAL authTime
              var email = result?.Principal?.FindFirst(ClaimTypes.Email)?.Value;
