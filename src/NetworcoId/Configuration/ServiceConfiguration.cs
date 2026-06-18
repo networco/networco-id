@@ -252,8 +252,10 @@ public static class ServiceConfiguration
                     options.CallbackPath = iduraCallbackPath;
                     options.SignInScheme = "ExternalLogin";
                     options.SaveTokens = false;
-                    // Robust regardless of IDura's configured user-info response strategy.
-                    options.GetClaimsFromUserInfoEndpoint = true;
+                    // IDura returns the identity claims inside the ID token (its default
+                    // "fromTokenEndpoint" strategy), so we must NOT call the UserInfo
+                    // endpoint — doing so returns 400. Read claims from the ID token.
+                    options.GetClaimsFromUserInfoEndpoint = false;
                     options.MapInboundClaims = false;
 
                     options.Scope.Clear();
