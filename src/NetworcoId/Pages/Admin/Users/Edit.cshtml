@@ -50,7 +50,10 @@
     <form method="post" class="space-y-8">
         @Html.AntiForgeryToken()
         <input type="hidden" asp-for="UserData.Id" />
-        <div asp-validation-summary="All" class="rounded-xl bg-red-50/50 dark:bg-red-900/10 p-4 border border-red-200/50 dark:border-red-800/30 text-sm text-red-600 dark:text-red-400 backdrop-blur-sm"></div>
+        @if (!ViewData.ModelState.IsValid)
+        {
+            <div asp-validation-summary="All" class="rounded-xl bg-red-50/50 dark:bg-red-900/10 p-4 border border-red-200/50 dark:border-red-800/30 text-sm text-red-600 dark:text-red-400 backdrop-blur-sm"></div>
+        }
 
         <!-- Section: Profile Information -->
         <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
@@ -109,6 +112,40 @@
                         <input asp-for="UserData.AddressCountry" class="block w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white dark:focus:bg-gray-950 transition-all sm:text-sm" />
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Section: External Logins (e.g. BankID via IDura) -->
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+            <div class="px-6 py-5 border-b border-gray-50 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-900/20">
+                <h4 class="text-sm font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">External Logins</h4>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Federated identities linked to this user. The reference is the provider's subject — provide it to Stø/IDura to resolve the real identity.</p>
+            </div>
+            <div class="p-6">
+                @if (Model.ExternalLogins.Any())
+                {
+                    <div class="space-y-4">
+                        @foreach (var ext in Model.ExternalLogins)
+                        {
+                            <div class="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                                <div class="flex items-center justify-between mb-3">
+                                    <span class="inline-flex items-center rounded-full bg-indigo-500/10 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 dark:text-indigo-400 ring-1 ring-inset ring-indigo-600/20 uppercase">@ext.Provider</span>
+                                    <span class="text-xs text-gray-400">Linked @ext.CreatedAt.LocalDateTime.ToString("MMM dd, yyyy HH:mm")</span>
+                                </div>
+                                <label class="block text-[10px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Reference (subject)</label>
+                                <code class="block w-full select-all break-all rounded-lg bg-gray-100 dark:bg-gray-900 px-3 py-2 text-xs font-mono text-gray-800 dark:text-gray-200">@ext.Subject</code>
+                                @if (ext.LastLoginAt.HasValue)
+                                {
+                                    <p class="text-xs text-gray-400 mt-2">Last login @ext.LastLoginAt.Value.LocalDateTime.ToString("MMM dd, yyyy HH:mm")</p>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p class="text-sm text-gray-500 dark:text-gray-400">No external logins linked to this user.</p>
+                }
             </div>
         </div>
 
@@ -217,6 +254,13 @@
                     <p class="text-[10px] text-gray-400 dark:text-gray-500 italic">Press Enter to add dynamic roles for external applications.</p>
                 </div>
             </div>
+        </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex items-center justify-end gap-3 pt-2 pb-4">
+            <a asp-page="./Index" class="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">Cancel</a>
+            <button type="submit" class="px-6 py-2.5 rounded-xl text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-colors">Save Changes</button>
         </div>
 
     </form>

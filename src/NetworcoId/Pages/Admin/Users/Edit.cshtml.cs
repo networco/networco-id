@@ -33,6 +33,10 @@ public class EditModel : PageModel
     [BindProperty]
     public string? Roles { get; set; }
 
+    /// <summary>External (federated) logins linked to this user, e.g. BankID via
+    /// IDura. The Subject is the provider reference used for identity resolution.</summary>
+    public List<UserExternalLoginEntity> ExternalLogins { get; set; } = new();
+
     public async Task<IActionResult> OnGetAsync(Guid id)
     {
         var user = await _context.Users
@@ -45,6 +49,12 @@ public class EditModel : PageModel
         }
 
         UserData = user;
+
+        ExternalLogins = await _context.UserExternalLogins
+            .AsNoTracking()
+            .Where(e => e.UserId == id)
+            .OrderBy(e => e.Provider)
+            .ToListAsync();
         SelectedRoles = user.Roles.Intersect(InternalRoles).ToList();
         
         // Custom roles go into the Tag UI
