@@ -201,6 +201,11 @@ jobs:
             --from-literal=base-url="$BASE_URL" \
             --from-literal=NATS_URL="$NATS_URL" \
             --from-literal=nats-stream-replicas="$NATS_STREAM_REPLICAS" \
+            --from-literal=idura-enabled="$IDURA_ENABLED" \
+            --from-literal=idura-domain="$IDURA_DOMAIN" \
+            --from-literal=idura-client-id="$IDURA_CLIENT_ID" \
+            --from-literal=idura-client-secret="$IDURA_CLIENT_SECRET" \
+            --from-literal=idura-acr-values="$IDURA_ACR_VALUES" \
             --dry-run=client -o yaml | kubectl apply -f -
           # Hydrate manifests: prod host (from BASE_URL — a no-op when it's
           # already id.networco.no) + pin image tags to this release version.

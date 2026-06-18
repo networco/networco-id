@@ -34,13 +34,36 @@ env:
 
 jobs:
   version:
-    name: Compute test version
+    name: Compute test version from VERSION file
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     outputs:
       version: ${{ steps.ver.outputs.version }}
     steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
       - id: ver
-        run: echo "version=0.1.0-test.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+        name: Bump build segment to the run number
+        run: |
+          # VERSION is the source of truth (major.minor.patch.build). Keep
+          # major.minor.patch and set the build segment to this run number.
+          BASE=$(cut -d. -f1-3 VERSION)
+          VERSION="${BASE}.${{ github.run_number }}"
+          echo "$VERSION" > VERSION
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Computed test version: $VERSION"
+      - name: Commit bumped VERSION back to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add VERSION
+          git diff --cached --quiet && { echo "VERSION unchanged"; exit 0; }
+          git commit -m "chore(ci): bump VERSION build to ${{ steps.ver.outputs.version }} [skip ci]"
+          git pull --rebase origin main || true
+          git push origin main
 
   build:
     name: Build ${{ matrix.svc }} image
@@ -160,6 +183,11 @@ jobs:
             --from-literal=base-url="$BASE_URL" \
             --from-literal=NATS_URL="$NATS_URL" \
             --from-literal=nats-stream-replicas="$NATS_STREAM_REPLICAS" \
+            --from-literal=idura-enabled="$IDURA_ENABLED" \
+            --from-literal=idura-domain="$IDURA_DOMAIN" \
+            --from-literal=idura-client-id="$IDURA_CLIENT_ID" \
+            --from-literal=idura-client-secret="$IDURA_CLIENT_SECRET" \
+            --from-literal=idura-acr-values="$IDURA_ACR_VALUES" \
             --dry-run=client -o yaml | kubectl apply -f -
           # Hydrate manifests: id.test host + test image tags
           tmp=$(mktemp -d); cp deploy/k3s/0*.yaml "$tmp/"

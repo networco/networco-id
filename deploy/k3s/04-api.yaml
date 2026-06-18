@@ -99,6 +99,39 @@ spec:
               name: networcoid-secrets
               key: client-secret
               optional: true
+        # External login via IDura (BankID). All optional — absent on envs that
+        # don't enable it (the code keeps the scheme/button off unless ENABLED
+        # plus domain/client are all present).
+        - name: IDURA_ENABLED
+          valueFrom:
+            secretKeyRef:
+              name: networcoid-secrets
+              key: idura-enabled
+              optional: true
+        - name: IDURA_DOMAIN
+          valueFrom:
+            secretKeyRef:
+              name: networcoid-secrets
+              key: idura-domain
+              optional: true
+        - name: IDURA_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: networcoid-secrets
+              key: idura-client-id
+              optional: true
+        - name: IDURA_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: networcoid-secrets
+              key: idura-client-secret
+              optional: true
+        - name: IDURA_ACR_VALUES
+          valueFrom:
+            secretKeyRef:
+              name: networcoid-secrets
+              key: idura-acr-values
+              optional: true
         ports:
         - containerPort: 8080
 ---
