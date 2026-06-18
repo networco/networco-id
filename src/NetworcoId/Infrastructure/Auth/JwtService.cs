@@ -21,6 +21,13 @@ public interface IJwtService
     Task<string> GenerateIdTokenAsync(NetworcoIdUserDto user, string clientId, string? nonce = null, DateTimeOffset? authTime = null, CancellationToken cancellationToken = default);
     string GenerateRefreshToken();
     Task<ClaimsPrincipal?> ValidateTokenAsync(string token, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Validates an id_token_hint for RP-initiated logout (signature + issuer only;
+    /// lifetime and audience are intentionally NOT enforced — the token may be expired
+    /// at logout). Returns the token's audience (the client_id) when valid, else null.
+    /// </summary>
+    Task<string?> GetClientIdFromIdTokenHintAsync(string idToken, CancellationToken cancellationToken = default);
     Task<JsonWebKeySet> GetPublicKeysAsync(CancellationToken cancellationToken = default);
     Task ListenForKeyRotationEventsAsync(CancellationToken cancellationToken = default);
     IDictionary<string, string> ParseUnsignedToken(string token);
@@ -325,6 +332,50 @@ public class JwtService : IJwtService
         // ValidateToken is synchronous but we wrapped it in async flow
         var principal = tokenHandler.ValidateToken(token, validationParameters, out _);
         return principal;
+    }
+
+    public async Task<string?> GetClientIdFromIdTokenHintAsync(string idToken, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(idToken)) return null;
+
+        try
+        {
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var keys = await GetCachedKeysAsync(cancellationToken);
+
+            var securityKeys = new List<SecurityKey>();
+            foreach (var keyEntity in keys)
+            {
+                var rsa = RSA.Create();
+                rsa.ImportFromPem(keyEntity.PublicKeyPem);
+                securityKeys.Add(new RsaSecurityKey(rsa) { KeyId = keyEntity.KeyId });
+            }
+            if (!string.IsNullOrEmpty(_config.Secret))
+            {
+                securityKeys.Add(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config.Secret)));
+            }
+
+            var validationParameters = new TokenValidationParameters
+            {
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKeys = securityKeys,
+                ValidateIssuer = true,
+                ValidIssuer = _config.Issuer,
+                // id_token aud is the client_id; we read it rather than validate it.
+                ValidateAudience = false,
+                // An id_token_hint at logout is allowed to be expired.
+                ValidateLifetime = false,
+                ClockSkew = TimeSpan.Zero
+            };
+
+            tokenHandler.ValidateToken(idToken, validationParameters, out var validated);
+            return (validated as JwtSecurityToken)?.Audiences?.FirstOrDefault();
+        }
+        catch
+        {
+            // Invalid signature/issuer/format → treat as no usable hint.
+            return null;
+        }
     }
 
     public IDictionary<string, string> ParseUnsignedToken(string token)
