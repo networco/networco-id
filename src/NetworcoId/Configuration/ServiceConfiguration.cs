@@ -65,16 +65,24 @@ public static class ServiceConfiguration
         config.BaseUrl = baseUrl;
         config.FrontendUrl = frontendUrl;
 
-        // External login (IDura / BankID). Env vars take precedence over appsettings.
-        var iduraDomain = configuration["IDURA_DOMAIN"] ?? configuration["NetworcoId:IduraDomain"];
-        var iduraClientId = configuration["IDURA_CLIENT_ID"] ?? configuration["NetworcoId:IduraClientId"];
-        var iduraClientSecret = configuration["IDURA_CLIENT_SECRET"] ?? configuration["NetworcoId:IduraClientSecret"];
-        var iduraScopes = configuration["IDURA_SCOPES"] ?? configuration["NetworcoId:IduraScopes"] ?? "openid email birthdate";
-        var iduraCallbackPath = configuration["IDURA_CALLBACK_PATH"] ?? configuration["NetworcoId:IduraCallbackPath"] ?? "/auth/callback/external";
-        var iduraAcrValues = configuration["IDURA_ACR_VALUES"] ?? configuration["NetworcoId:IduraAcrValues"];
+        // External login (IDura / BankID). Read process env vars FIRST — .env is
+        // loaded by DotNetEnv after WebApplicationBuilder snapshots its env-var
+        // configuration provider, so configuration["IDURA_*"] would miss .env
+        // values. This mirrors how DATABASE_URL/NATS_URL are read in Program.cs.
+        static string? EnvOr(IConfiguration cfg, string envKey, string cfgKey)
+            => Environment.GetEnvironmentVariable(envKey) ?? cfg[envKey] ?? cfg[cfgKey];
+
+        var iduraDomain = EnvOr(configuration, "IDURA_DOMAIN", "NetworcoId:IduraDomain");
+        var iduraClientId = EnvOr(configuration, "IDURA_CLIENT_ID", "NetworcoId:IduraClientId");
+        var iduraClientSecret = EnvOr(configuration, "IDURA_CLIENT_SECRET", "NetworcoId:IduraClientSecret");
+        var iduraScopes = EnvOr(configuration, "IDURA_SCOPES", "NetworcoId:IduraScopes") ?? "openid email birthdate";
+        var iduraCallbackPath = EnvOr(configuration, "IDURA_CALLBACK_PATH", "NetworcoId:IduraCallbackPath") ?? "/auth/callback/external";
+        var iduraAcrValues = EnvOr(configuration, "IDURA_ACR_VALUES", "NetworcoId:IduraAcrValues");
         // Only enable when explicitly turned on AND fully configured — otherwise the
         // OIDC scheme (which needs a reachable authority) isn't registered at all.
-        var iduraEnabled = (configuration["IDURA_ENABLED"] == "true" || configuration.GetValue<bool>("NetworcoId:IduraEnabled"))
+        var iduraEnabledRaw = Environment.GetEnvironmentVariable("IDURA_ENABLED") ?? configuration["IDURA_ENABLED"];
+        var iduraEnabled = (string.Equals(iduraEnabledRaw, "true", StringComparison.OrdinalIgnoreCase)
+                || configuration.GetValue<bool>("NetworcoId:IduraEnabled"))
             && !string.IsNullOrWhiteSpace(iduraDomain)
             && !string.IsNullOrWhiteSpace(iduraClientId)
             && !string.IsNullOrWhiteSpace(iduraClientSecret);
