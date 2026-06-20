@@ -1024,11 +1024,15 @@ public class AuthService : IAuthService
         if (token == null)
             return false;
 
-        // If revoked, check if it was revoked recently (grace period for rotation)
+        // If revoked, only a token superseded by ROTATION gets a brief grace window —
+        // that's the case the grace exists for (tolerating concurrent-refresh races).
+        // A token revoked WITHOUT a successor (ReplacedByTokenId == null) was killed
+        // administratively — logout, reuse-detection, or session invalidation on email
+        // change — and must be rejected immediately so a revoked identity can't be renewed.
         if (token.RevokedAt != null)
         {
-            // Allow 60 second grace period for token rotation to handle concurrent requests
-            return token.RevokedAt > DateTimeOffset.UtcNow.AddSeconds(-60) && 
+            return token.ReplacedByTokenId != null &&
+                   token.RevokedAt > DateTimeOffset.UtcNow.AddSeconds(-60) &&
                    token.ExpiresAt > DateTimeOffset.UtcNow;
         }
 
@@ -1046,10 +1050,14 @@ public class AuthService : IAuthService
         if (token == null)
             return null;
 
-        // Check expiration and revocation (with grace period)
-        var isValid = token.RevokedAt == null 
+        // Check expiration and revocation. Grace applies ONLY to rotation-superseded
+        // tokens (ReplacedByTokenId set); administratively-revoked tokens (logout,
+        // reuse-detection, session invalidation) are rejected immediately.
+        var isValid = token.RevokedAt == null
             ? token.ExpiresAt > DateTimeOffset.UtcNow
-            : token.RevokedAt > DateTimeOffset.UtcNow.AddSeconds(-60) && token.ExpiresAt > DateTimeOffset.UtcNow;
+            : token.ReplacedByTokenId != null
+                && token.RevokedAt > DateTimeOffset.UtcNow.AddSeconds(-60)
+                && token.ExpiresAt > DateTimeOffset.UtcNow;
 
         if (!isValid)
             return null;

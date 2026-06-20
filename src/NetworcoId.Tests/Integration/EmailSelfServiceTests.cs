@@ -143,6 +143,9 @@ public class EmailSelfServiceTests : IClassFixture<WebApplicationFactory<Program
     }
 
     private async Task<string> GetAccessTokenAsync(string scopes = "openid profile email")
+        => (await GetTokensAsync(scopes)).AccessToken;
+
+    private async Task<(string AccessToken, string RefreshToken)> GetTokensAsync(string scopes = "openid profile email")
     {
         var state = "test-state";
         var authUrl = $"/oauth/authorize?response_type=code&client_id={ClientId}&redirect_uri={RedirectUri}&state={state}&scope={scopes}&code_challenge=challenge&code_challenge_method=plain";
@@ -177,7 +180,7 @@ public class EmailSelfServiceTests : IClassFixture<WebApplicationFactory<Program
 
         var tokenResponse = await _client.PostAsync("/oauth/token", tokenRequest);
         var json = await tokenResponse.Content.ReadFromJsonAsync<JsonElement>();
-        return json.GetProperty("access_token").GetString()!;
+        return (json.GetProperty("access_token").GetString()!, json.GetProperty("refresh_token").GetString()!);
     }
 
     private void Authorize(string token) =>
@@ -268,6 +271,28 @@ public class EmailSelfServiceTests : IClassFixture<WebApplicationFactory<Program
             var cred = db.UserCredentials.AsNoTracking().First(c => c.Id == _userId);
             Assert.NotNull(cred.UpdatedAt);
         }
+    }
+
+    [Fact]
+    public async Task ChangeEmail_RevokedRefreshToken_CannotBeRenewedViaAuthRefresh()
+    {
+        // Regression: a token revoked by session invalidation (no successor) must be
+        // rejected by /auth/refresh immediately — the rotation grace window must not
+        // let it be rotated back into a fresh, active token.
+        var (access, refresh) = await GetTokensAsync();
+        Authorize(access);
+
+        var change = await _client.PutAsJsonAsync("/auth/email", new { email = "after.change@networco.dev" });
+        Assert.Equal(HttpStatusCode.OK, change.StatusCode);
+
+        _client.DefaultRequestHeaders.Authorization = null;
+        var refreshResp = await _client.PostAsJsonAsync("/auth/refresh", new { refreshToken = refresh });
+
+        Assert.NotEqual(HttpStatusCode.OK, refreshResp.StatusCode);
+        // And it didn't get rotated into a new active token.
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        Assert.False(db.RefreshTokens.Any(t => t.UserId == _userId && t.RevokedAt == null));
     }
 
     [Fact]
