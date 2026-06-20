@@ -396,6 +396,37 @@ public static class AuthEndpoints
         }
     }
 
+    /// <summary>
+    /// Normalizes a caller-supplied post-verification return target to something safe to embed
+    /// in a verification email. The verify page turns this value into a redirect (and, on
+    /// same-browser verification, mints an authorization code for it), so an unvalidated value
+    /// would be an open-redirect / code-injection vector. We allow only a frontend-relative
+    /// path or an absolute URL on the configured frontend origin; anything else falls back to
+    /// the frontend root.
+    /// </summary>
+    private static string SafeReturnUrl(string? returnUrl, NetworcoIdConfig config)
+    {
+        var frontend = (config.FrontendUrl ?? string.Empty).TrimEnd('/');
+        if (string.IsNullOrWhiteSpace(returnUrl)) return frontend;
+
+        var candidate = returnUrl.Trim();
+
+        // Frontend-relative path ("/...") — but not protocol-relative ("//host").
+        if (candidate.StartsWith('/') && !candidate.StartsWith("//"))
+            return frontend + candidate;
+
+        // Absolute URL — only if it's on the configured frontend origin.
+        if (Uri.TryCreate(candidate, UriKind.Absolute, out var abs)
+            && Uri.TryCreate(frontend, UriKind.Absolute, out var fe)
+            && string.Equals(abs.Scheme, fe.Scheme, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(abs.Authority, fe.Authority, StringComparison.OrdinalIgnoreCase))
+        {
+            return candidate;
+        }
+
+        return frontend;
+    }
+
     private static async Task<IResult> SendEmailVerification(
         HttpContext context,
         AuthDbContext db,
@@ -411,7 +442,7 @@ public static class AuthEndpoints
         if (user.EmailVerified)
             return Results.Ok(new { status = "already_verified", email = user.Email });
 
-        var returnUrl = !string.IsNullOrWhiteSpace(request?.ReturnUrl) ? request!.ReturnUrl! : config.FrontendUrl;
+        var returnUrl = SafeReturnUrl(request?.ReturnUrl, config);
         await EmailVerificationHelper.SendAsync(context, db, emailService, user, config.BaseUrl, returnUrl);
         return Results.Ok(new { status = "sent", email = user.Email });
     }
@@ -421,6 +452,7 @@ public static class AuthEndpoints
         AuthDbContext db,
         IEmailService emailService,
         IAuditService audit,
+        IAuthService authService,
         NetworcoIdConfig config,
         [FromBody] ChangeEmailRequest request)
     {
@@ -452,7 +484,12 @@ public static class AuthEndpoints
         await db.SaveChangesAsync();
         await audit.LogAsync("EmailChanged", $"Email changed via self-service to {newEmail}", user.Id);
 
-        var returnUrl = !string.IsNullOrWhiteSpace(request?.ReturnUrl) ? request!.ReturnUrl! : config.FrontendUrl;
+        // The identity changed (new, now-unverified address). Tear down outstanding
+        // access/refresh tokens so nothing keeps asserting the old (verified) email; the
+        // user re-authenticates against the new address.
+        await authService.InvalidateActiveSessionsAsync(user.Id);
+
+        var returnUrl = SafeReturnUrl(request?.ReturnUrl, config);
         await EmailVerificationHelper.SendAsync(context, db, emailService, user, config.BaseUrl, returnUrl);
 
         return Results.Ok(new { status = "verification_sent", email = user.Email, emailVerified = false });

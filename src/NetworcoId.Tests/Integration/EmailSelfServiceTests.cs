@@ -244,6 +244,33 @@ public class EmailSelfServiceTests : IClassFixture<WebApplicationFactory<Program
     }
 
     [Fact]
+    public async Task ChangeEmail_InvalidatesActiveSessions()
+    {
+        // The OAuth flow in GetAccessTokenAsync persists a refresh token for the user.
+        Authorize(await GetAccessTokenAsync());
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+            Assert.True(db.RefreshTokens.Any(t => t.UserId == _userId && t.RevokedAt == null),
+                "precondition: an active refresh token should exist after login");
+        }
+
+        var response = await _client.PutAsJsonAsync("/auth/email", new { email = "fresh.addr@networco.dev" });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+            // No active refresh tokens remain — stale identity can't be renewed.
+            Assert.False(db.RefreshTokens.Any(t => t.UserId == _userId && t.RevokedAt == null));
+            // Credential timestamp bumped so outstanding access tokens are rejected by the hook.
+            var cred = db.UserCredentials.AsNoTracking().First(c => c.Id == _userId);
+            Assert.NotNull(cred.UpdatedAt);
+        }
+    }
+
+    [Fact]
     public async Task ChangeEmail_InvalidFormat_ReturnsBadRequest()
     {
         Authorize(await GetAccessTokenAsync());

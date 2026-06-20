@@ -81,6 +81,9 @@ public class SecondarySecretTests : IClassFixture<WebApplicationFactory<Program>
             FirstName = "Secondary",
             LastName = "Tester",
             IsActive = true,
+            // Verified so the password login flow issues a code — login is blocked
+            // for unverified emails.
+            EmailVerified = true,
             CreatedAt = DateTimeOffset.UtcNow
         };
 

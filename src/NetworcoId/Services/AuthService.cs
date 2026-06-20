@@ -65,6 +65,9 @@ public interface IAuthService
     /// <summary>Consumes a BankID-link ticket, returning the account id it authorizes (or null if invalid/expired).</summary>
     Task<Guid?> ConsumeBankIdLinkTicketAsync(string ticket);
 
+    /// <summary>Revokes refresh tokens and invalidates outstanding access tokens for a user (e.g. after an email change).</summary>
+    Task InvalidateActiveSessionsAsync(Guid userId);
+
     /// <summary>Sets (or replaces) a user's password, creating the credential row if absent.</summary>
     Task<bool> SetPasswordAsync(Guid userId, string newPassword);
 
@@ -920,41 +923,46 @@ public class AuthService : IAuthService
 
     private async Task RevokeAllRefreshTokensForUserAsync(string emailOrNationalId)
     {
-        try 
+        try
         {
             var user = await GetUserByEmailOrNationalIdAsync(emailOrNationalId);
             if (user != null)
             {
-                // 1. Revoke Refresh Tokens
-                var tokens = await _context.RefreshTokens
-                    .Where(t => t.UserId == user.Id && t.RevokedAt == null)
-                    .ToListAsync();
-                    
-                foreach(var t in tokens)
-                {
-                    t.RevokedAt = DateTimeOffset.UtcNow;
-                }
-                
-                // 2. Invalidate Access Tokens by updating User Credentials timestamp
-                var credentials = await _context.UserCredentials
-                    .FirstOrDefaultAsync(c => c.Id == user.Id);
-                    
-                if (credentials != null)
-                {
-                    credentials.UpdatedAt = DateTimeOffset.UtcNow;
-                    _context.UserCredentials.Update(credentials);
-                }
-                
-                if (tokens.Any() || credentials != null)
-                {
-                    await _context.SaveChangesAsync();
-                    _logger.LogWarning("Revoked {Count} refresh tokens and invalidated access tokens for user {UserId} due to auth code reuse", tokens.Count, user.Id);
-                }
+                await InvalidateActiveSessionsAsync(user.Id);
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to revoke tokens for user {User}", emailOrNationalId);
+        }
+    }
+
+    public async Task InvalidateActiveSessionsAsync(Guid userId)
+    {
+        // 1. Revoke refresh tokens so stale identity can't be renewed.
+        var tokens = await _context.RefreshTokens
+            .Where(t => t.UserId == userId && t.RevokedAt == null)
+            .ToListAsync();
+        foreach (var t in tokens)
+        {
+            t.RevokedAt = DateTimeOffset.UtcNow;
+        }
+
+        // 2. Invalidate outstanding access tokens by bumping the credential timestamp —
+        // the JWT validation hook rejects tokens issued before it. (No-op for accounts
+        // without a password credential, e.g. BankID-only users; their short-lived access
+        // tokens simply expire, and step 1 already cut off renewal.)
+        var credentials = await _context.UserCredentials.FirstOrDefaultAsync(c => c.Id == userId);
+        if (credentials != null)
+        {
+            credentials.UpdatedAt = DateTimeOffset.UtcNow;
+            _context.UserCredentials.Update(credentials);
+        }
+
+        if (tokens.Count > 0 || credentials != null)
+        {
+            await _context.SaveChangesAsync();
+            _logger.LogInformation("Invalidated active sessions for user {UserId} ({Count} refresh tokens revoked)", userId, tokens.Count);
         }
     }
 

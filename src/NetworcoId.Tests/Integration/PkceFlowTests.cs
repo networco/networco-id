@@ -96,6 +96,9 @@ public class PkceFlowTests : IClassFixture<WebApplicationFactory<Program>>, IDis
                 FirstName = "PKCE",
                 LastName = "Tester",
                 IsActive = true,
+                // Verified so the password login flow issues a code — login is blocked
+                // for unverified emails.
+                EmailVerified = true,
                 CreatedAt = DateTimeOffset.UtcNow
             };
             
