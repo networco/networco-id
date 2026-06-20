@@ -292,4 +292,44 @@ public class ExternalLoginServiceTests
         Assert.Equal(ExternalLinkResult.UserNotFound, result);
         Assert.Equal(0, await context.UserExternalLogins.CountAsync());
     }
+
+    // ---- one-time BankID-link ticket (authorizes the verify-to-link initiation) ----
+
+    [Fact]
+    public async Task BankIdLinkTicket_MintThenConsume_ReturnsUserId_AndIsOneTime()
+    {
+        var service = BuildService(out var context);
+        var user = await SeedUserAsync(context, "eier@example.com");
+
+        var ticket = await service.CreateBankIdLinkTicketAsync(user.Id);
+        Assert.False(string.IsNullOrWhiteSpace(ticket));
+
+        var first = await service.ConsumeBankIdLinkTicketAsync(ticket);
+        var second = await service.ConsumeBankIdLinkTicketAsync(ticket);
+
+        Assert.Equal(user.Id, first);
+        Assert.Null(second); // one-time: already consumed
+    }
+
+    [Fact]
+    public async Task BankIdLinkTicket_Expired_ReturnsNull()
+    {
+        var service = BuildService(out var context);
+        var user = await SeedUserAsync(context, "eier@example.com");
+
+        var ticket = await service.CreateBankIdLinkTicketAsync(user.Id);
+        // Force expiry into the past.
+        var tracked = await context.Users.FirstAsync(u => u.Id == user.Id);
+        tracked.BankIdLinkTokenExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-1);
+        await context.SaveChangesAsync();
+
+        Assert.Null(await service.ConsumeBankIdLinkTicketAsync(ticket));
+    }
+
+    [Fact]
+    public async Task BankIdLinkTicket_Unknown_ReturnsNull()
+    {
+        var service = BuildService(out _);
+        Assert.Null(await service.ConsumeBankIdLinkTicketAsync("not-a-real-ticket"));
+    }
 }

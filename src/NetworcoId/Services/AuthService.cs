@@ -59,6 +59,12 @@ public interface IAuthService
     /// <summary>Returns all local accounts linked to an external identity (for the login account picker).</summary>
     Task<IReadOnlyList<NetworcoIdUserDto>> GetAccountsForExternalLoginAsync(string provider, string subject);
 
+    /// <summary>Mints a one-time, short-lived ticket that authorizes connecting a BankID to <paramref name="userId"/>.</summary>
+    Task<string> CreateBankIdLinkTicketAsync(Guid userId);
+
+    /// <summary>Consumes a BankID-link ticket, returning the account id it authorizes (or null if invalid/expired).</summary>
+    Task<Guid?> ConsumeBankIdLinkTicketAsync(string ticket);
+
     /// <summary>Sets (or replaces) a user's password, creating the credential row if absent.</summary>
     Task<bool> SetPasswordAsync(Guid userId, string newPassword);
 
@@ -550,6 +556,36 @@ public class AuthService : IAuthService
             .ToListAsync();
 
         return users.Select(MapToDto).ToList();
+    }
+
+    public async Task<string> CreateBankIdLinkTicketAsync(Guid userId)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId)
+            ?? throw new InvalidOperationException($"User {userId} not found");
+
+        var token = Convert.ToBase64String(global::System.Security.Cryptography.RandomNumberGenerator.GetBytes(32))
+            .Replace("+", "-").Replace("/", "_").TrimEnd('=');
+        user.BankIdLinkToken = token;
+        user.BankIdLinkTokenExpiresAt = DateTimeOffset.UtcNow.AddMinutes(5);
+        await _context.SaveChangesAsync();
+        return token;
+    }
+
+    public async Task<Guid?> ConsumeBankIdLinkTicketAsync(string ticket)
+    {
+        if (string.IsNullOrWhiteSpace(ticket)) return null;
+
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.BankIdLinkToken == ticket);
+        if (user == null || user.BankIdLinkTokenExpiresAt == null || user.BankIdLinkTokenExpiresAt < DateTimeOffset.UtcNow)
+        {
+            return null;
+        }
+
+        // One-time use.
+        user.BankIdLinkToken = null;
+        user.BankIdLinkTokenExpiresAt = null;
+        await _context.SaveChangesAsync();
+        return user.Id;
     }
 
     public async Task<bool> SetPasswordAsync(Guid userId, string newPassword)

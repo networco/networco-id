@@ -1,0 +1,46 @@
+@page
+@model NetworcoId.Pages.SelectAccountModel
+
+<div class="min-h-screen flex items-center justify-center p-4">
+    <div class="fixed top-6 right-6">
+        <partial name="_ThemeToggle" />
+    </div>
+
+    <div class="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-networco-border dark:border-gray-700 max-w-md w-full p-10 transition-colors duration-300">
+        <div class="text-center mb-8">
+            <h1 class="font-heading text-3xl font-black text-networco-authority-dark dark:text-white tracking-tight mb-2">NETWORCO</h1>
+            <p class="text-networco-authority-light dark:text-gray-400 font-medium">Velg konto</p>
+            <p class="text-sm text-networco-text dark:text-gray-400 mt-2">
+                BankID-en din er knyttet til flere kontoer. Velg hvilken du vil logge inn på.
+            </p>
+        </div>
+
+        <div class="space-y-3">
+            @foreach (var account in Model.Accounts)
+            {
+                <form method="post">
+                    <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl" />
+                    <input type="hidden" name="selectedUserId" value="@account.Id" />
+                    <button type="submit"
+                            class="w-full text-left flex items-center justify-between gap-3 px-5 py-4 rounded-2xl border border-networco-border dark:border-gray-700 hover:border-networco-primary hover:bg-networco-baby-50 dark:hover:bg-gray-700/50 transition-colors duration-200">
+                        <span class="min-w-0">
+                            <span class="block font-bold text-networco-authority-dark dark:text-white truncate">@account.Name</span>
+                            <span class="block text-sm text-networco-text dark:text-gray-400 truncate">@account.MaskedEmail</span>
+                            @if (!string.IsNullOrEmpty(account.Roles))
+                            {
+                                <span class="inline-block mt-1 text-[10px] font-bold uppercase tracking-wider text-networco-primary">@account.Roles</span>
+                            }
+                        </span>
+                        <svg class="w-5 h-5 shrink-0 text-networco-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </button>
+                </form>
+            }
+        </div>
+
+        <div class="text-center mt-8">
+            <a href="/Login" class="text-sm text-networco-authority-light/70 dark:text-gray-400 hover:text-networco-primary transition-colors">Avbryt</a>
+        </div>
+    </div>
+</div>
