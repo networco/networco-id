@@ -14,6 +14,29 @@ using NetworcoId.Core;
 namespace NetworcoId.Services;
 
 /// <summary>
+/// Raised by external (BankID/IDura) provisioning when the provider-supplied email is
+/// unverified and already belongs to another account. We refuse to attach an unproven
+/// email to someone else's account and refuse to spawn a placeholder duplicate — the
+/// caller surfaces this so the user can sign in to their existing account instead.
+/// </summary>
+public sealed class ExternalEmailConflictException(string email)
+    : Exception($"Email '{email}' is already associated with another account")
+{
+    public string Email { get; } = email;
+}
+
+/// <summary>Outcome of linking an external (BankID) identity to an existing account.</summary>
+public enum ExternalLinkResult
+{
+    /// <summary>The identity was newly linked to the account.</summary>
+    Linked,
+    /// <summary>The identity was already linked to this account (no-op).</summary>
+    AlreadyLinked,
+    /// <summary>The target account could not be found.</summary>
+    UserNotFound
+}
+
+/// <summary>
 /// Authentication service.
 /// Handles user authentication, token management, and OAuth2 flows.
 /// </summary>
@@ -29,6 +52,21 @@ public interface IAuthService
     /// one from the supplied claims. See the linking rules in the BankID/IDura plan.
     /// </summary>
     Task<NetworcoIdUserDto> FindOrCreateExternalUserAsync(string provider, ExternalUserInfo info);
+
+    /// <summary>Links an external (BankID) identity to an already-authenticated account (verify-to-link).</summary>
+    Task<ExternalLinkResult> LinkExternalUserAsync(Guid userId, string provider, ExternalUserInfo info);
+
+    /// <summary>Returns all local accounts linked to an external identity (for the login account picker).</summary>
+    Task<IReadOnlyList<NetworcoIdUserDto>> GetAccountsForExternalLoginAsync(string provider, string subject);
+
+    /// <summary>Mints a one-time, short-lived ticket that authorizes connecting a BankID to <paramref name="userId"/>.</summary>
+    Task<string> CreateBankIdLinkTicketAsync(Guid userId);
+
+    /// <summary>Consumes a BankID-link ticket, returning the account id it authorizes (or null if invalid/expired).</summary>
+    Task<Guid?> ConsumeBankIdLinkTicketAsync(string ticket);
+
+    /// <summary>Revokes refresh tokens and invalidates outstanding access tokens for a user (e.g. after an email change).</summary>
+    Task InvalidateActiveSessionsAsync(Guid userId);
 
     /// <summary>Sets (or replaces) a user's password, creating the credential row if absent.</summary>
     Task<bool> SetPasswordAsync(Guid userId, string newPassword);
@@ -393,14 +431,23 @@ public class AuthService : IAuthService
 
         if (user == null)
         {
-            // New account. Use the provider's email when present and not already taken
-            // (stored unverified unless the provider proved it); otherwise a unique
-            // placeholder so login still works and the unique-email constraint holds.
+            // New account. Decide the address for it:
+            //  - a real provider email that's free  -> use it (unverified unless proven);
+            //  - no provider email at all           -> a unique placeholder so login works;
+            //  - a real provider email already taken -> CONFLICT. We get here only when the
+            //    email is unverified (a verified match would have linked above), so we can't
+            //    prove ownership and must not silently spawn a placeholder duplicate. Refuse
+            //    and let the caller tell the user, so they can sign in to the existing account.
             string accountEmail;
             bool verifiedFlag;
-            if (providedEmail != null
-                && !await _context.Users.AnyAsync(u => u.Email.ToLower() == providedEmail.ToLower()))
+            if (providedEmail != null)
             {
+                var taken = await _context.Users.AnyAsync(u => u.Email.ToLower() == providedEmail.ToLower());
+                if (taken)
+                {
+                    _logger.LogWarning("External login for subject {Subject}: provided email already in use — refusing to create placeholder duplicate", info.Subject);
+                    throw new ExternalEmailConflictException(providedEmail);
+                }
                 accountEmail = providedEmail;
                 verifiedFlag = emailVerified;
             }
@@ -445,6 +492,103 @@ public class AuthService : IAuthService
         await _context.SaveChangesAsync();
         _logger.LogInformation("Linked {Provider} identity to user {UserId}", provider, user.Id);
         return MapToDto(user);
+    }
+
+    /// <summary>
+    /// Links an external (BankID) identity to an ALREADY-AUTHENTICATED account. This is the
+    /// "verify-to-link" / step-up flow: the caller has proven control of <paramref name="userId"/>
+    /// (an active session) and just proven the BankID, so we attach the identity to that account.
+    /// A subject may be linked to several accounts (one person, multiple accounts) — login then
+    /// offers an account picker. We never change the account's email here.
+    /// </summary>
+    public async Task<ExternalLinkResult> LinkExternalUserAsync(Guid userId, string provider, ExternalUserInfo info)
+    {
+        if (string.IsNullOrWhiteSpace(info.Subject))
+        {
+            throw new ArgumentException("External subject is required", nameof(info));
+        }
+
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        if (user == null)
+        {
+            return ExternalLinkResult.UserNotFound;
+        }
+
+        // Idempotent: already linked to this account.
+        var existing = await _context.UserExternalLogins
+            .FirstOrDefaultAsync(l => l.Provider == provider && l.Subject == info.Subject && l.UserId == userId);
+        if (existing != null)
+        {
+            existing.LastLoginAt = DateTimeOffset.UtcNow;
+            await _context.SaveChangesAsync();
+            _logger.LogInformation("{Provider} already linked to user {UserId} (no-op)", provider, userId);
+            return ExternalLinkResult.AlreadyLinked;
+        }
+
+        // BankID is authoritative for the birth date; fill it in if we don't have one.
+        if (!string.IsNullOrWhiteSpace(info.BirthDate)) user.BirthDate = info.BirthDate;
+
+        _context.UserExternalLogins.Add(new UserExternalLoginEntity
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            Provider = provider,
+            Subject = info.Subject,
+            CreatedAt = DateTimeOffset.UtcNow,
+            LastLoginAt = DateTimeOffset.UtcNow,
+            User = user
+        });
+
+        await _auditService.LogAsync("ExternalLoginLinked", $"{provider} linked to existing account (step-up): {user.Email}", user.Id);
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("Step-up linked {Provider} identity to user {UserId}", provider, user.Id);
+        return ExternalLinkResult.Linked;
+    }
+
+    /// <summary>
+    /// Returns every local account currently linked to the given external identity, most
+    /// recently used first. Login uses this to decide: 0 → create/refuse, 1 → sign in,
+    /// 2+ → show an account picker.
+    /// </summary>
+    public async Task<IReadOnlyList<NetworcoIdUserDto>> GetAccountsForExternalLoginAsync(string provider, string subject)
+    {
+        var users = await _context.UserExternalLogins
+            .Where(l => l.Provider == provider && l.Subject == subject)
+            .OrderByDescending(l => l.LastLoginAt)
+            .Select(l => l.User)
+            .ToListAsync();
+
+        return users.Select(MapToDto).ToList();
+    }
+
+    public async Task<string> CreateBankIdLinkTicketAsync(Guid userId)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId)
+            ?? throw new InvalidOperationException($"User {userId} not found");
+
+        var token = Convert.ToBase64String(global::System.Security.Cryptography.RandomNumberGenerator.GetBytes(32))
+            .Replace("+", "-").Replace("/", "_").TrimEnd('=');
+        user.BankIdLinkToken = token;
+        user.BankIdLinkTokenExpiresAt = DateTimeOffset.UtcNow.AddMinutes(5);
+        await _context.SaveChangesAsync();
+        return token;
+    }
+
+    public async Task<Guid?> ConsumeBankIdLinkTicketAsync(string ticket)
+    {
+        if (string.IsNullOrWhiteSpace(ticket)) return null;
+
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.BankIdLinkToken == ticket);
+        if (user == null || user.BankIdLinkTokenExpiresAt == null || user.BankIdLinkTokenExpiresAt < DateTimeOffset.UtcNow)
+        {
+            return null;
+        }
+
+        // One-time use.
+        user.BankIdLinkToken = null;
+        user.BankIdLinkTokenExpiresAt = null;
+        await _context.SaveChangesAsync();
+        return user.Id;
     }
 
     public async Task<bool> SetPasswordAsync(Guid userId, string newPassword)
@@ -779,41 +923,46 @@ public class AuthService : IAuthService
 
     private async Task RevokeAllRefreshTokensForUserAsync(string emailOrNationalId)
     {
-        try 
+        try
         {
             var user = await GetUserByEmailOrNationalIdAsync(emailOrNationalId);
             if (user != null)
             {
-                // 1. Revoke Refresh Tokens
-                var tokens = await _context.RefreshTokens
-                    .Where(t => t.UserId == user.Id && t.RevokedAt == null)
-                    .ToListAsync();
-                    
-                foreach(var t in tokens)
-                {
-                    t.RevokedAt = DateTimeOffset.UtcNow;
-                }
-                
-                // 2. Invalidate Access Tokens by updating User Credentials timestamp
-                var credentials = await _context.UserCredentials
-                    .FirstOrDefaultAsync(c => c.Id == user.Id);
-                    
-                if (credentials != null)
-                {
-                    credentials.UpdatedAt = DateTimeOffset.UtcNow;
-                    _context.UserCredentials.Update(credentials);
-                }
-                
-                if (tokens.Any() || credentials != null)
-                {
-                    await _context.SaveChangesAsync();
-                    _logger.LogWarning("Revoked {Count} refresh tokens and invalidated access tokens for user {UserId} due to auth code reuse", tokens.Count, user.Id);
-                }
+                await InvalidateActiveSessionsAsync(user.Id);
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to revoke tokens for user {User}", emailOrNationalId);
+        }
+    }
+
+    public async Task InvalidateActiveSessionsAsync(Guid userId)
+    {
+        // 1. Revoke refresh tokens so stale identity can't be renewed.
+        var tokens = await _context.RefreshTokens
+            .Where(t => t.UserId == userId && t.RevokedAt == null)
+            .ToListAsync();
+        foreach (var t in tokens)
+        {
+            t.RevokedAt = DateTimeOffset.UtcNow;
+        }
+
+        // 2. Invalidate outstanding access tokens by bumping the credential timestamp —
+        // the JWT validation hook rejects tokens issued before it. (No-op for accounts
+        // without a password credential, e.g. BankID-only users; their short-lived access
+        // tokens simply expire, and step 1 already cut off renewal.)
+        var credentials = await _context.UserCredentials.FirstOrDefaultAsync(c => c.Id == userId);
+        if (credentials != null)
+        {
+            credentials.UpdatedAt = DateTimeOffset.UtcNow;
+            _context.UserCredentials.Update(credentials);
+        }
+
+        if (tokens.Count > 0 || credentials != null)
+        {
+            await _context.SaveChangesAsync();
+            _logger.LogInformation("Invalidated active sessions for user {UserId} ({Count} refresh tokens revoked)", userId, tokens.Count);
         }
     }
 
@@ -875,11 +1024,15 @@ public class AuthService : IAuthService
         if (token == null)
             return false;
 
-        // If revoked, check if it was revoked recently (grace period for rotation)
+        // If revoked, only a token superseded by ROTATION gets a brief grace window —
+        // that's the case the grace exists for (tolerating concurrent-refresh races).
+        // A token revoked WITHOUT a successor (ReplacedByTokenId == null) was killed
+        // administratively — logout, reuse-detection, or session invalidation on email
+        // change — and must be rejected immediately so a revoked identity can't be renewed.
         if (token.RevokedAt != null)
         {
-            // Allow 60 second grace period for token rotation to handle concurrent requests
-            return token.RevokedAt > DateTimeOffset.UtcNow.AddSeconds(-60) && 
+            return token.ReplacedByTokenId != null &&
+                   token.RevokedAt > DateTimeOffset.UtcNow.AddSeconds(-60) &&
                    token.ExpiresAt > DateTimeOffset.UtcNow;
         }
 
@@ -897,10 +1050,14 @@ public class AuthService : IAuthService
         if (token == null)
             return null;
 
-        // Check expiration and revocation (with grace period)
-        var isValid = token.RevokedAt == null 
+        // Check expiration and revocation. Grace applies ONLY to rotation-superseded
+        // tokens (ReplacedByTokenId set); administratively-revoked tokens (logout,
+        // reuse-detection, session invalidation) are rejected immediately.
+        var isValid = token.RevokedAt == null
             ? token.ExpiresAt > DateTimeOffset.UtcNow
-            : token.RevokedAt > DateTimeOffset.UtcNow.AddSeconds(-60) && token.ExpiresAt > DateTimeOffset.UtcNow;
+            : token.ReplacedByTokenId != null
+                && token.RevokedAt > DateTimeOffset.UtcNow.AddSeconds(-60)
+                && token.ExpiresAt > DateTimeOffset.UtcNow;
 
         if (!isValid)
             return null;

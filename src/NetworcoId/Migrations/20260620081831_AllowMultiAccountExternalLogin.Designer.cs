@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NetworcoId.Infrastructure.Database;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace NetworcoId.Migrations
 {
     [DbContext(typeof(AuthDbContext))]
-    partial class AuthDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260620081831_AllowMultiAccountExternalLogin")]
+    partial class AllowMultiAccountExternalLogin
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -469,14 +472,6 @@ namespace NetworcoId.Migrations
                     b.Property<string>("AddressStreetAddress")
                         .HasColumnType("text")
                         .HasColumnName("address_street_address");
-
-                    b.Property<string>("BankIdLinkToken")
-                        .HasColumnType("text")
-                        .HasColumnName("bank_id_link_token");
-
-                    b.Property<DateTimeOffset?>("BankIdLinkTokenExpiresAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("bank_id_link_token_expires_at");
 
                     b.Property<string>("BirthDate")
                         .HasMaxLength(10)

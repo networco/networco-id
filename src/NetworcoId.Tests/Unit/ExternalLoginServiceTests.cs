@@ -82,7 +82,7 @@ public class ExternalLoginServiceTests
     }
 
     [Fact]
-    public async Task UnverifiedEmail_CreatesSeparateAccount_NotLinkedToExisting()
+    public async Task UnverifiedEmail_CollidingWithExisting_ThrowsConflict_NoPlaceholderDuplicate()
     {
         var service = BuildService(out var context);
         var existing = new UserEntity
@@ -97,7 +97,9 @@ public class ExternalLoginServiceTests
         context.Users.Add(existing);
         await context.SaveChangesAsync();
 
-        // Same email, but the provider does NOT assert it verified → must not hijack.
+        // Same email, but the provider does NOT assert it verified. We must not hijack the
+        // existing account, and (the behaviour change) must not silently spawn a placeholder
+        // duplicate either — we refuse so the user can be told to sign in to their account.
         var info = new ExternalUserInfo
         {
             Subject = "idura-sub-2",
@@ -107,12 +109,12 @@ public class ExternalLoginServiceTests
             LastName = "Nordmann"
         };
 
-        var result = await service.FindOrCreateExternalUserAsync(Provider, info);
+        await Assert.ThrowsAsync<ExternalEmailConflictException>(
+            () => service.FindOrCreateExternalUserAsync(Provider, info));
 
-        Assert.NotEqual(existing.Id, result.Id);
-        Assert.Equal(2, await context.Users.CountAsync());
-        Assert.False(result.EmailVerified);
-        Assert.EndsWith("@id.networco.no", result.Email); // placeholder
+        // No new account and no link were created.
+        Assert.Equal(1, await context.Users.CountAsync());
+        Assert.Equal(0, await context.UserExternalLogins.CountAsync());
     }
 
     [Fact]
@@ -204,5 +206,130 @@ public class ExternalLoginServiceTests
         Assert.Equal("kari@example.com", second.Email);
         Assert.False(second.EmailVerified);
         Assert.Equal(1, await context.Users.CountAsync());
+    }
+
+    // ---- verify-to-link (step-up): attach BankID to an already-authenticated account ----
+
+    private static async Task<UserEntity> SeedUserAsync(AuthDbContext context, string email)
+    {
+        var user = new UserEntity
+        {
+            Id = Guid.NewGuid(),
+            Email = email,
+            FirstName = "Eks",
+            LastName = "Bruker",
+            EmailVerified = true,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        context.Users.Add(user);
+        await context.SaveChangesAsync();
+        return user;
+    }
+
+    [Fact]
+    public async Task LinkExternalUser_AttachesBankIdToAuthenticatedAccount()
+    {
+        var service = BuildService(out var context);
+        var user = await SeedUserAsync(context, "eier@example.com");
+
+        var result = await service.LinkExternalUserAsync(user.Id, Provider, new ExternalUserInfo
+        {
+            Subject = "idura-sub-link-1",
+            BirthDate = "1990-05-05"
+        });
+
+        Assert.Equal(ExternalLinkResult.Linked, result);
+        Assert.Equal(1, await context.UserExternalLogins.CountAsync(l => l.UserId == user.Id));
+        // Email is untouched; birthdate from BankID is filled in.
+        var reread = await context.Users.AsNoTracking().FirstAsync(u => u.Id == user.Id);
+        Assert.Equal("eier@example.com", reread.Email);
+        Assert.Equal("1990-05-05", reread.BirthDate);
+    }
+
+    [Fact]
+    public async Task LinkExternalUser_IsIdempotent_WhenAlreadyLinkedToSameAccount()
+    {
+        var service = BuildService(out var context);
+        var user = await SeedUserAsync(context, "eier@example.com");
+        var info = new ExternalUserInfo { Subject = "idura-sub-link-2" };
+
+        var first = await service.LinkExternalUserAsync(user.Id, Provider, info);
+        var second = await service.LinkExternalUserAsync(user.Id, Provider, info);
+
+        Assert.Equal(ExternalLinkResult.Linked, first);
+        Assert.Equal(ExternalLinkResult.AlreadyLinked, second);
+        Assert.Equal(1, await context.UserExternalLogins.CountAsync(l => l.UserId == user.Id));
+    }
+
+    [Fact]
+    public async Task LinkExternalUser_AllowsSameSubjectAcrossMultipleAccounts()
+    {
+        var service = BuildService(out var context);
+        var personal = await SeedUserAsync(context, "personal@example.com");
+        var work = await SeedUserAsync(context, "work@example.com");
+        var info = new ExternalUserInfo { Subject = "idura-sub-shared" };
+
+        Assert.Equal(ExternalLinkResult.Linked, await service.LinkExternalUserAsync(personal.Id, Provider, info));
+        Assert.Equal(ExternalLinkResult.Linked, await service.LinkExternalUserAsync(work.Id, Provider, info));
+
+        // Login resolution sees both accounts for this BankID → picker territory.
+        var accounts = await service.GetAccountsForExternalLoginAsync(Provider, "idura-sub-shared");
+        Assert.Equal(2, accounts.Count);
+        Assert.Contains(accounts, a => a.Email == "personal@example.com");
+        Assert.Contains(accounts, a => a.Email == "work@example.com");
+    }
+
+    [Fact]
+    public async Task LinkExternalUser_ReturnsUserNotFound_ForUnknownAccount()
+    {
+        var service = BuildService(out var context);
+
+        var result = await service.LinkExternalUserAsync(Guid.NewGuid(), Provider, new ExternalUserInfo
+        {
+            Subject = "idura-sub-link-3"
+        });
+
+        Assert.Equal(ExternalLinkResult.UserNotFound, result);
+        Assert.Equal(0, await context.UserExternalLogins.CountAsync());
+    }
+
+    // ---- one-time BankID-link ticket (authorizes the verify-to-link initiation) ----
+
+    [Fact]
+    public async Task BankIdLinkTicket_MintThenConsume_ReturnsUserId_AndIsOneTime()
+    {
+        var service = BuildService(out var context);
+        var user = await SeedUserAsync(context, "eier@example.com");
+
+        var ticket = await service.CreateBankIdLinkTicketAsync(user.Id);
+        Assert.False(string.IsNullOrWhiteSpace(ticket));
+
+        var first = await service.ConsumeBankIdLinkTicketAsync(ticket);
+        var second = await service.ConsumeBankIdLinkTicketAsync(ticket);
+
+        Assert.Equal(user.Id, first);
+        Assert.Null(second); // one-time: already consumed
+    }
+
+    [Fact]
+    public async Task BankIdLinkTicket_Expired_ReturnsNull()
+    {
+        var service = BuildService(out var context);
+        var user = await SeedUserAsync(context, "eier@example.com");
+
+        var ticket = await service.CreateBankIdLinkTicketAsync(user.Id);
+        // Force expiry into the past.
+        var tracked = await context.Users.FirstAsync(u => u.Id == user.Id);
+        tracked.BankIdLinkTokenExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-1);
+        await context.SaveChangesAsync();
+
+        Assert.Null(await service.ConsumeBankIdLinkTicketAsync(ticket));
+    }
+
+    [Fact]
+    public async Task BankIdLinkTicket_Unknown_ReturnsNull()
+    {
+        var service = BuildService(out _);
+        Assert.Null(await service.ConsumeBankIdLinkTicketAsync("not-a-real-ticket"));
     }
 }

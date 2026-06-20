@@ -86,9 +86,16 @@ public class UserExternalLoginEntityConfiguration : IEntityTypeConfiguration<Use
         builder.Property(e => e.CreatedAt)
             .HasDefaultValueSql("now()");
 
-        // One link per (provider, subject) — the identity at the external IdP.
-        builder.HasIndex(e => new { e.Provider, e.Subject })
+        // A given external identity (provider, subject) may be linked to MORE THAN ONE
+        // local account — a real person can legitimately hold several accounts (e.g. a
+        // personal candidate account and being a contact on an employer), distinguished
+        // by email. At BankID login we present an account picker when a subject resolves
+        // to multiple accounts. We still forbid linking the same identity to the same
+        // account twice, hence the uniqueness on (Provider, Subject, UserId).
+        builder.HasIndex(e => new { e.Provider, e.Subject, e.UserId })
             .IsUnique();
+        // Non-unique lookup index for resolving all accounts for a subject at login.
+        builder.HasIndex(e => new { e.Provider, e.Subject });
     }
 }
 

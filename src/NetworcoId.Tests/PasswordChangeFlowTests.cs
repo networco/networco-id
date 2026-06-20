@@ -123,7 +123,10 @@ public class PasswordChangeFlowTests : IClassFixture<WebApplicationFactory<Progr
                 Email = "test@example.com",
                 FirstName = "Test",
                 LastName = "User",
-                IsActive = true
+                IsActive = true,
+                // Verified so login passes the email gate and reaches the
+                // must-change-password redirect under test.
+                EmailVerified = true
             });
             db.UserCredentials.Add(new Models.Entities.UserCredentialEntity
             {

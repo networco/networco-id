@@ -45,6 +45,13 @@ public class UserEntity
     // OIDC birthdate claim (YYYY-MM-DD), e.g. from BankID via IDura.
     public string? BirthDate { get; set; }
 
+    // One-time ticket for the "connect BankID" (verify-to-link) step-up flow. Minted by
+    // an access-token-authenticated start request and consumed when the browser reaches
+    // /auth/external/link, so we know which account to attach the BankID identity to
+    // without relying on the (possibly expired) NETWORCO ID session.
+    public string? BankIdLinkToken { get; set; }
+    public DateTimeOffset? BankIdLinkTokenExpiresAt { get; set; }
+
     public bool IsActive { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; }
 
