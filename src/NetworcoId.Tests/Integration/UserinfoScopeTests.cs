@@ -97,6 +97,9 @@ public class UserinfoScopeTests : IClassFixture<WebApplicationFactory<Program>>,
                 NationalId = "12345678901",
                 PhoneNumber = "+4799999999",
                 IsActive = true,
+                // Verified so the password login flow issues a token — login is blocked
+                // for unverified emails.
+                EmailVerified = true,
                 CreatedAt = DateTimeOffset.UtcNow
             };
             

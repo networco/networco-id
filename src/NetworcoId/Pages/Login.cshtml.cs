@@ -91,6 +91,14 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
     [BindProperty(SupportsGet = true, Name = "error_description")]
     public string? ErrorDescription { get; set; }
 
+    /// <summary>
+    /// Set after a BankID login was refused because the eID-supplied email already
+    /// belongs to another account. Shows a friendly, actionable notice while keeping the
+    /// login form visible (unlike <see cref="Error"/>, which renders a fatal client error).
+    /// </summary>
+    [BindProperty(SupportsGet = true, Name = "email_conflict")]
+    public bool EmailConflict { get; set; }
+
     [BindProperty]
     public string? Email { get; set; }
 
@@ -128,6 +136,14 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
             ErrorMessage = ErrorDescription ?? "En uventet feil oppstod";
             IsClientError = true;
             return Page();
+        }
+
+        // BankID login refused because the eID email is already in use by another account.
+        // Show a clear, actionable notice but keep the login form visible (IsClientError
+        // stays false) so the user can sign in to their existing account and continue.
+        if (EmailConflict)
+        {
+            ErrorMessage = "Denne e-postadressen er allerede knyttet til en konto. Logg inn på den eksisterende kontoen for å fortsette.";
         }
 
         if (IsRegistration)

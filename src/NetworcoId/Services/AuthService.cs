@@ -14,6 +14,29 @@ using NetworcoId.Core;
 namespace NetworcoId.Services;
 
 /// <summary>
+/// Raised by external (BankID/IDura) provisioning when the provider-supplied email is
+/// unverified and already belongs to another account. We refuse to attach an unproven
+/// email to someone else's account and refuse to spawn a placeholder duplicate — the
+/// caller surfaces this so the user can sign in to their existing account instead.
+/// </summary>
+public sealed class ExternalEmailConflictException(string email)
+    : Exception($"Email '{email}' is already associated with another account")
+{
+    public string Email { get; } = email;
+}
+
+/// <summary>Outcome of linking an external (BankID) identity to an existing account.</summary>
+public enum ExternalLinkResult
+{
+    /// <summary>The identity was newly linked to the account.</summary>
+    Linked,
+    /// <summary>The identity was already linked to this account (no-op).</summary>
+    AlreadyLinked,
+    /// <summary>The target account could not be found.</summary>
+    UserNotFound
+}
+
+/// <summary>
 /// Authentication service.
 /// Handles user authentication, token management, and OAuth2 flows.
 /// </summary>
@@ -29,6 +52,12 @@ public interface IAuthService
     /// one from the supplied claims. See the linking rules in the BankID/IDura plan.
     /// </summary>
     Task<NetworcoIdUserDto> FindOrCreateExternalUserAsync(string provider, ExternalUserInfo info);
+
+    /// <summary>Links an external (BankID) identity to an already-authenticated account (verify-to-link).</summary>
+    Task<ExternalLinkResult> LinkExternalUserAsync(Guid userId, string provider, ExternalUserInfo info);
+
+    /// <summary>Returns all local accounts linked to an external identity (for the login account picker).</summary>
+    Task<IReadOnlyList<NetworcoIdUserDto>> GetAccountsForExternalLoginAsync(string provider, string subject);
 
     /// <summary>Sets (or replaces) a user's password, creating the credential row if absent.</summary>
     Task<bool> SetPasswordAsync(Guid userId, string newPassword);
@@ -393,14 +422,23 @@ public class AuthService : IAuthService
 
         if (user == null)
         {
-            // New account. Use the provider's email when present and not already taken
-            // (stored unverified unless the provider proved it); otherwise a unique
-            // placeholder so login still works and the unique-email constraint holds.
+            // New account. Decide the address for it:
+            //  - a real provider email that's free  -> use it (unverified unless proven);
+            //  - no provider email at all           -> a unique placeholder so login works;
+            //  - a real provider email already taken -> CONFLICT. We get here only when the
+            //    email is unverified (a verified match would have linked above), so we can't
+            //    prove ownership and must not silently spawn a placeholder duplicate. Refuse
+            //    and let the caller tell the user, so they can sign in to the existing account.
             string accountEmail;
             bool verifiedFlag;
-            if (providedEmail != null
-                && !await _context.Users.AnyAsync(u => u.Email.ToLower() == providedEmail.ToLower()))
+            if (providedEmail != null)
             {
+                var taken = await _context.Users.AnyAsync(u => u.Email.ToLower() == providedEmail.ToLower());
+                if (taken)
+                {
+                    _logger.LogWarning("External login for subject {Subject}: provided email already in use — refusing to create placeholder duplicate", info.Subject);
+                    throw new ExternalEmailConflictException(providedEmail);
+                }
                 accountEmail = providedEmail;
                 verifiedFlag = emailVerified;
             }
@@ -445,6 +483,73 @@ public class AuthService : IAuthService
         await _context.SaveChangesAsync();
         _logger.LogInformation("Linked {Provider} identity to user {UserId}", provider, user.Id);
         return MapToDto(user);
+    }
+
+    /// <summary>
+    /// Links an external (BankID) identity to an ALREADY-AUTHENTICATED account. This is the
+    /// "verify-to-link" / step-up flow: the caller has proven control of <paramref name="userId"/>
+    /// (an active session) and just proven the BankID, so we attach the identity to that account.
+    /// A subject may be linked to several accounts (one person, multiple accounts) — login then
+    /// offers an account picker. We never change the account's email here.
+    /// </summary>
+    public async Task<ExternalLinkResult> LinkExternalUserAsync(Guid userId, string provider, ExternalUserInfo info)
+    {
+        if (string.IsNullOrWhiteSpace(info.Subject))
+        {
+            throw new ArgumentException("External subject is required", nameof(info));
+        }
+
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        if (user == null)
+        {
+            return ExternalLinkResult.UserNotFound;
+        }
+
+        // Idempotent: already linked to this account.
+        var existing = await _context.UserExternalLogins
+            .FirstOrDefaultAsync(l => l.Provider == provider && l.Subject == info.Subject && l.UserId == userId);
+        if (existing != null)
+        {
+            existing.LastLoginAt = DateTimeOffset.UtcNow;
+            await _context.SaveChangesAsync();
+            _logger.LogInformation("{Provider} already linked to user {UserId} (no-op)", provider, userId);
+            return ExternalLinkResult.AlreadyLinked;
+        }
+
+        // BankID is authoritative for the birth date; fill it in if we don't have one.
+        if (!string.IsNullOrWhiteSpace(info.BirthDate)) user.BirthDate = info.BirthDate;
+
+        _context.UserExternalLogins.Add(new UserExternalLoginEntity
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            Provider = provider,
+            Subject = info.Subject,
+            CreatedAt = DateTimeOffset.UtcNow,
+            LastLoginAt = DateTimeOffset.UtcNow,
+            User = user
+        });
+
+        await _auditService.LogAsync("ExternalLoginLinked", $"{provider} linked to existing account (step-up): {user.Email}", user.Id);
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("Step-up linked {Provider} identity to user {UserId}", provider, user.Id);
+        return ExternalLinkResult.Linked;
+    }
+
+    /// <summary>
+    /// Returns every local account currently linked to the given external identity, most
+    /// recently used first. Login uses this to decide: 0 → create/refuse, 1 → sign in,
+    /// 2+ → show an account picker.
+    /// </summary>
+    public async Task<IReadOnlyList<NetworcoIdUserDto>> GetAccountsForExternalLoginAsync(string provider, string subject)
+    {
+        var users = await _context.UserExternalLogins
+            .Where(l => l.Provider == provider && l.Subject == subject)
+            .OrderByDescending(l => l.LastLoginAt)
+            .Select(l => l.User)
+            .ToListAsync();
+
+        return users.Select(MapToDto).ToList();
     }
 
     public async Task<bool> SetPasswordAsync(Guid userId, string newPassword)

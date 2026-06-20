@@ -96,7 +96,31 @@ public static class ExternalAuthEndpoints
                 BirthDate = principal.FindFirst("birthdate")?.Value
             };
 
-            var user = await authService.FindOrCreateExternalUserAsync(Provider, info);
+            NetworcoIdUserDto user;
+            try
+            {
+                user = await authService.FindOrCreateExternalUserAsync(Provider, info);
+            }
+            catch (ExternalEmailConflictException)
+            {
+                // The eID-supplied email already belongs to another account and we can't
+                // prove ownership. Don't silently create a placeholder duplicate — send the
+                // user to the login page with a clear explanation, preserving the OAuth
+                // context so they can sign in to their existing account and continue.
+                logger.LogWarning("External login blocked for subject {Subject}: email already in use", subject);
+                await context.SignOutAsync(ExternalScheme);
+
+                // Send the user to the login page with a clear, actionable notice. Preserve
+                // the OAuth context (client_id/redirect_uri/...) so they can sign in to their
+                // existing account and the original authorize flow resumes.
+                var oauthQuery = string.Empty;
+                if (IsValidReturnUrl(returnUrl))
+                {
+                    var qIndex = returnUrl!.IndexOf('?');
+                    if (qIndex >= 0) oauthQuery = returnUrl[(qIndex + 1)..] + "&";
+                }
+                return Results.Redirect($"/Login?{oauthQuery}email_conflict=1");
+            }
 
             // Establish the normal session — identical claim shape to password login
             // (see Login.cshtml.cs) so /oauth/authorize treats this session the same.

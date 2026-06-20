@@ -6,6 +6,11 @@ using NetworcoId.Services;
 using NetworcoId.Infrastructure.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
+using NetworcoId.Infrastructure.Database;
+using NetworcoId.Services.Audit;
+using NetworcoId.Services.Messaging;
+using NetworcoId.Pages;
 
 namespace NetworcoId.Endpoints;
 
@@ -101,6 +106,53 @@ public static class AuthEndpoints
                 Supported for OIDC compliance.
                 """)
             .Produces<NetworcoIdUserDto>(200)
+            .RequireAuthorization(new AuthorizeAttribute { AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme });
+
+        // Self-service email management for the currently authenticated user.
+        // Lets relying-party apps (e.g. the NETWORCO app) trigger verification and
+        // email changes for a signed-in user without owning the email/verification
+        // state themselves — NETWORCO ID stays the single source of truth.
+        group.MapPost("/email/send-verification", SendEmailVerification)
+            .WithName("SendEmailVerification")
+            .RequireRateLimiting("auth-strict")
+            .WithSummary("Resend the email-verification link for the current user")
+            .WithDescription("""
+                (Re)issues an email-verification link to the currently authenticated
+                user's email address. No-op (200) if the email is already verified.
+                Requires a valid access token in the Authorization header.
+                """)
+            .Produces(200)
+            .Produces(400)
+            .RequireAuthorization(new AuthorizeAttribute { AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme });
+
+        group.MapPut("/email", ChangeEmail)
+            .WithName("ChangeEmail")
+            .RequireRateLimiting("auth-strict")
+            .WithSummary("Change the current user's email and send a verification link")
+            .WithDescription("""
+                Updates the authenticated user's email address (e.g. replacing a
+                generated @id.networco.no placeholder), marks it unverified, and
+                sends a verification link to the new address.
+
+                ### Request Body
+                - `email` (required): the new email address
+                - `returnUrl` (optional): where to send the user after verification
+                """)
+            .Produces(200)
+            .Produces(400)
+            .Produces(409)
+            .RequireAuthorization(new AuthorizeAttribute { AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme });
+
+        group.MapGet("/external-logins", GetExternalLogins)
+            .WithName("GetExternalLogins")
+            .WithSummary("List the current user's external (BankID/IDura) login references")
+            .WithDescription("""
+                Returns the federated login references (provider + subject) linked to
+                the authenticated user. Exposed over the authenticated back-channel so
+                relying parties can record the BankID/IDura reference server-side
+                without it ever appearing in a JWT.
+                """)
+            .Produces<ExternalLoginsResponse>(200)
             .RequireAuthorization(new AuthorizeAttribute { AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme });
 
         group.MapPost("/forgot-password", ForgotPassword)
@@ -325,6 +377,101 @@ public static class AuthEndpoints
         return Results.NoContent();
     }
 
+    private static Guid? GetAuthenticatedUserId(HttpContext context)
+    {
+        var sub = context.User.FindFirst("sub")?.Value;
+        return Guid.TryParse(sub, out var id) ? id : null;
+    }
+
+    private static bool IsValidEmail(string email)
+    {
+        try
+        {
+            var addr = new System.Net.Mail.MailAddress(email);
+            return string.Equals(addr.Address, email, StringComparison.Ordinal) && email.Contains('.');
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static async Task<IResult> SendEmailVerification(
+        HttpContext context,
+        AuthDbContext db,
+        IEmailService emailService,
+        NetworcoIdConfig config,
+        [FromBody] SendVerificationRequest? request)
+    {
+        var userId = GetAuthenticatedUserId(context);
+        if (userId is null) return Results.Unauthorized();
+
+        var user = await db.Users.AsTracking().FirstOrDefaultAsync(u => u.Id == userId);
+        if (user is null) return Results.BadRequest(new { error = "user_not_found" });
+        if (user.EmailVerified)
+            return Results.Ok(new { status = "already_verified", email = user.Email });
+
+        var returnUrl = !string.IsNullOrWhiteSpace(request?.ReturnUrl) ? request!.ReturnUrl! : config.FrontendUrl;
+        await EmailVerificationHelper.SendAsync(context, db, emailService, user, config.BaseUrl, returnUrl);
+        return Results.Ok(new { status = "sent", email = user.Email });
+    }
+
+    private static async Task<IResult> ChangeEmail(
+        HttpContext context,
+        AuthDbContext db,
+        IEmailService emailService,
+        IAuditService audit,
+        NetworcoIdConfig config,
+        [FromBody] ChangeEmailRequest request)
+    {
+        var userId = GetAuthenticatedUserId(context);
+        if (userId is null) return Results.Unauthorized();
+
+        var newEmail = request?.Email?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(newEmail) || !IsValidEmail(newEmail))
+            return Results.BadRequest(new { error = "invalid_email" });
+
+        var user = await db.Users.AsTracking().FirstOrDefaultAsync(u => u.Id == userId);
+        if (user is null) return Results.BadRequest(new { error = "user_not_found" });
+
+        // Already this exact (verified) address — nothing to do.
+        if (string.Equals(user.Email, newEmail, StringComparison.OrdinalIgnoreCase) && user.EmailVerified)
+            return Results.Ok(new { status = "unchanged", email = user.Email, emailVerified = user.EmailVerified });
+
+        // Uniqueness: no *other* user may already hold this address.
+        var lower = newEmail.ToLowerInvariant();
+        var taken = await db.Users.AsNoTracking()
+            .AnyAsync(u => u.Id != userId && u.Email != null && u.Email.ToLower() == lower);
+        if (taken) return Results.Conflict(new { error = "email_taken" });
+
+        user.Email = newEmail;
+        user.EmailVerified = false;
+        user.EmailVerificationToken = null;
+        user.EmailVerificationTokenExpiresAt = null;
+        user.EmailVerificationSessionId = null;
+        await db.SaveChangesAsync();
+        await audit.LogAsync("EmailChanged", $"Email changed via self-service to {newEmail}", user.Id);
+
+        var returnUrl = !string.IsNullOrWhiteSpace(request?.ReturnUrl) ? request!.ReturnUrl! : config.FrontendUrl;
+        await EmailVerificationHelper.SendAsync(context, db, emailService, user, config.BaseUrl, returnUrl);
+
+        return Results.Ok(new { status = "verification_sent", email = user.Email, emailVerified = false });
+    }
+
+    private static async Task<IResult> GetExternalLogins(HttpContext context, AuthDbContext db)
+    {
+        var userId = GetAuthenticatedUserId(context);
+        if (userId is null) return Results.Unauthorized();
+
+        var logins = await db.UserExternalLogins.AsNoTracking()
+            .Where(l => l.UserId == userId)
+            .OrderByDescending(l => l.LastLoginAt)
+            .Select(l => new ExternalLoginRef(l.Provider, l.Subject, l.LastLoginAt, l.CreatedAt))
+            .ToListAsync();
+
+        return Results.Ok(new ExternalLoginsResponse(logins));
+    }
+
     private static IResult GetCurrentUser(HttpContext context)
     {
         // Extract user info from JWT token claims
@@ -502,7 +649,19 @@ public static class AuthEndpoints
         
         // Handle case where scope might be missing (e.g. client creds or old tokens)
         // If no scopes are present, default to minimal claims (sub only), which is already set
-        
+
         return Results.Json(claims);
     }
 }
+
+/// <summary>Body for POST /auth/email/send-verification.</summary>
+public record SendVerificationRequest(string? ReturnUrl);
+
+/// <summary>Body for PUT /auth/email.</summary>
+public record ChangeEmailRequest(string Email, string? ReturnUrl);
+
+/// <summary>A single federated login reference for the current user.</summary>
+public record ExternalLoginRef(string Provider, string Subject, DateTimeOffset? LastLoginAt, DateTimeOffset CreatedAt);
+
+/// <summary>Response for GET /auth/external-logins.</summary>
+public record ExternalLoginsResponse(IReadOnlyList<ExternalLoginRef> ExternalLogins);
