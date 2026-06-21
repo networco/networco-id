@@ -56,6 +56,14 @@ spec:
             secretKeyRef:
               name: networcoid-secrets
               key: base-url
+        # Public app origin (where post-link / post-verify redirects go). Without it
+        # FrontendUrl falls back to http://localhost:3000, breaking those redirects.
+        - name: NetworcoId__FrontendUrl
+          valueFrom:
+            secretKeyRef:
+              name: networcoid-secrets
+              key: frontend-url
+              optional: true
         - name: NATS_URL
           # HA NATS: shared 3-node cluster in networco-nats (cut over 2026-06-06).
           value: "nats://nats.networco-nats.svc.cluster.local:4222"

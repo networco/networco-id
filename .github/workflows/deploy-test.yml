@@ -160,6 +160,12 @@ jobs:
             _v=${_v#\"}; _v=${_v%\"}; _v=${_v#\'}; _v=${_v%\'}
             export "$_k=$_v"
           done < _ci/.env.test
+          # FrontendUrl = the public app origin (post-link / post-verify redirect target).
+          # Prefer an explicit FRONTEND_URL from the env file; otherwise derive it from
+          # BASE_URL by dropping the `id.` IdP subdomain (id.test.networco.no → test.networco.no).
+          FRONTEND_URL="${FRONTEND_URL:-$(printf '%s' "$BASE_URL" | sed 's#//id\.#//#')}"
+          export FRONTEND_URL
+          echo "Using FRONTEND_URL=$FRONTEND_URL"
           kubectl create namespace "$NS" --dry-run=client -o yaml | kubectl apply -f -
           # Registry pull secret
           kubectl create secret docker-registry ghcr-secret -n "$NS" \
@@ -181,6 +187,7 @@ jobs:
             --from-literal=resend-api-key="$RESEND_API_KEY" \
             --from-literal=issuer="$ISSUER" \
             --from-literal=base-url="$BASE_URL" \
+            --from-literal=frontend-url="$FRONTEND_URL" \
             --from-literal=NATS_URL="$NATS_URL" \
             --from-literal=nats-stream-replicas="$NATS_STREAM_REPLICAS" \
             --from-literal=idura-enabled="$IDURA_ENABLED" \
