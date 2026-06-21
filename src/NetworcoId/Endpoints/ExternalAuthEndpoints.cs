@@ -134,24 +134,6 @@ public static class ExternalAuthEndpoints
                 string.Join(", ", principal.Claims.Select(c => c.Type).Distinct()),
                 principal.FindFirst("email_verified")?.Value ?? "<none>");
 
-            // TEMPORARY DIAGNOSTIC (remove once the stable subject claim is chosen):
-            // IDura's `sub` changes between logins, which breaks the (provider, subject) link
-            // and forces every re-login through the email-collision path. Dump the non-PII
-            // claim VALUES so we can compare two logins for the SAME person and see which
-            // identifier (sub / nameidentifier / uniqueuserid / sessionindex / …) stays
-            // constant. Email / name / address are excluded so we don't log PII.
-            var diagnosticPii = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            {
-                "email", "emailaddress", ClaimTypes.Email,
-                "name", "given_name", "givenname", "family_name", "surname",
-                ClaimTypes.Name, ClaimTypes.GivenName, ClaimTypes.Surname,
-                "address", "streetaddress", ClaimTypes.StreetAddress,
-            };
-            logger.LogWarning("External login claim values (DIAGNOSTIC): {Claims}",
-                string.Join(" | ", principal.Claims
-                    .Where(c => !diagnosticPii.Contains(c.Type))
-                    .Select(c => $"{c.Type}={c.Value}")));
-
             var (firstName, lastName) = ResolveName(principal);
             var info = new ExternalUserInfo
             {
@@ -217,7 +199,7 @@ public static class ExternalAuthEndpoints
                     var qIndex = returnUrl!.IndexOf('?');
                     if (qIndex >= 0) oauthQuery = returnUrl[(qIndex + 1)..] + "&";
                 }
-                return Results.Redirect($"/Login?{oauthQuery}email_conflict=1");
+                return Results.Redirect($"/Login?{oauthQuery}email_conflict=true");
             }
 
             var destination = await EstablishSessionAndGetDestinationAsync(context, user, returnUrl, clientService, config, logger);
