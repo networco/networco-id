@@ -75,7 +75,12 @@ public static class ServiceConfiguration
         var iduraDomain = EnvOr(configuration, "IDURA_DOMAIN", "NetworcoId:IduraDomain");
         var iduraClientId = EnvOr(configuration, "IDURA_CLIENT_ID", "NetworcoId:IduraClientId");
         var iduraClientSecret = EnvOr(configuration, "IDURA_CLIENT_SECRET", "NetworcoId:IduraClientSecret");
-        var iduraScopes = EnvOr(configuration, "IDURA_SCOPES", "NetworcoId:IduraScopes") ?? "openid email birthdate";
+        // No `email` scope on purpose: for Norwegian BankID the email is "contact
+        // information" that Vipps/BankID makes the user re-consent to on EVERY login (an
+        // unavoidable, operator-rendered dialog). We don't need it from BankID — users
+        // provide/verify their own email in-app — so we omit it to skip that prompt.
+        // `birthdate` comes from the certificate and triggers no consent.
+        var iduraScopes = EnvOr(configuration, "IDURA_SCOPES", "NetworcoId:IduraScopes") ?? "openid birthdate";
         var iduraCallbackPath = EnvOr(configuration, "IDURA_CALLBACK_PATH", "NetworcoId:IduraCallbackPath") ?? "/auth/callback/external";
         var iduraAcrValues = EnvOr(configuration, "IDURA_ACR_VALUES", "NetworcoId:IduraAcrValues");
         // Only enable when explicitly turned on AND fully configured — otherwise the
