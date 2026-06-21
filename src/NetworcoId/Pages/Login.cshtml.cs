@@ -143,7 +143,8 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
         // stays false) so the user can sign in to their existing account and continue.
         if (EmailConflict)
         {
-            ErrorMessage = "Denne e-postadressen er allerede knyttet til en konto. Logg inn på den eksisterende kontoen for å fortsette.";
+            ErrorMessage = "E-postadressen som er knyttet til BankID-en din er allerede i bruk av en annen konto. "
+                + "Er dette din konto? Logg inn under. Hvis ikke, ta kontakt med support.";
         }
 
         if (IsRegistration)
