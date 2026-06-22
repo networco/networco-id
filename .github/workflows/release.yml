@@ -246,7 +246,10 @@ jobs:
           done < _ci/.env.prod
           # Add the app callback, the audience the API validates, and the scopes
           # the app requests (incl. offline_access) to the bootstrapped client.
-          kubectl exec -n networco-db pg-1 -c postgres -- psql -d networco_id -v ON_ERROR_STOP=1 -c \
+          # Target the CNPG PRIMARY (it moves on failover, and isn't always pg-1 on the
+          # HA prod cluster) — a replica is read-only and the UPDATE would fail.
+          PRIMARY=$(kubectl -n networco-db get cluster pg -o jsonpath='{.status.currentPrimary}')
+          kubectl exec -n networco-db "$PRIMARY" -c postgres -- psql -d networco_id -v ON_ERROR_STOP=1 -c \
             "UPDATE o_auth_clients SET \
                redirect_uris  = (SELECT array_agg(DISTINCT u) FROM unnest(redirect_uris  || ARRAY['${APP_CALLBACK}']) u), \
                allowed_scopes = (SELECT array_agg(DISTINCT u) FROM unnest(allowed_scopes || ARRAY['openid','profile','email','offline_access']) u), \
