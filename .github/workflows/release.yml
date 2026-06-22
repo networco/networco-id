@@ -169,6 +169,12 @@ jobs:
       - name: Deploy id-prod
         env:
           KUBECONFIG: ${{ github.workspace }}/_ci/kubeconfig
+          # GHCR pull creds come from the repo secrets (same as the build job's login),
+          # not the env file — so the prod image-pull secret works even if ENV_ID_PROD
+          # doesn't carry them. The env-file loop below won't override these (it has no
+          # GHCR_* keys).
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
         run: |
           # Robust env load: tolerates spaces/quotes; skips comments/blanks.
           while IFS= read -r _l || [ -n "$_l" ]; do
