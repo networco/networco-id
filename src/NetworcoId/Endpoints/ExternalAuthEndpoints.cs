@@ -30,6 +30,15 @@ public static class ExternalAuthEndpoints
 
     public static void MapExternalAuth(this WebApplication app)
     {
+        // Public capability flag so relying parties (e.g. the NETWORCO app) can hide
+        // BankID UI when external/BankID login is disabled at the IdP. Deliberately NOT
+        // gated by IduraEnabled — its whole job is to report that state.
+        app.MapGet("/auth/external/enabled", (NetworcoIdConfig config) =>
+            Results.Ok(new { enabled = config.IduraEnabled }))
+            .WithName("ExternalBankIdEnabled")
+            .WithSummary("Whether BankID/external login is enabled at this IdP")
+            .AllowAnonymous();
+
         // Step 1 — initiate the BankID challenge.
         app.MapGet("/auth/external/bankid", (HttpContext context, string? returnUrl, NetworcoIdConfig config) =>
         {
