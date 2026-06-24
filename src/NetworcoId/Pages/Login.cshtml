@@ -173,7 +173,10 @@
 
         <div class="mt-10 pt-8 border-t border-networco-border dark:border-gray-700">
             <p class="text-[10px] leading-relaxed text-center text-networco-authority-light/70 font-medium uppercase tracking-wider">
-                Sikker pålogging fra Networco. Du kan også bruke Vipps og BankID for rask tilgang.
+                Sikker pålogging fra Networco.@if (Model.IduraEnabled)
+                {
+                    <text> Du kan også bruke BankID for rask tilgang.</text>
+                }
             </p>
         </div>
     </div>

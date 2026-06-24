@@ -182,7 +182,10 @@
 
         <div class="mt-10 pt-8 border-t border-networco-border dark:border-gray-700">
             <p class="text-[10px] leading-relaxed text-center text-networco-authority-light/70 dark:text-gray-500 font-medium uppercase tracking-wider">
-                Sikker registrering fra Networco. Du kan also bruke Vipps og BankID for rask tilgang.
+                Sikker registrering fra Networco.@if (Model.IduraEnabled)
+                {
+                    <text> Du kan også bruke BankID for rask tilgang.</text>
+                }
             </p>
         </div>
     </div>
