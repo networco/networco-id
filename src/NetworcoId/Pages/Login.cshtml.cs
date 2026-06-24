@@ -56,29 +56,8 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
     /// flow resumes after BankID completes. Falls back to a bare challenge when
     /// there's no OAuth context (direct visit).
     /// </summary>
-    public string BankIdChallengeUrl
-    {
-        get
-        {
-            if (string.IsNullOrEmpty(ClientId) || string.IsNullOrEmpty(RedirectUri))
-            {
-                return "/auth/external/bankid";
-            }
-
-            var q = HttpUtility.ParseQueryString("");
-            q["response_type"] = "code";
-            q["client_id"] = ClientId;
-            q["redirect_uri"] = RedirectUri;
-            if (!string.IsNullOrEmpty(Scope)) q["scope"] = Scope;
-            if (!string.IsNullOrEmpty(State)) q["state"] = State;
-            if (!string.IsNullOrEmpty(CodeChallenge)) q["code_challenge"] = CodeChallenge;
-            if (!string.IsNullOrEmpty(CodeChallengeMethod)) q["code_challenge_method"] = CodeChallengeMethod;
-            if (!string.IsNullOrEmpty(Nonce)) q["nonce"] = Nonce;
-
-            var authorizeUrl = "/oauth/authorize?" + q;
-            return "/auth/external/bankid?returnUrl=" + Uri.EscapeDataString(authorizeUrl);
-        }
-    }
+    public string BankIdChallengeUrl =>
+        BankIdChallenge.BuildUrl(ClientId, RedirectUri, Scope, State, CodeChallenge, CodeChallengeMethod, Nonce);
 
     [BindProperty(SupportsGet = true, Name = "registration")]
     public string? Registration { get; set; }
