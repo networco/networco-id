@@ -28,6 +28,35 @@ public class RegisterModel(
     public string ReturnUrl { get; set; } = string.Empty;
     public bool RegistrationSuccess { get; set; }
 
+    /// <summary>Whether external BankID registration (via IDura) is configured/enabled.</summary>
+    public bool IduraEnabled => _config.IduraEnabled;
+
+    /// <summary>
+    /// Link target for the BankID button — mirrors the Login page. The OAuth
+    /// request is packed into <see cref="ReturnUrl"/> (a "/Login?..." URL built
+    /// when registration is bounced here), so we unpack those params and rebuild
+    /// the /oauth/authorize flow that resumes after BankID completes.
+    /// </summary>
+    public string BankIdChallengeUrl
+    {
+        get
+        {
+            var q = ParseReturnUrlQuery(ReturnUrl);
+            return BankIdChallenge.BuildUrl(
+                q["client_id"], q["redirect_uri"], q["scope"], q["state"],
+                q["code_challenge"], q["code_challenge_method"], q["nonce"]);
+        }
+    }
+
+    private static System.Collections.Specialized.NameValueCollection ParseReturnUrlQuery(string? returnUrl)
+    {
+        if (string.IsNullOrEmpty(returnUrl)) return new System.Collections.Specialized.NameValueCollection();
+        var qIndex = returnUrl.IndexOf('?');
+        return qIndex >= 0
+            ? HttpUtility.ParseQueryString(returnUrl[(qIndex + 1)..])
+            : new System.Collections.Specialized.NameValueCollection();
+    }
+
     /// <summary>Cookie name for the same-browser verification binding (see Verify).</summary>
     public const string VerifyCookieName = "nwid_verify_session";
 
