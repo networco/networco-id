@@ -26,6 +26,11 @@ name: Deploy Test
 on:
   push:
     branches: [main]
+  # An rc pre-release (v1.2.3-rc.N) deploys that exact version to test, so the
+  # number can later be promoted unchanged to prod. Full releases never reach
+  # here — release.yml owns prod via the `released` event.
+  release:
+    types: [prereleased]
   workflow_dispatch:
 
 env:
@@ -46,16 +51,23 @@ jobs:
           ref: main
           token: ${{ secrets.GITHUB_TOKEN }}
       - id: ver
-        name: Bump build segment to the run number
+        name: Compute test version
         run: |
-          # VERSION is the source of truth (major.minor.patch.build). Keep
-          # major.minor.patch and set the build segment to this run number.
-          BASE=$(cut -d. -f1-3 VERSION)
-          VERSION="${BASE}.${{ github.run_number }}"
-          echo "$VERSION" > VERSION
+          if [ "${{ github.event_name }}" = "release" ]; then
+            # rc pre-release tag, e.g. v0.11.0-rc.1 → 0.11.0-rc.1 (do NOT touch VERSION)
+            VERSION="${{ github.event.release.tag_name }}"
+            VERSION="${VERSION#v}"
+          else
+            # VERSION is the source of truth (major.minor.patch.build). Keep
+            # major.minor.patch and set the build segment to this run number.
+            BASE=$(cut -d. -f1-3 VERSION)
+            VERSION="${BASE}.${{ github.run_number }}"
+            echo "$VERSION" > VERSION
+          fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Computed test version: $VERSION"
       - name: Commit bumped VERSION back to main
+        if: github.event_name != 'release'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

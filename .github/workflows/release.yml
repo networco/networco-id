@@ -37,8 +37,10 @@
 name: Release
 
 on:
+  # `released` fires only for full (non-prerelease) releases — so rc pre-releases
+  # go to test (deploy-test.yml) and never trigger a prod deploy here.
   release:
-    types: [published]
+    types: [released]
   workflow_dispatch:
 
 env:
