@@ -1245,12 +1245,16 @@ public class AuthService : IAuthService
     {
         var user = await _context.Users
             .Include(u => u.Credential)
-            .Where(u => u.PasswordResetToken == token && u.PasswordResetTokenExpiresAt > DateTimeOffset.UtcNow)
+            .Where(u => u.PasswordResetToken == token
+                && u.PasswordResetTokenExpiresAt > DateTimeOffset.UtcNow
+                && u.IsActive)
             .FirstOrDefaultAsync();
 
-        if (user == null || user.Credential == null)
+        if (user == null)
         {
-            _logger.LogWarning("Invalid or expired password reset token: {Token}", token);
+            // Covers an unknown/expired token AND a deactivated account — we don't
+            // distinguish them to the caller (no account-status disclosure).
+            _logger.LogWarning("Invalid or expired password reset token (or inactive account)");
             return false;
         }
 
@@ -1267,11 +1271,30 @@ public class AuthService : IAuthService
         }
 
         var newHash = _passwordHasher.HashPassword(newPassword);
-        user.Credential.PasswordHash = newHash;
-        user.Credential.MustChangePassword = false;
-        user.Credential.UpdatedAt = DateTimeOffset.UtcNow;
-        user.Credential.FailedLoginAttempts = 0;
-        user.Credential.LockedUntil = null;
+        if (user.Credential == null)
+        {
+            // Passwordless account — created via an external login (e.g. BankID/
+            // Vipps via IDura) and never had a local password. A reset here is the
+            // user setting their first password, so create the credential instead
+            // of failing. Email ownership is proven by acting on the reset link.
+            user.Credential = new UserCredentialEntity
+            {
+                Id = user.Id, // Same ID as user (1:1 relationship)
+                PasswordHash = newHash,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+            _context.UserCredentials.Add(user.Credential);
+        }
+        else
+        {
+            user.Credential.PasswordHash = newHash;
+            user.Credential.MustChangePassword = false;
+            user.Credential.UpdatedAt = DateTimeOffset.UtcNow;
+            user.Credential.FailedLoginAttempts = 0;
+            user.Credential.LockedUntil = null;
+            _context.UserCredentials.Update(user.Credential);
+        }
 
         user.PasswordResetToken = null;
         user.PasswordResetTokenExpiresAt = null;
@@ -1290,7 +1313,6 @@ public class AuthService : IAuthService
         }
 
         _context.Users.Update(user);
-        _context.UserCredentials.Update(user.Credential);
         await _context.SaveChangesAsync();
 
         _logger.LogInformation("Password reset completed for user {Id}", user.Id);
