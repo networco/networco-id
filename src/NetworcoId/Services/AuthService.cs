@@ -1245,12 +1245,16 @@ public class AuthService : IAuthService
     {
         var user = await _context.Users
             .Include(u => u.Credential)
-            .Where(u => u.PasswordResetToken == token && u.PasswordResetTokenExpiresAt > DateTimeOffset.UtcNow)
+            .Where(u => u.PasswordResetToken == token
+                && u.PasswordResetTokenExpiresAt > DateTimeOffset.UtcNow
+                && u.IsActive)
             .FirstOrDefaultAsync();
 
         if (user == null)
         {
-            _logger.LogWarning("Invalid or expired password reset token");
+            // Covers an unknown/expired token AND a deactivated account — we don't
+            // distinguish them to the caller (no account-status disclosure).
+            _logger.LogWarning("Invalid or expired password reset token (or inactive account)");
             return false;
         }
 
@@ -1278,6 +1282,7 @@ public class AuthService : IAuthService
                 Id = user.Id, // Same ID as user (1:1 relationship)
                 PasswordHash = newHash,
                 CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow,
             };
             _context.UserCredentials.Add(user.Credential);
         }

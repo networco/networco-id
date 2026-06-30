@@ -152,6 +152,45 @@ public class PasswordResetFlowTests : IClassFixture<PasswordResetAcceptingFactor
     }
 
     [Fact]
+    public async Task Reset_DeactivatedAccount_IsRejectedAndKeepsToken()
+    {
+        // A disabled account must not be able to complete a reset, even with a valid token.
+        var userId = Guid.NewGuid();
+        const string token = "deactivated-token-1";
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+            db.Users.Add(new UserEntity
+            {
+                Id = userId,
+                Email = "disabled@example.com",
+                FirstName = "Dis",
+                LastName = "Abled",
+                IsActive = false,
+                EmailVerified = true,
+                PasswordResetToken = token,
+                PasswordResetTokenExpiresAt = DateTimeOffset.UtcNow.AddHours(1),
+            });
+            await db.SaveChangesAsync();
+        }
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var auth = scope.ServiceProvider.GetRequiredService<IAuthService>();
+            Assert.False(await auth.ResetPasswordWithTokenAsync(token, "BrandNewP@ss123!"));
+        }
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+            var cred = await db.UserCredentials.AsNoTracking().FirstOrDefaultAsync(c => c.Id == userId);
+            Assert.Null(cred); // no password created for a disabled account
+            var user = await db.Users.AsNoTracking().FirstAsync(u => u.Id == userId);
+            Assert.Equal(token, user.PasswordResetToken);
+        }
+    }
+
+    [Fact]
     public async Task Reset_ExistingCredential_UpdatesHashAndClearsToken()
     {
         var userId = Guid.NewGuid();
