@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace NetworcoId.Migrations
 {
     [DbContext(typeof(AuthDbContext))]
-    [Migration("20260630092952_AddExternalLoginName")]
+    [Migration("20260630095626_AddExternalLoginName")]
     partial class AddExternalLoginName
     {
         /// <inheritdoc />
@@ -582,7 +582,8 @@ namespace NetworcoId.Migrations
                         .HasDefaultValueSql("now()");
 
                     b.Property<string>("FirstName")
-                        .HasColumnType("text")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
                         .HasColumnName("first_name");
 
                     b.Property<DateTimeOffset?>("LastLoginAt")
@@ -590,7 +591,8 @@ namespace NetworcoId.Migrations
                         .HasColumnName("last_login_at");
 
                     b.Property<string>("LastName")
-                        .HasColumnType("text")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
                         .HasColumnName("last_name");
 
                     b.Property<string>("Provider")

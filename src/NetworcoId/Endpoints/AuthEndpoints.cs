@@ -153,6 +153,7 @@ public static class AuthEndpoints
                 without it ever appearing in a JWT.
                 """)
             .Produces<ExternalLoginsResponse>(200)
+            .RequireRateLimiting("auth-strict")
             .RequireAuthorization(new AuthorizeAttribute { AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme });
 
         group.MapPost("/forgot-password", ForgotPassword)

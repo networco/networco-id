@@ -579,7 +579,8 @@ namespace NetworcoId.Migrations
                         .HasDefaultValueSql("now()");
 
                     b.Property<string>("FirstName")
-                        .HasColumnType("text")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
                         .HasColumnName("first_name");
 
                     b.Property<DateTimeOffset?>("LastLoginAt")
@@ -587,7 +588,8 @@ namespace NetworcoId.Migrations
                         .HasColumnName("last_login_at");
 
                     b.Property<string>("LastName")
-                        .HasColumnType("text")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
                         .HasColumnName("last_name");
 
                     b.Property<string>("Provider")

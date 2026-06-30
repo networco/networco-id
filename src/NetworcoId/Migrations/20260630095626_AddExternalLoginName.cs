@@ -13,13 +13,15 @@ namespace NetworcoId.Migrations
             migrationBuilder.AddColumn<string>(
                 name: "first_name",
                 table: "user_external_logins",
-                type: "text",
+                type: "character varying(100)",
+                maxLength: 100,
                 nullable: true);
 
             migrationBuilder.AddColumn<string>(
                 name: "last_name",
                 table: "user_external_logins",
-                type: "text",
+                type: "character varying(100)",
+                maxLength: 100,
                 nullable: true);
         }
 
