@@ -75,6 +75,10 @@ public class UserExternalLoginEntity
     public required string Provider { get; set; }
     /// <summary>The provider's stable subject identifier (the OIDC `sub`).</summary>
     public required string Subject { get; set; }
+    /// <summary>Given name as asserted by the provider (BankID legal name), if any.</summary>
+    public string? FirstName { get; set; }
+    /// <summary>Family name as asserted by the provider (BankID legal name), if any.</summary>
+    public string? LastName { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? LastLoginAt { get; set; }
 

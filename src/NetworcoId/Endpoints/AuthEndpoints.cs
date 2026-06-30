@@ -153,6 +153,7 @@ public static class AuthEndpoints
                 without it ever appearing in a JWT.
                 """)
             .Produces<ExternalLoginsResponse>(200)
+            .RequireRateLimiting("auth-strict")
             .RequireAuthorization(new AuthorizeAttribute { AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme });
 
         group.MapPost("/forgot-password", ForgotPassword)
@@ -500,10 +501,16 @@ public static class AuthEndpoints
         var userId = GetAuthenticatedUserId(context);
         if (userId is null) return Results.Unauthorized();
 
+        // BankID is authoritative for the birth date and is stored on the user (string "YYYY-MM-DD").
+        var birthDate = await db.Users.AsNoTracking()
+            .Where(u => u.Id == userId)
+            .Select(u => u.BirthDate)
+            .FirstOrDefaultAsync();
+
         var logins = await db.UserExternalLogins.AsNoTracking()
             .Where(l => l.UserId == userId)
             .OrderByDescending(l => l.LastLoginAt)
-            .Select(l => new ExternalLoginRef(l.Provider, l.Subject, l.LastLoginAt, l.CreatedAt))
+            .Select(l => new ExternalLoginRef(l.Provider, l.Subject, l.FirstName, l.LastName, birthDate, l.LastLoginAt, l.CreatedAt))
             .ToListAsync();
 
         return Results.Ok(new ExternalLoginsResponse(logins));
@@ -698,7 +705,7 @@ public record SendVerificationRequest(string? ReturnUrl);
 public record ChangeEmailRequest(string Email, string? ReturnUrl);
 
 /// <summary>A single federated login reference for the current user.</summary>
-public record ExternalLoginRef(string Provider, string Subject, DateTimeOffset? LastLoginAt, DateTimeOffset CreatedAt);
+public record ExternalLoginRef(string Provider, string Subject, string? FirstName, string? LastName, string? BirthDate, DateTimeOffset? LastLoginAt, DateTimeOffset CreatedAt);
 
 /// <summary>Response for GET /auth/external-logins.</summary>
 public record ExternalLoginsResponse(IReadOnlyList<ExternalLoginRef> ExternalLogins);

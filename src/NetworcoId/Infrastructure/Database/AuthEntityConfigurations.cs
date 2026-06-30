@@ -83,6 +83,12 @@ public class UserExternalLoginEntityConfiguration : IEntityTypeConfiguration<Use
             .HasMaxLength(255)
             .IsRequired();
 
+        builder.Property(e => e.FirstName)
+            .HasMaxLength(100);
+
+        builder.Property(e => e.LastName)
+            .HasMaxLength(100);
+
         builder.Property(e => e.CreatedAt)
             .HasDefaultValueSql("now()");
 

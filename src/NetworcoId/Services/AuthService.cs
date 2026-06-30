@@ -484,6 +484,8 @@ public class AuthService : IAuthService
             UserId = user.Id,
             Provider = provider,
             Subject = info.Subject,
+            FirstName = info.FirstName,
+            LastName = info.LastName,
             CreatedAt = DateTimeOffset.UtcNow,
             LastLoginAt = DateTimeOffset.UtcNow,
             User = user
@@ -520,13 +522,23 @@ public class AuthService : IAuthService
         if (existing != null)
         {
             existing.LastLoginAt = DateTimeOffset.UtcNow;
+            // Keep the provider-asserted (BankID) name fresh on re-verification.
+            if (!string.IsNullOrWhiteSpace(info.FirstName)) existing.FirstName = info.FirstName;
+            if (!string.IsNullOrWhiteSpace(info.LastName)) existing.LastName = info.LastName;
+            // Birth date is immutable in practice — only fill it if we don't have one, so a
+            // re-verification can't silently change a previously-issued birthdate claim.
+            if (string.IsNullOrWhiteSpace(user.BirthDate) && !string.IsNullOrWhiteSpace(info.BirthDate))
+                user.BirthDate = info.BirthDate;
+            await _auditService.LogAsync("ExternalLoginRefreshed",
+                $"{provider} re-verified for account (name/birthdate refreshed): {user.Email}", user.Id);
             await _context.SaveChangesAsync();
-            _logger.LogInformation("{Provider} already linked to user {UserId} (no-op)", provider, userId);
+            _logger.LogInformation("{Provider} already linked to user {UserId} (refreshed)", provider, userId);
             return ExternalLinkResult.AlreadyLinked;
         }
 
         // BankID is authoritative for the birth date; fill it in if we don't have one.
-        if (!string.IsNullOrWhiteSpace(info.BirthDate)) user.BirthDate = info.BirthDate;
+        if (string.IsNullOrWhiteSpace(user.BirthDate) && !string.IsNullOrWhiteSpace(info.BirthDate))
+            user.BirthDate = info.BirthDate;
 
         _context.UserExternalLogins.Add(new UserExternalLoginEntity
         {
@@ -534,6 +546,8 @@ public class AuthService : IAuthService
             UserId = user.Id,
             Provider = provider,
             Subject = info.Subject,
+            FirstName = info.FirstName,
+            LastName = info.LastName,
             CreatedAt = DateTimeOffset.UtcNow,
             LastLoginAt = DateTimeOffset.UtcNow,
             User = user
