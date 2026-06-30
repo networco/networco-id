@@ -520,8 +520,12 @@ public class AuthService : IAuthService
         if (existing != null)
         {
             existing.LastLoginAt = DateTimeOffset.UtcNow;
+            // Keep the provider-asserted (BankID) name/birthdate fresh on re-verification.
+            if (!string.IsNullOrWhiteSpace(info.FirstName)) existing.FirstName = info.FirstName;
+            if (!string.IsNullOrWhiteSpace(info.LastName)) existing.LastName = info.LastName;
+            if (!string.IsNullOrWhiteSpace(info.BirthDate)) user.BirthDate = info.BirthDate;
             await _context.SaveChangesAsync();
-            _logger.LogInformation("{Provider} already linked to user {UserId} (no-op)", provider, userId);
+            _logger.LogInformation("{Provider} already linked to user {UserId} (refreshed)", provider, userId);
             return ExternalLinkResult.AlreadyLinked;
         }
 
@@ -534,6 +538,8 @@ public class AuthService : IAuthService
             UserId = user.Id,
             Provider = provider,
             Subject = info.Subject,
+            FirstName = info.FirstName,
+            LastName = info.LastName,
             CreatedAt = DateTimeOffset.UtcNow,
             LastLoginAt = DateTimeOffset.UtcNow,
             User = user
