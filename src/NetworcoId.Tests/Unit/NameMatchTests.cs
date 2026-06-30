@@ -4,40 +4,31 @@ using Xunit;
 namespace NetworcoId.Tests.Unit;
 
 /// <summary>
-/// Name similarity used to decide when an account's self-entered name diverges far
-/// enough from the BankID legal name that the BankID name should replace it (issue #104).
+/// Token-set "same person" check (issue #104): legitimate name variants must NOT count as
+/// divergent (or we'd clobber a correct name); genuinely different names must.
 /// </summary>
 public class NameMatchTests
 {
-    [Fact]
-    public void Identical_AreCloseEnough()
+    [Theory]
+    [InlineData("Ola Nordmann", "Ola Nordmann")]            // identical
+    [InlineData("  ola   NORDMANN ", "Ola Nordmann")]       // case/space
+    [InlineData("Nordmann Ola", "Ola Nordmann")]            // word order
+    [InlineData("Ola Nordmann", "Ola Kristian Nordmann")]   // added middle name
+    [InlineData("Anne Berg", "Anne-Marie Berg")]            // hyphenated/compound
+    [InlineData("Ase Bjorgen", "Åse Bjørgen")]              // ø/å diacritics
+    [InlineData("Ola", "")]                                 // missing part → not enough info
+    public void LegitimateVariants_AreSamePerson_NotDivergent(string a, string b)
     {
-        Assert.Equal(1.0, NameMatch.Similarity("Ola Nordmann", "Ola Nordmann"));
-        Assert.True(NameMatch.IsCloseEnough("Ola Nordmann", "Ola Nordmann"));
+        Assert.True(NameMatch.IsSamePerson(a, b));
+        Assert.False(NameMatch.IsDivergent(a, b));
     }
 
-    [Fact]
-    public void CaseAndWhitespace_Ignored()
+    [Theory]
+    [InlineData("Kari Hansen", "Ola Nordmann")]             // completely different
+    [InlineData("Fake Name", "Ola Nordmann")]              // self entered a fake name
+    public void DifferentNames_AreDivergent(string a, string b)
     {
-        Assert.True(NameMatch.IsCloseEnough("  ola   NORDMANN ", "Ola Nordmann"));
-    }
-
-    [Fact]
-    public void MinorTypo_IsStillCloseEnough()
-    {
-        Assert.True(NameMatch.IsCloseEnough("Ola Nordman", "Ola Nordmann"));
-    }
-
-    [Fact]
-    public void CompletelyDifferent_IsNotCloseEnough()
-    {
-        Assert.False(NameMatch.IsCloseEnough("Kari Hansen", "Ola Nordmann"));
-    }
-
-    [Fact]
-    public void EmptyVsNonEmpty_IsNotCloseEnough()
-    {
-        Assert.False(NameMatch.IsCloseEnough("", "Ola Nordmann"));
-        Assert.Equal(0.0, NameMatch.Similarity(null, "Ola Nordmann"));
+        Assert.True(NameMatch.IsDivergent(a, b));
+        Assert.False(NameMatch.IsSamePerson(a, b));
     }
 }

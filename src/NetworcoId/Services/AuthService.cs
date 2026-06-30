@@ -399,9 +399,10 @@ public class AuthService : IAuthService
         if (link != null)
         {
             var existing = link.User;
-            // Refresh profile data the provider asserts each login.
-            if (!string.IsNullOrWhiteSpace(info.FirstName)) existing.FirstName = info.FirstName;
-            if (!string.IsNullOrWhiteSpace(info.LastName)) existing.LastName = info.LastName;
+            // Refresh profile data the provider asserts each login. The legal name only
+            // replaces the account name when the two clearly diverge (issue #104) — a close
+            // variant the user chose is kept.
+            await ReconcileAccountNameWithBankIdAsync(existing, info);
             if (!string.IsNullOrWhiteSpace(info.BirthDate)) existing.BirthDate = info.BirthDate;
 
             // Backfill a real provider-supplied email onto accounts still on the
@@ -475,7 +476,7 @@ public class AuthService : IAuthService
         {
             // Linking to an existing account matched by verified email.
             if (!string.IsNullOrWhiteSpace(info.BirthDate)) user.BirthDate = info.BirthDate;
-            ReconcileAccountNameWithBankId(user, info);
+            await ReconcileAccountNameWithBankIdAsync(user, info);
             await _auditService.LogAsync("ExternalLoginLinked", $"{provider} linked to existing account: {user.Email}", user.Id);
         }
 
@@ -510,17 +511,23 @@ public class AuthService : IAuthService
     /// so it is what flows out in tokens and is shown everywhere. No-op when the names are
     /// close enough or BankID only supplied a partial name.
     /// </summary>
-    private static void ReconcileAccountNameWithBankId(UserEntity user, ExternalUserInfo info)
+    private async Task ReconcileAccountNameWithBankIdAsync(UserEntity user, ExternalUserInfo info)
     {
+        // Need a full BankID name (both parts) to compare meaningfully.
         if (string.IsNullOrWhiteSpace(info.FirstName) || string.IsNullOrWhiteSpace(info.LastName))
             return;
         var accountFull = $"{user.FirstName} {user.LastName}".Trim();
         var bankIdFull = $"{info.FirstName} {info.LastName}".Trim();
-        if (!NameMatch.IsCloseEnough(accountFull, bankIdFull))
-        {
-            user.FirstName = info.FirstName!;
-            user.LastName = info.LastName!;
-        }
+        // Only overwrite when the names clearly differ (token-set: order, middle names,
+        // hyphens and ø/å/æ are treated as the same person and left alone).
+        if (!NameMatch.IsDivergent(accountFull, bankIdFull)) return;
+
+        var previous = accountFull;
+        user.FirstName = info.FirstName!;
+        user.LastName = info.LastName!;
+        _logger.LogInformation("Account {UserId} name replaced with BankID name (divergent)", user.Id);
+        await _auditService.LogAsync("AccountNameReplacedByBankId",
+            $"Account name '{previous}' replaced with BankID name '{bankIdFull}' (divergent): {user.Email}", user.Id);
     }
 
     public async Task<ExternalLinkResult> LinkExternalUserAsync(Guid userId, string provider, ExternalUserInfo info)
@@ -549,7 +556,7 @@ public class AuthService : IAuthService
             // re-verification can't silently change a previously-issued birthdate claim.
             if (string.IsNullOrWhiteSpace(user.BirthDate) && !string.IsNullOrWhiteSpace(info.BirthDate))
                 user.BirthDate = info.BirthDate;
-            ReconcileAccountNameWithBankId(user, info);
+            await ReconcileAccountNameWithBankIdAsync(user, info);
             await _auditService.LogAsync("ExternalLoginRefreshed",
                 $"{provider} re-verified for account (name/birthdate refreshed): {user.Email}", user.Id);
             await _context.SaveChangesAsync();
@@ -560,7 +567,7 @@ public class AuthService : IAuthService
         // BankID is authoritative for the birth date; fill it in if we don't have one.
         if (string.IsNullOrWhiteSpace(user.BirthDate) && !string.IsNullOrWhiteSpace(info.BirthDate))
             user.BirthDate = info.BirthDate;
-        ReconcileAccountNameWithBankId(user, info);
+        await ReconcileAccountNameWithBankIdAsync(user, info);
 
         _context.UserExternalLogins.Add(new UserExternalLoginEntity
         {
