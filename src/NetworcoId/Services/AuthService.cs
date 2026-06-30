@@ -475,6 +475,7 @@ public class AuthService : IAuthService
         {
             // Linking to an existing account matched by verified email.
             if (!string.IsNullOrWhiteSpace(info.BirthDate)) user.BirthDate = info.BirthDate;
+            ReconcileAccountNameWithBankId(user, info);
             await _auditService.LogAsync("ExternalLoginLinked", $"{provider} linked to existing account: {user.Email}", user.Id);
         }
 
@@ -503,6 +504,25 @@ public class AuthService : IAuthService
     /// A subject may be linked to several accounts (one person, multiple accounts) — login then
     /// offers an account picker. We never change the account's email here.
     /// </summary>
+    /// <summary>
+    /// When BankID asserts a legal name that diverges too much from the account's current
+    /// (self-entered) name, the BankID name becomes the canonical account name (issue #104),
+    /// so it is what flows out in tokens and is shown everywhere. No-op when the names are
+    /// close enough or BankID only supplied a partial name.
+    /// </summary>
+    private static void ReconcileAccountNameWithBankId(UserEntity user, ExternalUserInfo info)
+    {
+        if (string.IsNullOrWhiteSpace(info.FirstName) || string.IsNullOrWhiteSpace(info.LastName))
+            return;
+        var accountFull = $"{user.FirstName} {user.LastName}".Trim();
+        var bankIdFull = $"{info.FirstName} {info.LastName}".Trim();
+        if (!NameMatch.IsCloseEnough(accountFull, bankIdFull))
+        {
+            user.FirstName = info.FirstName!;
+            user.LastName = info.LastName!;
+        }
+    }
+
     public async Task<ExternalLinkResult> LinkExternalUserAsync(Guid userId, string provider, ExternalUserInfo info)
     {
         if (string.IsNullOrWhiteSpace(info.Subject))
@@ -529,6 +549,7 @@ public class AuthService : IAuthService
             // re-verification can't silently change a previously-issued birthdate claim.
             if (string.IsNullOrWhiteSpace(user.BirthDate) && !string.IsNullOrWhiteSpace(info.BirthDate))
                 user.BirthDate = info.BirthDate;
+            ReconcileAccountNameWithBankId(user, info);
             await _auditService.LogAsync("ExternalLoginRefreshed",
                 $"{provider} re-verified for account (name/birthdate refreshed): {user.Email}", user.Id);
             await _context.SaveChangesAsync();
@@ -539,6 +560,7 @@ public class AuthService : IAuthService
         // BankID is authoritative for the birth date; fill it in if we don't have one.
         if (string.IsNullOrWhiteSpace(user.BirthDate) && !string.IsNullOrWhiteSpace(info.BirthDate))
             user.BirthDate = info.BirthDate;
+        ReconcileAccountNameWithBankId(user, info);
 
         _context.UserExternalLogins.Add(new UserExternalLoginEntity
         {
