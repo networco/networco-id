@@ -24,11 +24,13 @@
 name: Deploy Test
 
 on:
-  push:
-    branches: [main]
-  # An rc pre-release (v1.2.3-rc.N) deploys that exact version to test, so the
-  # number can later be promoted unchanged to prod. Full releases never reach
-  # here — release.yml owns prod via the `released` event.
+  # Test deploys are gated to rc pre-releases ONLY (no longer on every push to main).
+  # Merging used to ALSO deploy here, so every change ran two test deploys (push + rc)
+  # that doubled Actions usage. An rc pre-release (v1.2.3-rc.N) deploys that exact
+  # version to test, so the number can later be promoted unchanged to prod. Full
+  # releases never reach here — release.yml owns prod via the `released` event.
+  # (prod versioning uses the release tag, not the VERSION file, so dropping the
+  # push-time VERSION bump is safe.)
   release:
     types: [prereleased]
   workflow_dispatch:
