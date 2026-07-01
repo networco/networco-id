@@ -109,11 +109,13 @@ public class EditModel : PageModel
             }
         }
 
-        // Update basic info
+        // Update basic info.
+        // NOTE: NationalId is deliberately NOT assigned from the form — it's an identity
+        // reference shown read-only in the UI. Ignoring it here means a tampered/forged
+        // post cannot change it (server-side whitelist).
         user.FirstName = UserData.FirstName;
         user.LastName = UserData.LastName;
         user.Email = UserData.Email;
-        user.NationalId = UserData.NationalId;
         user.PhoneNumber = UserData.PhoneNumber;
         user.IsActive = UserData.IsActive;
         user.Roles = allRoles;

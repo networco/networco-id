@@ -61,6 +61,12 @@
                 <h4 class="text-sm font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Profile Details</h4>
             </div>
             <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                @if (Model.ExternalLogins.Any())
+                {
+                    <div class="md:col-span-2 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+                        ℹ️ This user has a BankID/IDura link. If you change the name here, it may be overwritten with the BankID name the next time they verify (BankID is authoritative on divergence).
+                    </div>
+                }
                 <div>
                     <label asp-for="UserData.FirstName" class="block text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">First Name</label>
                     <input asp-for="UserData.FirstName" class="block w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white dark:focus:bg-gray-950 transition-all sm:text-sm" />
@@ -78,8 +84,9 @@
                     <input asp-for="UserData.PhoneNumber" class="block w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white dark:focus:bg-gray-950 transition-all sm:text-sm" />
                 </div>
                 <div class="md:col-span-2">
-                    <label asp-for="UserData.NationalId" class="block text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">National ID</label>
-                    <input asp-for="UserData.NationalId" class="block w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white dark:focus:bg-gray-950 transition-all sm:text-sm font-mono" />
+                    <label asp-for="UserData.NationalId" class="block text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">National ID (view only)</label>
+                    <input asp-for="UserData.NationalId" readonly tabindex="-1" class="block w-full px-4 py-3 rounded-xl bg-gray-200 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed sm:text-sm font-mono" />
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">Identity reference — read only. Changes here are ignored server-side.</p>
                 </div>
             </div>
         </div>
