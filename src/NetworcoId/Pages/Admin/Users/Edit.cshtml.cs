@@ -76,6 +76,14 @@ public class EditModel : PageModel
             return NotFound();
         }
 
+        // Load external logins up-front so any `return Page()` validation path below
+        // still renders the External Logins section and the BankID caveat note.
+        ExternalLogins = await _context.UserExternalLogins
+            .AsNoTracking()
+            .Where(e => e.UserId == id)
+            .OrderBy(e => e.Provider)
+            .ToListAsync();
+
         // Security: Prevent deactivating the last admin
         if (!UserData.IsActive && user.IsActive && user.Roles?.Contains("admin") == true)
         {
@@ -109,11 +117,13 @@ public class EditModel : PageModel
             }
         }
 
-        // Update basic info
+        // Update basic info.
+        // NOTE: NationalId is deliberately NOT assigned from the form — it's an identity
+        // reference shown read-only in the UI. Ignoring it here means a tampered/forged
+        // post cannot change it (server-side whitelist).
         user.FirstName = UserData.FirstName;
         user.LastName = UserData.LastName;
         user.Email = UserData.Email;
-        user.NationalId = UserData.NationalId;
         user.PhoneNumber = UserData.PhoneNumber;
         user.IsActive = UserData.IsActive;
         user.Roles = allRoles;
