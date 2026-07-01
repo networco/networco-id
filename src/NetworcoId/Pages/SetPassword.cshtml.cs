@@ -17,6 +17,7 @@ namespace NetworcoId.Pages;
 public class SetPasswordModel(IAuthService authService, NetworcoIdConfig config, AuthDbContext dbContext) : PageModel
 {
     public int MinPasswordLength => config.MinPasswordLength;
+    public string PasswordRequirementsHint => PasswordPolicyText.BuildHint(config);
 
     [BindProperty]
     public string NewPassword { get; set; } = string.Empty;

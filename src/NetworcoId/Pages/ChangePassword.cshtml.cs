@@ -10,6 +10,7 @@ namespace NetworcoId.Pages;
 public class ChangePasswordModel(IAuthService authService, NetworcoIdConfig config, IPasswordValidator passwordValidator) : PageModel
 {
     public int MinPasswordLength => config.MinPasswordLength;
+    public string PasswordRequirementsHint => PasswordPolicyText.BuildHint(config);
 
     [BindProperty(SupportsGet = true)]
     public string? Email { get; set; }

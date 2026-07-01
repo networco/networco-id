@@ -9,6 +9,7 @@ namespace NetworcoId.Pages.Auth;
 public class ResetPasswordModel(IAuthService authService, NetworcoIdConfig config) : PageModel
 {
     public int MinPasswordLength => config.MinPasswordLength;
+    public string PasswordRequirementsHint => PasswordPolicyText.BuildHint(config);
 
     [BindProperty(SupportsGet = true)]
     public string? Token { get; set; }
