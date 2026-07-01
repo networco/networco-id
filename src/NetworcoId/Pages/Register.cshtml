@@ -181,23 +181,26 @@
 
         // Requirements mirror the server password policy exactly (rendered from config).
         // Keys/labels here must stay in sync with the <li> items above.
+        // The regexes use Unicode property escapes so they match the server's
+        // Unicode-aware checks (char.IsUpper/IsLower/IsDigit/IsLetterOrDigit) — an
+        // ASCII-only regex would false-green 'ø' as special or reject 'Å' as upper.
         const requirements = {
-            length: { el: document.getElementById('req-length'), label: 'minst @Model.MinPasswordLength tegn', check: (p) => p.length >= @Model.MinPasswordLength },
+            length: { el: document.getElementById('req-length'), check: (p) => p.length >= @Model.MinPasswordLength },
         @if (Model.RequireUppercase)
         {
-            <text>upper: { el: document.getElementById('req-upper'), label: 'én stor bokstav', check: (p) => /[A-Z]/.test(p) },</text>
+            <text>upper: { el: document.getElementById('req-upper'), label: 'én stor bokstav', check: (p) => /\p{Lu}/u.test(p) },</text>
         }
         @if (Model.RequireLowercase)
         {
-            <text>lower: { el: document.getElementById('req-lower'), label: 'én liten bokstav', check: (p) => /[a-z]/.test(p) },</text>
+            <text>lower: { el: document.getElementById('req-lower'), label: 'én liten bokstav', check: (p) => /\p{Ll}/u.test(p) },</text>
         }
         @if (Model.RequireDigit)
         {
-            <text>digit: { el: document.getElementById('req-digit'), label: 'ett tall', check: (p) => /[0-9]/.test(p) },</text>
+            <text>digit: { el: document.getElementById('req-digit'), label: 'ett tall', check: (p) => /\p{Nd}/u.test(p) },</text>
         }
         @if (Model.RequireNonAlphanumeric)
         {
-            <text>special: { el: document.getElementById('req-special'), label: 'ett spesialtegn', check: (p) => /[^A-Za-z0-9]/.test(p) },</text>
+            <text>special: { el: document.getElementById('req-special'), label: 'ett spesialtegn', check: (p) => /[^\p{L}\p{Nd}]/u.test(p) },</text>
         }
         };
 
@@ -273,7 +276,12 @@
 
             let score = metCount;
             if (p.length > @Model.MinPasswordLength + 4) score++;
-            if (/[^A-Za-z0-9]/.test(p)) score++;
+        @if (!Model.RequireNonAlphanumeric)
+        {
+            // Reward symbols only when a special char isn't already a required (and
+            // thus already counted in metCount) — avoids double-counting the same char.
+            <text>if (/[^\p{L}\p{Nd}]/u.test(p)) score++;</text>
+        }
 
             if (p.length < @Model.MinPasswordLength) return 1;
 
