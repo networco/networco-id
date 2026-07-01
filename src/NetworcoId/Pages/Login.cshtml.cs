@@ -50,6 +50,11 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
     /// <summary>Whether external BankID login (via IDura) is configured/enabled.</summary>
     public bool IduraEnabled => config.IduraEnabled;
 
+    /// <summary>Main site (networco.no) URL — the "back to front page" link points here
+    /// via the configurable FrontendUrl, not the IdP's own landing page, so users aren't
+    /// stranded on id.networco.no. Mirrors Verify.HomeUrl.</summary>
+    public string HomeUrl => config.FrontendUrl;
+
     /// <summary>
     /// Link target for the BankID button: initiates the external challenge and
     /// carries the original /oauth/authorize request as a returnUrl so the OAuth
