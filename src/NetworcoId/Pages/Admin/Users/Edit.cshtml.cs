@@ -76,6 +76,14 @@ public class EditModel : PageModel
             return NotFound();
         }
 
+        // Load external logins up-front so any `return Page()` validation path below
+        // still renders the External Logins section and the BankID caveat note.
+        ExternalLogins = await _context.UserExternalLogins
+            .AsNoTracking()
+            .Where(e => e.UserId == id)
+            .OrderBy(e => e.Provider)
+            .ToListAsync();
+
         // Security: Prevent deactivating the last admin
         if (!UserData.IsActive && user.IsActive && user.Roles?.Contains("admin") == true)
         {
