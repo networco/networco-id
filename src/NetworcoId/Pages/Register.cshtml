@@ -94,20 +94,35 @@
                             <p id="strength-text" class="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">Styrke: Ingen</p>
                         </div>
 
-                        <!-- Real-time Requirements -->
+                        <!-- Real-time Requirements (rendered from the server password policy) -->
                         <ul class="mt-4 space-y-2 px-1">
                             <li id="req-length" class="flex items-center gap-3 text-[11px] font-bold uppercase tracking-wider text-gray-400 transition-colors">
                                 <span class="status-icon w-4 h-4 rounded-full border-2 border-current flex items-center justify-center text-[8px]"></span> Minst @Model.MinPasswordLength tegn
                             </li>
-                            <li id="req-upper" class="flex items-center gap-3 text-[11px] font-bold uppercase tracking-wider text-gray-400 transition-colors">
-                                <span class="status-icon w-4 h-4 rounded-full border-2 border-current flex items-center justify-center text-[8px]"></span> Stor bokstav
-                            </li>
-                            <li id="req-lower" class="flex items-center gap-3 text-[11px] font-bold uppercase tracking-wider text-gray-400 transition-colors">
-                                <span class="status-icon w-4 h-4 rounded-full border-2 border-current flex items-center justify-center text-[8px]"></span> Liten bokstav
-                            </li>
-                            <li id="req-digit" class="flex items-center gap-3 text-[11px] font-bold uppercase tracking-wider text-gray-400 transition-colors">
-                                <span class="status-icon w-4 h-4 rounded-full border-2 border-current flex items-center justify-center text-[8px]"></span> Minst ett tall
-                            </li>
+                            @if (Model.RequireUppercase)
+                            {
+                                <li id="req-upper" class="flex items-center gap-3 text-[11px] font-bold uppercase tracking-wider text-gray-400 transition-colors">
+                                    <span class="status-icon w-4 h-4 rounded-full border-2 border-current flex items-center justify-center text-[8px]"></span> Stor bokstav
+                                </li>
+                            }
+                            @if (Model.RequireLowercase)
+                            {
+                                <li id="req-lower" class="flex items-center gap-3 text-[11px] font-bold uppercase tracking-wider text-gray-400 transition-colors">
+                                    <span class="status-icon w-4 h-4 rounded-full border-2 border-current flex items-center justify-center text-[8px]"></span> Liten bokstav
+                                </li>
+                            }
+                            @if (Model.RequireDigit)
+                            {
+                                <li id="req-digit" class="flex items-center gap-3 text-[11px] font-bold uppercase tracking-wider text-gray-400 transition-colors">
+                                    <span class="status-icon w-4 h-4 rounded-full border-2 border-current flex items-center justify-center text-[8px]"></span> Minst ett tall
+                                </li>
+                            }
+                            @if (Model.RequireNonAlphanumeric)
+                            {
+                                <li id="req-special" class="flex items-center gap-3 text-[11px] font-bold uppercase tracking-wider text-gray-400 transition-colors">
+                                    <span class="status-icon w-4 h-4 rounded-full border-2 border-current flex items-center justify-center text-[8px]"></span> Minst ett spesialtegn
+                                </li>
+                            }
                         </ul>
                     </div>
                     <div>
@@ -164,11 +179,26 @@
         const registerForm = document.getElementById('registerForm');
         const errorDiv = document.getElementById('clientErrorMessage');
 
+        // Requirements mirror the server password policy exactly (rendered from config).
+        // Keys/labels here must stay in sync with the <li> items above.
         const requirements = {
-            length: { el: document.getElementById('req-length'), check: (p) => p.length >= @Model.MinPasswordLength },
-            upper: { el: document.getElementById('req-upper'), check: (p) => /[A-Z]/.test(p) },
-            lower: { el: document.getElementById('req-lower'), check: (p) => /[a-z]/.test(p) },
-            digit: { el: document.getElementById('req-digit'), check: (p) => /[0-9]/.test(p) }
+            length: { el: document.getElementById('req-length'), label: 'minst @Model.MinPasswordLength tegn', check: (p) => p.length >= @Model.MinPasswordLength },
+        @if (Model.RequireUppercase)
+        {
+            <text>upper: { el: document.getElementById('req-upper'), label: 'én stor bokstav', check: (p) => /[A-Z]/.test(p) },</text>
+        }
+        @if (Model.RequireLowercase)
+        {
+            <text>lower: { el: document.getElementById('req-lower'), label: 'én liten bokstav', check: (p) => /[a-z]/.test(p) },</text>
+        }
+        @if (Model.RequireDigit)
+        {
+            <text>digit: { el: document.getElementById('req-digit'), label: 'ett tall', check: (p) => /[0-9]/.test(p) },</text>
+        }
+        @if (Model.RequireNonAlphanumeric)
+        {
+            <text>special: { el: document.getElementById('req-special'), label: 'ett spesialtegn', check: (p) => /[^A-Za-z0-9]/.test(p) },</text>
+        }
         };
 
         const strengthBars = [
@@ -276,10 +306,19 @@
 
             if (password.length < @Model.MinPasswordLength) {
                 error = `Passordet må være minst @Model.MinPasswordLength tegn`;
-            } else if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
-                error = 'Passordet må inneholde minst én stor bokstav, én liten bokstav og ett tall';
-            } else if (password !== confirm) {
-                error = 'Passordene er ikke like';
+            } else {
+                // Collect every unmet complexity requirement (excluding length, handled above)
+                // so the message lists exactly what's missing — including spesialtegn.
+                const missing = [];
+                for (const key in requirements) {
+                    if (key === 'length') continue;
+                    if (!requirements[key].check(password)) missing.push(requirements[key].label);
+                }
+                if (missing.length > 0) {
+                    error = 'Passordet må inneholde minst ' + missing.join(', ');
+                } else if (password !== confirm) {
+                    error = 'Passordene er ikke like';
+                }
             }
 
             if (error) {

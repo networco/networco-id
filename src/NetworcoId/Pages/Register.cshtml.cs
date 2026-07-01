@@ -24,6 +24,14 @@ public class RegisterModel(
 {
     private readonly NetworcoIdConfig _config = config.Value;
     public int MinPasswordLength => _config.MinPasswordLength;
+    // Password policy flags surfaced to the view so the requirement checklist and
+    // client-side validation mirror the server policy exactly (see PasswordValidator).
+    // Previously the view hardcoded upper/lower/digit and silently omitted the
+    // special-character rule, so users were rejected for a requirement never shown.
+    public bool RequireDigit => _config.RequireDigit;
+    public bool RequireUppercase => _config.RequireUppercase;
+    public bool RequireLowercase => _config.RequireLowercase;
+    public bool RequireNonAlphanumeric => _config.RequireNonAlphanumeric;
     public string? ErrorMessage { get; set; }
     public string ReturnUrl { get; set; } = string.Empty;
     public bool RegistrationSuccess { get; set; }
