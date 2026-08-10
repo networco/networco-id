@@ -140,10 +140,19 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Restore prod secret files
+        # Secrets arrive as ENV VARS, never interpolated into the script
+        # text. A secret containing a double quote used to close the
+        # shell string early -- POSTBUD_SENDER_EMAIL="Networco <addr>"
+        # turned <addr> into a redirect and failed the deploy with
+        # "No such file or directory". Anything the value contains is
+        # now data, not syntax.
+        env:
+          ENV_FILE_CONTENT: ${{ secrets.ENV_ID_PROD }}
+          KUBECONFIG_CONTENT: ${{ secrets.KUBECONFIG_PROD }}
         run: |
           mkdir -p _ci
-          printf '%s' "${{ secrets.ENV_ID_PROD }}"     > _ci/.env.prod
-          printf '%s' "${{ secrets.KUBECONFIG_PROD }}" > _ci/kubeconfig
+          printf '%s' "$ENV_FILE_CONTENT" > _ci/.env.prod
+          printf '%s' "$KUBECONFIG_CONTENT" > _ci/kubeconfig
           chmod 600 _ci/kubeconfig
       - name: Connect to the tailnet (ephemeral tag:ci node)
         uses: tailscale/github-action@v3
