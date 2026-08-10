@@ -18,7 +18,7 @@ Three phases for getting a change from a working tree to live in prod, for **net
    git checkout main && git pull --ff-only origin main && git checkout -b <type>/<slug>
    ```
 2. **Local gate** (must be clean): web/TS → `pnpm type-check` + `pnpm lint` (0 errors) + `pnpm test`; .NET → `dotnet build` + `dotnet test`; Go → `go build ./...` (+ `go vet`).
-3. **Commit** (conventional; end with `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`), **push**, **open PR** (`gh pr create`, body links the issue/comment with **`Refs #N`** — *not* `Closes/Fixes` (see step 8), ends with the generated-with line).
+3. **Commit** (conventional; **no `Co-Authored-By` trailer and no generated-with line** — anywhere, including PR bodies and release notes), **push**, **open PR** (`gh pr create`, body links the issue/comment with **`Refs #N`** — *not* `Closes/Fixes` (see step 8)).
 4. **Wait for CI green** — CI runs **once** per push (the `pull_request` trigger only; see the CI-runs note in Gotchas). Watch that single run, then check the PR rollup has no `incomplete`/`failed`.
 5. **Agent review — comment on the PR.** Run the `code-review` skill against the PR diff and post findings as inline PR comments:
    ```
