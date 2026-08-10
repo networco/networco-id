@@ -62,6 +62,13 @@ public partial class PostbudEmailService : IEmailSender
             throw new InvalidOperationException("Postbud is not configured");
         }
 
+        // The configured sender is either a bare address or "Name <addr>".
+        // The deploy's env file uses the latter -- and postbud takes `from`
+        // as an ADDRESS, so passing the whole string through would send the
+        // display name as part of the address and be refused.
+        var (fromName, fromEmail) = NetworcoId.Core.SenderAddress.Split(
+            _settings.SenderEmail, _settings.SenderName);
+
         var payload = new
         {
             // No stable business id reaches this layer, so a NATS
@@ -70,8 +77,8 @@ public partial class PostbudEmailService : IEmailSender
             // MaxDeliver=3. Giving the queued events their own ids is the
             // proper fix and is tracked separately.
             idempotency_key = Guid.NewGuid().ToString(),
-            from = _settings.SenderEmail,
-            from_name = _settings.SenderName,
+            from = fromEmail,
+            from_name = fromName,
             to = toEmail,
             subject,
             // postbud wants at least one body. HTML-only mail scores worse
