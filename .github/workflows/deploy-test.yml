@@ -16,6 +16,8 @@
 # ENV_ID_TEST keys: POSTGRES_HOST POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD
 #   JWT_SECRET ISSUER BASE_URL INITIAL_ADMIN_EMAIL INITIAL_ADMIN_PASSWORD
 #   ADMIN_ACCESS_KEY INITIAL_CLIENT_ID INITIAL_CLIENT_SECRET BREVO_API_KEY
+#   POSTBUD_URL POSTBUD_APIKEY POSTBUD_SENDER_EMAIL POSTBUD_SENDER_NAME
+#   EMAIL_PROVIDERS (ordered, e.g. "postbud" or "postbud,brevo")
 #   NATS_URL NATS_STREAM_REPLICAS GHCR_USERNAME GHCR_TOKEN
 #   APP_CALLBACK (e.g. https://test.networco.no/auth/callback)
 #   CLIENT_AUDIENCE (e.g. https://api.test.networco.no)
@@ -199,6 +201,7 @@ jobs:
             --from-literal=client-secret="$INITIAL_CLIENT_SECRET" \
             --from-literal=brevo-api-key="$BREVO_API_KEY" \
             --from-literal=resend-api-key="$RESEND_API_KEY" \
+            --from-literal=postbud-api-key="$POSTBUD_APIKEY" \
             --from-literal=issuer="$ISSUER" \
             --from-literal=base-url="$BASE_URL" \
             --from-literal=frontend-url="$FRONTEND_URL" \
@@ -221,6 +224,13 @@ jobs:
           # space inside a YAML-run sed silently dropped it. Only overrides when set.
           [ -n "$EMAIL_SENDER_NAME" ]  && kubectl set env deployment/networcoid-worker -n "$NS" "EMAIL_SENDER_NAME=$EMAIL_SENDER_NAME"
           [ -n "$EMAIL_SENDER_EMAIL" ] && kubectl set env deployment/networcoid-worker -n "$NS" "EMAIL_SENDER_EMAIL=$EMAIL_SENDER_EMAIL"
+          # postbud: its sender address is separate from the Brevo one because
+          # postbud only accepts a From inside its tenant's registered domains.
+          # EMAIL_PROVIDERS decides which rail actually carries the mail.
+          [ -n "$POSTBUD_URL" ]          && kubectl set env deployment/networcoid-worker -n "$NS" "POSTBUD_URL=$POSTBUD_URL"
+          [ -n "$POSTBUD_SENDER_EMAIL" ] && kubectl set env deployment/networcoid-worker -n "$NS" "POSTBUD_SENDER_EMAIL=$POSTBUD_SENDER_EMAIL"
+          [ -n "$POSTBUD_SENDER_NAME" ]  && kubectl set env deployment/networcoid-worker -n "$NS" "POSTBUD_SENDER_NAME=$POSTBUD_SENDER_NAME"
+          [ -n "$EMAIL_PROVIDERS" ]      && kubectl set env deployment/networcoid-worker -n "$NS" "EMAIL_PROVIDERS=$EMAIL_PROVIDERS"
           kubectl rollout restart deployment/networcoid deployment/networcoid-worker -n "$NS"
           kubectl rollout status deployment/networcoid -n "$NS" --timeout=180s
           kubectl rollout status deployment/networcoid-worker -n "$NS" --timeout=180s

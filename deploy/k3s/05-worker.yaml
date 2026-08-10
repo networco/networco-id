@@ -72,5 +72,16 @@ spec:
               name: networcoid-secrets
               key: resend-api-key
               optional: true
+        # postbud, the platform's own mail service. Optional: without the
+        # key the provider is skipped and the chain is exactly as before.
+        # URL and sender come from the per-environment env file (kubectl
+        # set env), because the sender differs between test and prod and
+        # must lie inside the domains postbud's tenant is registered for.
+        - name: POSTBUD_APIKEY
+          valueFrom:
+            secretKeyRef:
+              name: networcoid-secrets
+              key: postbud-api-key
+              optional: true
         - name: EMAIL_PROVIDERS
           value: "brevo,resend"
