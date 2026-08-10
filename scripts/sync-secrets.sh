@@ -146,6 +146,28 @@ cluster_value() {  # $1 = json, $2 = k8s key
     [ -n "$v" ] && printf '%s' "$v" | base64 -d || true
 }
 
+# Read the env file WITHOUT `source`.
+#
+# Two reasons, one of them learned the hard way in CI already (see the
+# comment in .github/workflows/deploy-test.yml): a value containing a bare
+# space -- EMAIL_SENDER_NAME="NETWORCO TEST" -- makes `source` try to run
+# the second word as a command, which under `set -e` kills the script with
+# no useful message. The second reason matters more here: this is the SAME
+# parser the deploy uses, so a comparison reflects what would actually be
+# pushed rather than what bash would have made of the file.
+load_env() {
+    local line key value
+    while IFS= read -r line || [ -n "$line" ]; do
+        case "$line" in ''|\#*) continue;; esac
+        key=${line%%=*}
+        value=${line#*=}
+        case "$key" in *[!A-Za-z0-9_]*|'') continue;; esac
+        value=${value#\"}; value=${value%\"}
+        value=${value#\'}; value=${value%\'}
+        export "$key=$value"
+    done < "$ENV_FILE"
+}
+
 # Keys in the env file that the cluster secret does not carry. Named, never
 # valued -- the point is to make the gap visible, not to print credentials.
 orphan_env_keys() {
@@ -198,7 +220,7 @@ diff)
     [ -f "$ENV_FILE" ] || { echo -e "${RED}❌ $ENV_FILE not found.${NC}" >&2; exit 1; }
     JSON=$(secret_json)
 
-    set -a; . "$ENV_FILE"; set +a
+    load_env
 
     SAME=0; DIFFERENT=(); ONLY_LOCAL=(); ONLY_CLUSTER=()
     for item in "${MAPPING[@]}"; do
@@ -232,7 +254,7 @@ push)
         exit 1
     fi
 
-    set -a; . "$ENV_FILE"; set +a
+    load_env
 
     POSTGRES_HOST=${POSTGRES_HOST:-postgres}
     NATS_URL=${NATS_URL:-nats://nats.networco-id.svc.cluster.local:4222}
