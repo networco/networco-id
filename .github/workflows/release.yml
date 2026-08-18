@@ -30,6 +30,8 @@
 #   ADMIN_ACCESS_KEY INITIAL_CLIENT_ID INITIAL_CLIENT_SECRET BREVO_API_KEY
 #   RESEND_API_KEY NATS_URL NATS_STREAM_REPLICAS GHCR_USERNAME GHCR_TOKEN
 #   EMAIL_SENDER_NAME EMAIL_SENDER_EMAIL
+#   POSTBUD_URL POSTBUD_APIKEY POSTBUD_SENDER_EMAIL POSTBUD_SENDER_NAME
+#   EMAIL_PROVIDERS (ordered, e.g. "postbud" or "postbud,brevo")
 #   APP_CALLBACK (e.g. https://networco.no/auth/callback)
 #   CLIENT_AUDIENCE (e.g. https://api.networco.no)
 # =============================================================================
@@ -220,6 +222,7 @@ jobs:
             --from-literal=client-secret="$INITIAL_CLIENT_SECRET" \
             --from-literal=brevo-api-key="$BREVO_API_KEY" \
             --from-literal=resend-api-key="$RESEND_API_KEY" \
+            --from-literal=postbud-api-key="$POSTBUD_APIKEY" \
             --from-literal=issuer="$ISSUER" \
             --from-literal=base-url="$BASE_URL" \
             --from-literal=frontend-url="$FRONTEND_URL" \
@@ -241,6 +244,16 @@ jobs:
           # Env-aware email sender (only overrides when set).
           [ -n "$EMAIL_SENDER_NAME" ]  && kubectl set env deployment/networcoid-worker -n "$NS" "EMAIL_SENDER_NAME=$EMAIL_SENDER_NAME"
           [ -n "$EMAIL_SENDER_EMAIL" ] && kubectl set env deployment/networcoid-worker -n "$NS" "EMAIL_SENDER_EMAIL=$EMAIL_SENDER_EMAIL"
+          # postbud: its sender address is separate from the Brevo one because
+          # postbud only accepts a From inside its tenant's registered domains.
+          # EMAIL_PROVIDERS decides which rail actually carries the mail — without
+          # it prod silently fell back to the manifest literal ("brevo,resend"),
+          # so the postbud provider shipped in v0.12.0 was never reached even
+          # though test had been sending through it since v0.12.0-rc.1.
+          [ -n "$POSTBUD_URL" ]          && kubectl set env deployment/networcoid-worker -n "$NS" "POSTBUD_URL=$POSTBUD_URL"
+          [ -n "$POSTBUD_SENDER_EMAIL" ] && kubectl set env deployment/networcoid-worker -n "$NS" "POSTBUD_SENDER_EMAIL=$POSTBUD_SENDER_EMAIL"
+          [ -n "$POSTBUD_SENDER_NAME" ]  && kubectl set env deployment/networcoid-worker -n "$NS" "POSTBUD_SENDER_NAME=$POSTBUD_SENDER_NAME"
+          [ -n "$EMAIL_PROVIDERS" ]      && kubectl set env deployment/networcoid-worker -n "$NS" "EMAIL_PROVIDERS=$EMAIL_PROVIDERS"
           kubectl rollout restart deployment/networcoid deployment/networcoid-worker -n "$NS"
           kubectl rollout status deployment/networcoid -n "$NS" --timeout=180s
           kubectl rollout status deployment/networcoid-worker -n "$NS" --timeout=180s
