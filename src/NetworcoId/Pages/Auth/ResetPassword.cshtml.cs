@@ -1,12 +1,13 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using NetworcoId.Services;
+using NetworcoId.Services.Security;
 
 using NetworcoId.Models.Auth;
 
 namespace NetworcoId.Pages.Auth;
 
-public class ResetPasswordModel(IAuthService authService, NetworcoIdConfig config) : PageModel
+public class ResetPasswordModel(IAuthService authService, NetworcoIdConfig config, ILockoutService lockoutService) : PageModel
 {
     public int MinPasswordLength => config.MinPasswordLength;
     public string PasswordRequirementsHint => PasswordPolicyText.BuildHint(config);
@@ -77,6 +78,11 @@ public class ResetPasswordModel(IAuthService authService, NetworcoIdConfig confi
                 ErrorMessage = "Lenken er ugyldig eller utløpt. Vennligst be om en ny lenke.";
                 return Page();
             }
+
+            // A completed reset proves this is the account owner, not a guesser —
+            // clear the IP throttle too, so they aren't bounced by a leftover
+            // "IP-adressen din er midlertidig sperret" on the very next login.
+            await lockoutService.ResetAsync(HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown");
 
             SuccessMessage = "Ditt passord har blitt tilbakestilt. Du kan nå logge inn med det nye passordet ditt.";
             return Page();
