@@ -66,6 +66,21 @@ public class WorkerLivenessProbeTests
     }
 
     [Fact]
+    public void StalenessThreshold_StaysAheadOfTheRefreshRate()
+    {
+        // The heartbeat is the only thing refreshing the file on an idle worker, so the
+        // threshold must clear several intervals. Raising the interval without raising the
+        // threshold would restart every HEALTHY worker on a timer; deriving one from the
+        // other makes that impossible, and this asserts the derivation stays sane.
+        Assert.True(WorkerLiveness.MissedHeartbeatsTolerated >= 3,
+            "fewer than three missed heartbeats restarts workers over one slow tick");
+        Assert.Equal(
+            WorkerLiveness.HeartbeatInterval * WorkerLiveness.MissedHeartbeatsTolerated,
+            WorkerLiveness.StaleAfter);
+        Assert.True(WorkerLiveness.StaleAfter > WorkerLiveness.HeartbeatInterval);
+    }
+
+    [Fact]
     public void ResolvePath_PrefersTheEnvironmentOverride()
     {
         var previous = Environment.GetEnvironmentVariable(WorkerLiveness.EnvVarName);

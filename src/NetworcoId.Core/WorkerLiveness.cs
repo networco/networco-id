@@ -19,10 +19,25 @@ public static class WorkerLiveness
     public const string DefaultPath = "/tmp/networcoid-worker-alive";
 
     /// <summary>
-    /// How stale the file may get before the probe should consider the worker dead.
-    /// Three missed heartbeats — the worker refreshes once a minute.
+    /// How often the worker refreshes the file while it is healthy.
+    ///
+    /// Lives here rather than in the worker because it is half of a coupling: the probe
+    /// kills the pod once the file is older than <see cref="StaleAfter"/>, and this timer
+    /// is the only thing refreshing it on an idle worker. Raising this alone — an obvious
+    /// tidy-up, since it also controls how often the heartbeat line is logged — would make
+    /// every HEALTHY worker miss the deadline and be restarted every few minutes.
+    /// <c>MissedHeartbeatsTolerated</c> keeps the two in step, enforced by a test.
     /// </summary>
-    public static readonly TimeSpan StaleAfter = TimeSpan.FromMinutes(3);
+    public static readonly TimeSpan HeartbeatInterval = TimeSpan.FromMinutes(1);
+
+    /// <summary>How many refreshes may be missed before the worker is considered dead.</summary>
+    public const int MissedHeartbeatsTolerated = 3;
+
+    /// <summary>
+    /// How stale the file may get before the probe should consider the worker dead.
+    /// Derived, so it cannot drift away from the refresh rate.
+    /// </summary>
+    public static readonly TimeSpan StaleAfter = HeartbeatInterval * MissedHeartbeatsTolerated;
 
     /// <summary>Resolved path: the environment override when set, the default otherwise.</summary>
     public static string ResolvePath() =>

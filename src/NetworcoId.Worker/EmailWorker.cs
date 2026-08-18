@@ -14,7 +14,9 @@ public class EmailWorker(
 {
     private const string ConsumerName = "email-worker";
     private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(5);
-    private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromMinutes(1);
+    // Shared with the liveness probe's staleness threshold, which is derived from it —
+    // see WorkerLiveness. Changing the cadence here alone would restart healthy workers.
+    private static readonly TimeSpan HeartbeatInterval = WorkerLiveness.HeartbeatInterval;
 
     /// <summary>
     /// Touched while the consumer is established, so a liveness probe can tell a working
@@ -208,12 +210,25 @@ public class EmailWorker(
                 "EmailWorker heartbeat: processed {Count} message(s) in last {Interval}s; last activity {IdleSeconds:F0}s ago; consumer {State}",
                 processed, HeartbeatInterval.TotalSeconds, idleFor.TotalSeconds, _consumerReady ? "ready" : "DOWN");
 
-            // Only while a consumer actually exists. A dead loop stops refreshing, the
-            // file goes stale, and the probe restarts the pod instead of letting it sit
-            // Ready and silent.
-            if (_consumerReady)
+            // Only while a consumer exists AND the connection under it is actually open.
+            //
+            // _consumerReady alone is not enough: it is set once when the consumer is
+            // established and cleared only when the consume loop returns or throws, so a
+            // connection that half-opens — which a rolling restart of the 3-node NATS
+            // cluster can produce — leaves ConsumeAsync sitting there, never faulting and
+            // never yielding. The flag would stay true and this heartbeat would keep
+            // asserting health while no mail moved: the very failure the probe exists to
+            // catch, with a green probe vouching for it.
+            var connected = nats.ConnectionState == NatsConnectionState.Open;
+            if (_consumerReady && connected)
             {
                 TouchLiveness();
+            }
+            else if (_consumerReady)
+            {
+                logger.LogWarning(
+                    "Consumer is established but the NATS connection is {State}; withholding the liveness heartbeat",
+                    nats.ConnectionState);
             }
         }
     }
