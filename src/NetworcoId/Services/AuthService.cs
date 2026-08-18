@@ -64,17 +64,22 @@ public sealed record AuthenticationResult
     public DateTimeOffset? LockedUntil { get; init; }
 
     /// <summary>
-    /// False when the attempt was refused before the password was ever verified
-    /// (an already-active lock). Such attempts must not be charged against any
-    /// throttle — otherwise a locked-out user keeps digging themselves deeper.
+    /// Whether the supplied password was actually verified against a hash. False when
+    /// the attempt was refused first — an already-active lock, or an identifier with no
+    /// account behind it. An attempt refused by an active lock is not evidence of
+    /// guessing and must not be charged against any throttle, or a locked-out user keeps
+    /// digging themselves deeper. A wrong identifier still is evidence, so callers gate
+    /// on the outcome as well, not on this flag alone.
     /// </summary>
     public bool PasswordWasChecked { get; init; }
 
     public static AuthenticationResult Succeeded(NetworcoIdUserDto user) =>
         new() { Outcome = AuthenticationOutcome.Success, User = user, PasswordWasChecked = true };
 
-    public static AuthenticationResult InvalidCredentials() =>
-        new() { Outcome = AuthenticationOutcome.InvalidCredentials, PasswordWasChecked = true };
+    /// <param name="passwordWasChecked">False for an identifier with no account (or no
+    /// credential row) behind it, where there was no hash to verify against.</param>
+    public static AuthenticationResult InvalidCredentials(bool passwordWasChecked = true) =>
+        new() { Outcome = AuthenticationOutcome.InvalidCredentials, PasswordWasChecked = passwordWasChecked };
 
     public static AuthenticationResult Locked(DateTimeOffset lockedUntil, bool passwordWasChecked) =>
         new() { Outcome = AuthenticationOutcome.Locked, LockedUntil = lockedUntil, PasswordWasChecked = passwordWasChecked };
@@ -186,7 +191,7 @@ public class AuthService : IAuthService
     {
         if (string.IsNullOrWhiteSpace(emailOrNationalId) || string.IsNullOrEmpty(password))
         {
-            return AuthenticationResult.InvalidCredentials();
+            return AuthenticationResult.InvalidCredentials(passwordWasChecked: false);
         }
 
         var identifier = emailOrNationalId.Trim();
@@ -205,7 +210,7 @@ public class AuthService : IAuthService
         {
             _logger.LogWarning("NETWORCO ID login attempt for unknown identifier {Identifier}", identifier);
             await _auditService.LogAsync("LoginFailed", $"Login attempt for unknown user: {identifier}");
-            return AuthenticationResult.InvalidCredentials();
+            return AuthenticationResult.InvalidCredentials(passwordWasChecked: false);
         }
 
         // Tracked copy — this method is the single owner of the failed-attempt
@@ -216,7 +221,7 @@ public class AuthService : IAuthService
         if (cred is null)
         {
             _logger.LogWarning("Credential row missing for user {UserId} during login", user.Id);
-            return AuthenticationResult.InvalidCredentials();
+            return AuthenticationResult.InvalidCredentials(passwordWasChecked: false);
         }
 
         var now = DateTimeOffset.UtcNow;

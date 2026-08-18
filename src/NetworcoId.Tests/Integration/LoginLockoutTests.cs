@@ -302,6 +302,28 @@ public class LoginLockoutTests : IClassFixture<LoginLockoutFactory>
     }
 
     [Fact]
+    public async Task UnknownIdentifier_ReportsThatNoPasswordWasChecked()
+    {
+        // Login.cshtml.cs gates the IP throttle on outcome + this flag. Pin the flag so
+        // a future "tidy-up" can't quietly stop charging IP failures for the paths that
+        // should charge them (spraying, email enumeration) — or start charging for the
+        // one that shouldn't (an attempt bounced by an already-active lock).
+        var unknown = await AuthenticateAsync("nobody-here@example.com", BadPassword);
+        Assert.Equal(AuthenticationOutcome.InvalidCredentials, unknown.Outcome);
+        Assert.False(unknown.PasswordWasChecked);
+
+        var userId = await CreateUserAsync("checked@example.com");
+        var wrong = await AuthenticateAsync("checked@example.com", BadPassword);
+        Assert.Equal(AuthenticationOutcome.InvalidCredentials, wrong.Outcome);
+        Assert.True(wrong.PasswordWasChecked);
+
+        await MutateCredentialAsync(userId, c => c.LockedUntil = DateTimeOffset.UtcNow.AddMinutes(5));
+        var locked = await AuthenticateAsync("checked@example.com", GoodPassword);
+        Assert.Equal(AuthenticationOutcome.Locked, locked.Outcome);
+        Assert.False(locked.PasswordWasChecked);
+    }
+
+    [Fact]
     public async Task PasswordReset_UnlocksTheAccountAndTheUnlockSticks()
     {
         const string newPassword = "FreshlyReset@9876";

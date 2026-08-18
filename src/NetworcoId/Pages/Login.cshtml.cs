@@ -251,9 +251,10 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
 
                 // An attempt refused by an already-active account lock never reached
                 // the password check, so it isn't evidence of guessing and must not
-                // count toward the IP throttle either. Unknown identifiers still do:
-                // IP throttling is the defence against spraying and enumeration.
-                if (result.PasswordWasChecked)
+                // count toward the IP throttle either. Every other failure does count,
+                // including an identifier with no account behind it: IP throttling is
+                // the defence against spraying and email enumeration.
+                if (result.Outcome != AuthenticationOutcome.Locked || result.PasswordWasChecked)
                 {
                     await lockoutService.RecordFailureAsync(ip);
                 }
