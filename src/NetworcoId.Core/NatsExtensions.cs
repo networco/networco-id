@@ -126,12 +126,25 @@ public static class NatsExtensions
         || ex.Message.Contains("already in use", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
+    /// Whether a failed provisioning attempt is worth reading the stream back for.
+    ///
+    /// Deliberately NOT filtered on the exception's wording. On the drift path the create
+    /// exception ("already in use with a different configuration") is consumed by the
+    /// inner catch, and what reaches the caller is the failure from the UpdateStreamAsync
+    /// that followed — different wording entirely. Matching on already-exists text here
+    /// silenced the report in exactly the case it was written for. The read-back is
+    /// best-effort and cannot throw, so there is nothing to gain by guessing first: if the
+    /// stream is absent or unreachable, the comparison simply yields nothing.
+    /// </summary>
+    public static bool ShouldAttemptDriftReport(Exception cause) => cause is not OperationCanceledException;
+
+    /// <summary>
     /// Best-effort: read back what the server actually holds and report how it differs
     /// from what we asked for. Never throws — this runs on an error path.
     /// </summary>
     private static async Task LogConfigDriftAsync(INatsConnection nats, ILogger logger, Exception cause)
     {
-        if (cause is not NatsJSApiException api || !IsAlreadyExists(api))
+        if (!ShouldAttemptDriftReport(cause))
         {
             return;
         }

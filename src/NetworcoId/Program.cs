@@ -243,8 +243,20 @@ app.MapAuth();
 app.MapExternalAuth();
 app.MapAdmin();
 
-// Health check
-app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "auth" }))
+// Health check.
+//
+// Reports "degraded" — still HTTP 200 — when the JetStream provisioning below failed.
+// 200 on purpose: sign-in and every OAuth flow work without the stream, so a probe must
+// not pull the pod out of service over it. What must not happen is the failure being
+// invisible: queued email silently stops being delivered (EmailService swallows publish
+// errors), and without this the only trace is a log line nobody is watching.
+var messagingReady = true;
+app.MapGet("/health", () => Results.Ok(new
+    {
+        status = messagingReady ? "healthy" : "degraded",
+        service = "auth",
+        messaging = messagingReady ? "ok" : "stream-unavailable"
+    }))
     .WithName("Health")
     .WithTags("🏥 Health");
 
@@ -298,7 +310,7 @@ using (var scope = app.Services.CreateScope())
         // stream we cannot provision must not stop the identity provider from starting —
         // it rethrew here once and a single drifted field took prod down in a crash loop
         // that restarting could not clear. Queued email suffers; sign-in does not.
-        await nats.ProvisionStreamsAsync(logger);
+        messagingReady = await nats.ProvisionStreamsAsync(logger);
     }
 }
 

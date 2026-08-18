@@ -98,6 +98,30 @@ public class NatsStreamDriftTests
         Assert.Contains(drift, d => d.StartsWith("DuplicateWindow:"));
     }
 
+    /// <summary>
+    /// Regression guard. The drift report was originally gated on the exception carrying
+    /// already-exists wording, which silenced it in the one case it existed for: on the
+    /// drift path the create exception is consumed by the inner catch, and what surfaces
+    /// is the follow-up UpdateStreamAsync failure, worded differently. Any re-introduced
+    /// wording filter fails here.
+    /// </summary>
+    [Theory]
+    [InlineData("stream name already in use with a different configuration")] // create path
+    [InlineData("stream configuration update can not change number of replicas")] // update path
+    [InlineData("nats: no responders available for request")] // NATS unreachable
+    [InlineData("some message nobody predicted")]
+    public void AnyProvisioningFailure_IsWorthReadingTheStreamBack(string message)
+    {
+        Assert.True(NatsExtensions.ShouldAttemptDriftReport(new InvalidOperationException(message)));
+    }
+
+    [Fact]
+    public void Shutdown_DoesNotTriggerADriftReadBack()
+    {
+        // Cancellation is the process going away, not a configuration problem.
+        Assert.False(NatsExtensions.ShouldAttemptDriftReport(new OperationCanceledException()));
+    }
+
     [Theory]
     [InlineData(null, 3)]      // unset → prod's 3-node HA default
     [InlineData("", 3)]        // empty → same as unset; prod ran this way for months
