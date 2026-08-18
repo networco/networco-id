@@ -14,10 +14,29 @@ public class EmailWorker(
 {
     private const string ConsumerName = "email-worker";
     private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(5);
-    private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromMinutes(1);
+    // Shared with the liveness probe's staleness threshold, which is derived from it —
+    // see WorkerLiveness. Changing the cadence here alone would restart healthy workers.
+    private static readonly TimeSpan HeartbeatInterval = WorkerLiveness.HeartbeatInterval;
+
+    /// <summary>
+    /// Touched while the consumer is established, so a liveness probe can tell a working
+    /// worker from one whose consume loop is dead. The pod has no HTTP listener, so the
+    /// probe stats this file's age rather than calling an endpoint.
+    /// </summary>
+    private static readonly string LivenessFile = WorkerLiveness.ResolvePath();
 
     private long _processedSinceHeartbeat;
     private DateTimeOffset _lastActivityAt = DateTimeOffset.UtcNow;
+
+    /// <summary>
+    /// True only between the consumer being established and the consume loop falling over.
+    /// Liveness keys off THIS rather than off message throughput: a worker with no mail to
+    /// deliver is perfectly healthy, so "nothing processed recently" must never be a
+    /// restart signal. What is not healthy is having no consumer at all — which is exactly
+    /// what happened when a drifted stream config made the loop crash and retry every 5s
+    /// for an hour while the pod reported Ready and delivered nothing.
+    /// </summary>
+    private volatile bool _consumerReady;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -55,6 +74,12 @@ public class EmailWorker(
             catch (Exception ex)
             {
                 logger.LogError(ex, "Consume loop crashed. Reconnecting in {Delay}s...", ReconnectDelay.TotalSeconds);
+            }
+            finally
+            {
+                // However the loop ended, there is no consumer now. Stop refreshing the
+                // liveness file so the probe sees it go stale if we never get one back.
+                _consumerReady = false;
             }
 
             try
@@ -94,6 +119,11 @@ public class EmailWorker(
 
         logger.LogInformation("Consumer {Name} active. Listening for identity.email.>", ConsumerName);
         _lastActivityAt = DateTimeOffset.UtcNow;
+
+        // Mark live immediately rather than waiting for the first heartbeat tick, so a
+        // freshly started pod passes its probe without needing a long initial delay.
+        _consumerReady = true;
+        TouchLiveness();
 
         await foreach (var msg in consumer.ConsumeAsync<byte[]>(cancellationToken: stoppingToken))
         {
@@ -177,8 +207,46 @@ public class EmailWorker(
             var processed = Interlocked.Exchange(ref _processedSinceHeartbeat, 0);
             var idleFor = DateTimeOffset.UtcNow - _lastActivityAt;
             logger.LogInformation(
-                "EmailWorker heartbeat: processed {Count} message(s) in last {Interval}s; last activity {IdleSeconds:F0}s ago",
-                processed, HeartbeatInterval.TotalSeconds, idleFor.TotalSeconds);
+                "EmailWorker heartbeat: processed {Count} message(s) in last {Interval}s; last activity {IdleSeconds:F0}s ago; consumer {State}",
+                processed, HeartbeatInterval.TotalSeconds, idleFor.TotalSeconds, _consumerReady ? "ready" : "DOWN");
+
+            // Only while a consumer exists AND the connection under it is actually open.
+            //
+            // _consumerReady alone is not enough: it is set once when the consumer is
+            // established and cleared only when the consume loop returns or throws, so a
+            // connection that half-opens — which a rolling restart of the 3-node NATS
+            // cluster can produce — leaves ConsumeAsync sitting there, never faulting and
+            // never yielding. The flag would stay true and this heartbeat would keep
+            // asserting health while no mail moved: the very failure the probe exists to
+            // catch, with a green probe vouching for it.
+            var connected = nats.ConnectionState == NatsConnectionState.Open;
+            if (_consumerReady && connected)
+            {
+                TouchLiveness();
+            }
+            else if (_consumerReady)
+            {
+                logger.LogWarning(
+                    "Consumer is established but the NATS connection is {State}; withholding the liveness heartbeat",
+                    nats.ConnectionState);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Refreshes the liveness file's modification time. Best-effort: a worker that cannot
+    /// write its own liveness file should say so, but must not fall over for it — that
+    /// would turn a probe problem into an outage.
+    /// </summary>
+    private void TouchLiveness()
+    {
+        try
+        {
+            File.WriteAllText(LivenessFile, DateTimeOffset.UtcNow.ToString("O"));
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not write liveness file {Path}", LivenessFile);
         }
     }
 

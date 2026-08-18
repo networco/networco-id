@@ -142,6 +142,36 @@ spec:
               optional: true
         ports:
         - containerPort: 8080
+        # Startup is genuinely slow: migrations retry 10x with a 5s backoff, then
+        # bootstrap and NATS provisioning run before the app serves. A liveness probe
+        # alone would kill the pod mid-migration, so startupProbe owns that window and
+        # liveness only takes over once the app has answered once. 30 x 5s = 150s of
+        # grace, comfortably past the migration retry budget.
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          periodSeconds: 5
+          failureThreshold: 30
+          timeoutSeconds: 3
+        # /health returns 200 even when messaging is degraded — deliberately. Every
+        # OAuth/OIDC flow works without JetStream, so an unprovisionable stream must not
+        # get the pod restarted or pulled from the Service; it reports
+        # status="degraded" in the body for whatever scrapes it.
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          periodSeconds: 20
+          failureThreshold: 3
+          timeoutSeconds: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          periodSeconds: 10
+          failureThreshold: 3
+          timeoutSeconds: 3
 ---
 apiVersion: v1
 kind: Service

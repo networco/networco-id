@@ -85,3 +85,26 @@ spec:
               optional: true
         - name: EMAIL_PROVIDERS
           value: "brevo,resend"
+        - name: WORKER_LIVENESS_FILE
+          value: /tmp/networcoid-worker-alive
+        # The worker serves no HTTP, so liveness stats a file the consume loop refreshes
+        # once a minute while a consumer is established. It is NOT a throughput check —
+        # a worker with no mail to deliver is healthy, so "nothing processed lately" must
+        # never restart anything. It catches the case that actually bit us: the consume
+        # loop crashing and retrying every 5s for an hour while the pod sat Ready and
+        # delivered nothing, because the outer loop swallows the failure by design.
+        #
+        # 180s of staleness = three missed heartbeats, then 3 x 30s of probe failures, so
+        # a genuinely stuck worker restarts in about 4 minutes. Restarting does not repair
+        # a drifted stream or a NATS outage — it converts a silent pod into a visibly
+        # restarting one, which is the point.
+        livenessProbe:
+          exec:
+            command:
+              - /bin/sh
+              - -c
+              - '[ -f "$WORKER_LIVENESS_FILE" ] && [ $(( $(date +%s) - $(stat -c %Y "$WORKER_LIVENESS_FILE") )) -lt 180 ]'
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          failureThreshold: 3
+          timeoutSeconds: 5
