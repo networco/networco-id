@@ -1,0 +1,94 @@
+# Traefik configuration for the PROD cluster (srv01/02/03), applied BY HAND.
+#
+# Not applied by any workflow — see deploy/cluster/README.md. k3s installs Traefik
+# from a HelmChart, so this HelmChartConfig is the only durable way to change it:
+# a kubectl patch on the Service is reverted by the helm-controller.
+#
+# ############################################################################
+# DO NOT add externalTrafficPolicy: Local here. It is what test uses to recover
+# the real client IP, and prod needs it just as badly — every request currently
+# arrives as the CNI gateway 10.42.0.1, which makes the IdP's per-IP lockout a
+# GLOBAL lockout and its 5/min cap on POST /oauth/token a global budget.
+#
+# It would also take prod down. All three node IPs are round-robined in DNS, but
+# Traefik runs as a SINGLE replica (its ACME store is one RWO Longhorn volume, see
+# updateStrategy below). Local only delivers to a node-local Traefik pod, so the
+# two nodes without one would blackhole roughly two thirds of all traffic.
+#
+# Prerequisite: get TLS off this volume so Traefik can run on every node. cert-manager
+# is installed with a working letsencrypt-prod ClusterIssuer but currently issues
+# nothing; all three hosts (id.networco.no, networco.no, api.networco.no) use
+# Traefik's own certresolver. See the README for the sequence.
+# ############################################################################
+#
+# The values below are byte-identical to what is live on the prod cluster; verify
+# with the kubectl diff in the README.
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    # Roll Traefik with Recreate, NOT the chart-default RollingUpdate
+    # (maxUnavailable:0, maxSurge:1). Traefik's ACME store is a single RWO Longhorn
+    # PVC: a rolling update surges a new pod before terminating the old one, but the
+    # new pod can't attach the RWO volume while the old pod (often on another node)
+    # still holds it — so the rollout deadlocks in Pending indefinitely and the old
+    # pod keeps serving stale config. (This is exactly what stripped the HTTP→HTTPS
+    # redirect below for ~2 weeks: http://networco.no fell through to Traefik's
+    # default 404, which is what mobile/Facebook in-app browsers hit.) Recreate
+    # terminates the old pod first (freeing the volume), then starts the new one —
+    # a brief ingress blip on each Traefik change, but no deadlock.
+    updateStrategy:
+      type: Recreate
+      # rollingUpdate must be unset for a Recreate strategy.
+      rollingUpdate: null
+
+    # Additional arguments for Traefik
+    additionalArguments:
+      - "--certificatesresolvers.letsencrypt.acme.email=admin@networco.no"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/data/acme.json"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      # Redirect plain HTTP → HTTPS so the bare domain works in a browser. The
+      # ACME HTTP-01 challenge handler keeps priority on the web entrypoint, so
+      # cert issuance/renewal still works.
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--log.level=INFO"
+
+    # Persistent storage for ACME certificates. Env-aware (deploy.sh): prod
+    # longhorn; single-node test local-path (no Longhorn there — an unbound PVC
+    # leaves the new Traefik pod Pending, so ACME never issues a real cert).
+    persistence:
+      enabled: true
+      storageClass: longhorn
+      size: 128Mi
+      path: /data
+
+    # Ports configuration
+    ports:
+      web:
+        port: 80
+        exposedPort: 80
+      websecure:
+        port: 443
+        exposedPort: 443
+        tls:
+          enabled: true
+          certResolver: letsencrypt
+
+    # Deployment configuration
+    deployment:
+      replicas: 1
+      podSecurityContext:
+        fsGroup: 65532
+      initContainers:
+        - name: volume-permissions
+          image: busybox:latest
+          command: ["sh", "-c", "touch /data/acme.json && chown 65532:65532 /data/acme.json && chmod 600 /data/acme.json"]
+          # securityContext:
+          #   runAsUser: 0
+          volumeMounts:
+            - name: data
+              mountPath: /data
