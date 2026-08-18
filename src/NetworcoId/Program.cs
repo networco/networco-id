@@ -294,6 +294,10 @@ using (var scope = app.Services.CreateScope())
     {
         var nats = scope.ServiceProvider.GetRequiredService<INatsConnection>();
         var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("NatsProvisioner");
+        // Deliberately not fatal. Every OAuth/OIDC flow works without JetStream, so a
+        // stream we cannot provision must not stop the identity provider from starting —
+        // it rethrew here once and a single drifted field took prod down in a crash loop
+        // that restarting could not clear. Queued email suffers; sign-in does not.
         await nats.ProvisionStreamsAsync(logger);
     }
 }

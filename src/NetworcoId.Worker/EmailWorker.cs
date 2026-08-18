@@ -69,8 +69,11 @@ public class EmailWorker(
     {
         var js = new NatsJSContext(nats);
 
-        // Ensure stream exists
-        await nats.ProvisionStreamsAsync(logger);
+        // Ensure stream exists. Fatal here on purpose, unlike the IdP: consuming this
+        // stream is the worker's entire job, so there is nothing useful to do without
+        // it. The outer loop catches and retries after ReconnectDelay, which is a
+        // better retry than letting the pod CrashLoopBackOff.
+        await nats.ProvisionStreamsAsync(logger, throwOnFailure: true);
 
         // To handle WorkQueue streams reliably:
         // 1. We use a single durable consumer for the worker.
