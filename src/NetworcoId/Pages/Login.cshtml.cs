@@ -238,67 +238,34 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
                 return Page();
             }
 
-            // Authenticate user
-            var user = await authService.AuthenticateUserAsync(Email, Password);
-            if (user == null)
+            // Authenticate user. AuthService owns every failed-attempt counter and
+            // lockout deadline; this page only renders the outcome. Doing our own
+            // bookkeeping here used to double-count attempts and re-arm the lock on
+            // every submission — including ones with the correct password — so a
+            // 15-minute lock never actually expired.
+            var result = await authService.AuthenticateAsync(Email, Password);
+
+            if (result.Outcome != AuthenticationOutcome.Success)
             {
-                logger.LogWarning("Login Post: Authentication failed for {Email}", Email);
-                
-                // Record IP failure
-                await lockoutService.RecordFailureAsync(ip);
+                logger.LogWarning("Login Post: Authentication failed for {Email} ({Outcome})", Email, result.Outcome);
 
-                // Check for account lockout or increment failed attempts
-                var credential = await dbContext.UserCredentials
-                    .Include(c => c.User)
-                    .FirstOrDefaultAsync(c => c.User.Email == Email);
-
-                if (credential != null)
+                // An attempt refused by an already-active account lock never reached
+                // the password check, so it isn't evidence of guessing and must not
+                // count toward the IP throttle either. Unknown identifiers still do:
+                // IP throttling is the defence against spraying and enumeration.
+                if (result.PasswordWasChecked)
                 {
-                    credential.FailedLoginAttempts++;
-                    credential.LastFailedLoginAt = DateTimeOffset.UtcNow;
-                    
-                    if (credential.FailedLoginAttempts >= config.MaxFailedLoginAttempts)
-                    {
-                        credential.LockedUntil = DateTimeOffset.UtcNow.AddMinutes(config.LockoutDurationMinutes);
-                        logger.LogWarning("Account {Email} locked until {LockedUntil}", Email, credential.LockedUntil);
-                        ErrorMessage = $"Kontoen er låst i {config.LockoutDurationMinutes} minutter pga. for mange feilede forsøk.";
-                    }
-                    else
-                    {
-                        ErrorMessage = "Ugyldig e-post eller passord";
-                    }
+                    await lockoutService.RecordFailureAsync(ip);
+                }
 
-                    dbContext.UserCredentials.Update(credential);
-                    await dbContext.SaveChangesAsync();
-                }
-                else
-                {
-                    ErrorMessage = "Ugyldig e-post eller passord";
-                }
-                
+                ErrorMessage = result.Outcome == AuthenticationOutcome.Locked && result.LockedUntil.HasValue
+                    ? $"Kontoen er låst pga. for mange feilede forsøk. Prøv igjen om {FormatRemaining(result.LockedUntil.Value)}."
+                    : "Ugyldig e-post eller passord";
+
                 return Page();
             }
 
-            // Check if locked
-            var userCreds = await dbContext.UserCredentials.AsNoTracking().FirstOrDefaultAsync(c => c.Id == user.Id);
-            if (userCreds?.LockedUntil > DateTimeOffset.UtcNow)
-            {
-                ErrorMessage = $"Kontoen er låst frem til {userCreds.LockedUntil.Value.LocalDateTime:HH:mm}.";
-                return Page();
-            }
-
-            // Reset failed attempts on success
-            if (userCreds?.FailedLoginAttempts > 0)
-            {
-                var credToUpdate = await dbContext.UserCredentials.FirstOrDefaultAsync(c => c.Id == user.Id);
-                if (credToUpdate != null)
-                {
-                    credToUpdate.FailedLoginAttempts = 0;
-                    credToUpdate.LockedUntil = null;
-                    dbContext.UserCredentials.Update(credToUpdate);
-                    await dbContext.SaveChangesAsync();
-                }
-            }
+            var user = result.User!;
 
             // Reset IP failure on success
             var ipSuccess = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
@@ -438,6 +405,23 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
 
         logger.LogInformation("Resent verification email for {Email}", resendEmail);
         return Page();
+    }
+
+    /// <summary>
+    /// Renders how long a lock still has to run, in Norwegian. We show the remaining
+    /// time rather than a wall-clock deadline: the deadline is a UTC instant and the
+    /// server's local zone is not the user's, so formatting it renders the wrong hour.
+    /// </summary>
+    private static string FormatRemaining(DateTimeOffset until)
+    {
+        var remaining = until - DateTimeOffset.UtcNow;
+        if (remaining <= TimeSpan.Zero)
+        {
+            return "et øyeblikk";
+        }
+
+        var minutes = (int)Math.Ceiling(remaining.TotalMinutes);
+        return minutes == 1 ? "1 minutt" : $"{minutes} minutter";
     }
 
     /// <summary>

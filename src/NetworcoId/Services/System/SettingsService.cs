@@ -73,6 +73,7 @@ public class SettingsService : ISettingsService
         await SaveSettingAsync(nameof(config.RequireNonAlphanumeric), config.RequireNonAlphanumeric.ToString());
         await SaveSettingAsync(nameof(config.MaxFailedLoginAttempts), config.MaxFailedLoginAttempts.ToString());
         await SaveSettingAsync(nameof(config.LockoutDurationMinutes), config.LockoutDurationMinutes.ToString());
+        await SaveSettingAsync(nameof(config.FailedLoginAttemptWindowMinutes), config.FailedLoginAttemptWindowMinutes.ToString());
         await SaveSettingAsync(nameof(config.AccessTokenExpirationMinutes), config.AccessTokenExpirationMinutes.ToString());
         await SaveSettingAsync(nameof(config.RefreshTokenExpirationDays), config.RefreshTokenExpirationDays.ToString());
         
@@ -111,6 +112,9 @@ public class SettingsService : ISettingsService
                     break;
                 case nameof(_config.LockoutDurationMinutes):
                     if (int.TryParse(value, out var lockoutMins)) _config.LockoutDurationMinutes = lockoutMins;
+                    break;
+                case nameof(_config.FailedLoginAttemptWindowMinutes):
+                    if (int.TryParse(value, out var attemptWindow)) _config.FailedLoginAttemptWindowMinutes = attemptWindow;
                     break;
                 case nameof(_config.AccessTokenExpirationMinutes):
                     if (int.TryParse(value, out var accessExp)) _config.AccessTokenExpirationMinutes = accessExp;

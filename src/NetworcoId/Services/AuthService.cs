@@ -36,13 +36,66 @@ public enum ExternalLinkResult
     UserNotFound
 }
 
+/// <summary>How a password login attempt was resolved.</summary>
+public enum AuthenticationOutcome
+{
+    /// <summary>Credentials verified.</summary>
+    Success,
+    /// <summary>Unknown identifier, or a wrong password that did not trip the lockout.</summary>
+    InvalidCredentials,
+    /// <summary>An account lockout is in force — see <see cref="AuthenticationResult.LockedUntil"/>.</summary>
+    Locked
+}
+
+/// <summary>
+/// Outcome of <see cref="IAuthService.AuthenticateAsync"/>. Distinguishing "wrong
+/// password" from "locked" is what lets callers render the right message without
+/// doing their own failed-attempt bookkeeping — <see cref="AuthService"/> owns all
+/// of that state.
+/// </summary>
+public sealed record AuthenticationResult
+{
+    public required AuthenticationOutcome Outcome { get; init; }
+
+    /// <summary>The authenticated user, only on <see cref="AuthenticationOutcome.Success"/>.</summary>
+    public NetworcoIdUserDto? User { get; init; }
+
+    /// <summary>When the lock lifts, only on <see cref="AuthenticationOutcome.Locked"/>.</summary>
+    public DateTimeOffset? LockedUntil { get; init; }
+
+    /// <summary>
+    /// False when the attempt was refused before the password was ever verified
+    /// (an already-active lock). Such attempts must not be charged against any
+    /// throttle — otherwise a locked-out user keeps digging themselves deeper.
+    /// </summary>
+    public bool PasswordWasChecked { get; init; }
+
+    public static AuthenticationResult Succeeded(NetworcoIdUserDto user) =>
+        new() { Outcome = AuthenticationOutcome.Success, User = user, PasswordWasChecked = true };
+
+    public static AuthenticationResult InvalidCredentials() =>
+        new() { Outcome = AuthenticationOutcome.InvalidCredentials, PasswordWasChecked = true };
+
+    public static AuthenticationResult Locked(DateTimeOffset lockedUntil, bool passwordWasChecked) =>
+        new() { Outcome = AuthenticationOutcome.Locked, LockedUntil = lockedUntil, PasswordWasChecked = passwordWasChecked };
+}
+
 /// <summary>
 /// Authentication service.
 /// Handles user authentication, token management, and OAuth2 flows.
 /// </summary>
 public interface IAuthService
 {
+    /// <summary>Verifies a password, returning only the user (null on any failure). Prefer
+    /// <see cref="AuthenticateAsync"/> when the caller needs to tell "locked" from "wrong password".</summary>
     Task<NetworcoIdUserDto?> AuthenticateUserAsync(string emailOrNationalId, string password);
+
+    /// <summary>
+    /// Verifies a password and reports the outcome. This is the only place failed-attempt
+    /// counters and lockout deadlines are read or written — an attempt made while a lock is
+    /// active is refused without counting, so the lock cannot renew itself.
+    /// </summary>
+    Task<AuthenticationResult> AuthenticateAsync(string emailOrNationalId, string password);
     Task<NetworcoIdUserDto?> GetUserByEmailOrNationalIdAsync(string emailOrNationalId);
     Task<(NetworcoIdUserDto? User, List<string>? Scopes, DateTimeOffset? AuthTime)> ValidateAuthorizationCodeAsync(string code, string redirectUri, string? clientId = null, string? codeVerifier = null, bool isRegistration = false);
     Task<NetworcoIdUserDto?> RegisterUserAsync(string email, string password, string firstName, string lastName, string? nationalId, string? phoneNumber);
@@ -127,10 +180,13 @@ public class AuthService : IAuthService
     }
 
     public async Task<NetworcoIdUserDto?> AuthenticateUserAsync(string emailOrNationalId, string password)
+        => (await AuthenticateAsync(emailOrNationalId, password)).User;
+
+    public async Task<AuthenticationResult> AuthenticateAsync(string emailOrNationalId, string password)
     {
         if (string.IsNullOrWhiteSpace(emailOrNationalId) || string.IsNullOrEmpty(password))
         {
-            return null;
+            return AuthenticationResult.InvalidCredentials();
         }
 
         var identifier = emailOrNationalId.Trim();
@@ -149,88 +205,116 @@ public class AuthService : IAuthService
         {
             _logger.LogWarning("NETWORCO ID login attempt for unknown identifier {Identifier}", identifier);
             await _auditService.LogAsync("LoginFailed", $"Login attempt for unknown user: {identifier}");
-            return null;
+            return AuthenticationResult.InvalidCredentials();
         }
 
-        // Check if account is locked
-        if (user.Credential.LockedUntil.HasValue && user.Credential.LockedUntil.Value > DateTimeOffset.UtcNow)
+        // Tracked copy — this method is the single owner of the failed-attempt
+        // state (counter, last-failure timestamp, lock deadline). Callers must
+        // not do their own bookkeeping: doing so double-counted attempts and
+        // re-armed the lock on every touch, so a lock never actually expired.
+        var cred = await _context.UserCredentials.FirstOrDefaultAsync(c => c.Id == user.Id);
+        if (cred is null)
+        {
+            _logger.LogWarning("Credential row missing for user {UserId} during login", user.Id);
+            return AuthenticationResult.InvalidCredentials();
+        }
+
+        var now = DateTimeOffset.UtcNow;
+
+        // An active lock short-circuits before the password check. Nothing is
+        // written here: the attempt neither counts nor extends the deadline,
+        // so the lock runs out exactly LockoutDurationMinutes after it started.
+        if (cred.LockedUntil.HasValue && cred.LockedUntil.Value > now)
         {
             _logger.LogWarning("Login attempt for locked account: {Identifier}", identifier);
             await _auditService.LogAsync("LoginFailed", $"Login attempt for locked account: {user.Email}", user.Id);
-            return null;
+            return AuthenticationResult.Locked(cred.LockedUntil.Value, passwordWasChecked: false);
         }
 
-        if (!_passwordHasher.VerifyPassword(password, user.Credential.PasswordHash))
+        // Age out stale failure state before judging this attempt: an expired
+        // lock, or a counter whose last failure is older than the tracking
+        // window. Without this the account stays parked at the threshold and
+        // the next single typo re-locks it immediately.
+        var decayed = false;
+        if (cred.LockedUntil.HasValue)
+        {
+            // Lock has expired (the active case returned above).
+            cred.LockedUntil = null;
+            cred.FailedLoginAttempts = 0;
+            cred.LastFailedLoginAt = null;
+            decayed = true;
+        }
+        else if (cred.FailedLoginAttempts > 0 &&
+                 (cred.LastFailedLoginAt is null ||
+                  cred.LastFailedLoginAt.Value.AddMinutes(_config.FailedLoginAttemptWindowMinutes) <= now))
+        {
+            cred.FailedLoginAttempts = 0;
+            cred.LastFailedLoginAt = null;
+            decayed = true;
+        }
+
+        if (!_passwordHasher.VerifyPassword(password, cred.PasswordHash))
         {
             _logger.LogWarning("Invalid password for identifier {Identifier}", identifier);
-            
-            // Increment failed attempts and check for lockout
-            var cred = await _context.UserCredentials.FindAsync(user.Id);
-            if (cred != null)
+
+            cred.FailedLoginAttempts++;
+            cred.LastFailedLoginAt = now;
+
+            DateTimeOffset? lockedUntil = null;
+            if (cred.FailedLoginAttempts >= _config.MaxFailedLoginAttempts)
             {
-                cred.FailedLoginAttempts++;
-                cred.LastFailedLoginAt = DateTimeOffset.UtcNow;
-                
-                if (cred.FailedLoginAttempts >= _config.MaxFailedLoginAttempts)
-                {
-                    cred.LockedUntil = DateTimeOffset.UtcNow.AddMinutes(_config.LockoutDurationMinutes);
-                    _logger.LogWarning("User account locked: {Email} for {Minutes} minutes", user.Email, _config.LockoutDurationMinutes);
-                    
-                    await _emailService.SendEmailAsync(
-                        user.Email, 
-                        "NETWORCO ID: Account Locked", 
-                        $"Your account has been temporarily locked due to too many failed login attempts. It will be automatically unlocked in {_config.LockoutDurationMinutes} minutes.",
-                        user.FirstName);
-                }
-                
-                _context.UserCredentials.Update(cred);
-                await _context.SaveChangesAsync();
+                lockedUntil = now.AddMinutes(_config.LockoutDurationMinutes);
+                cred.LockedUntil = lockedUntil;
+                _logger.LogWarning("User account locked: {Email} for {Minutes} minutes", user.Email, _config.LockoutDurationMinutes);
+
+                await _emailService.SendEmailAsync(
+                    user.Email,
+                    "NETWORCO ID: Account Locked",
+                    $"Your account has been temporarily locked due to too many failed login attempts. It will be automatically unlocked in {_config.LockoutDurationMinutes} minutes.",
+                    user.FirstName);
             }
 
+            _context.UserCredentials.Update(cred);
+            await _context.SaveChangesAsync();
+
             await _auditService.LogAsync("LoginFailed", $"Invalid password for user: {user.Email}", user.Id);
-            return null;
+
+            return lockedUntil.HasValue
+                ? AuthenticationResult.Locked(lockedUntil.Value, passwordWasChecked: true)
+                : AuthenticationResult.InvalidCredentials();
         }
 
         await _auditService.LogAsync("LoginSuccess", $"User logged in: {user.Email}", user.Id);
 
-        // Check for legacy password hash and upgrade if necessary
-        if (!_passwordHasher.IsArgon2id(user.Credential.PasswordHash))
+        // Success clears every trace of past failures.
+        var dirty = decayed;
+        if (cred.FailedLoginAttempts != 0 || cred.LastFailedLoginAt is not null || cred.LockedUntil is not null)
         {
-            _logger.LogInformation("Upgrading password hash for user {UserId} from PBKDF2 to Argon2id", user.Id);
-            
-            var credToUpdate = await _context.UserCredentials.FirstOrDefaultAsync(c => c.Id == user.Id);
-            if (credToUpdate != null)
-            {
-                credToUpdate.PasswordHash = _passwordHasher.HashPassword(password);
-                credToUpdate.UpdatedAt = DateTimeOffset.UtcNow;
-                
-                // Also reset failed attempts if we are touching the record anyway
-                credToUpdate.FailedLoginAttempts = 0;
-                credToUpdate.LastFailedLoginAt = null;
-                credToUpdate.LockedUntil = null;
-                
-                _context.UserCredentials.Update(credToUpdate);
-                await _context.SaveChangesAsync();
-                
-                // Update the local user object's hash so we don't return stale data if used later
-                user.Credential.PasswordHash = credToUpdate.PasswordHash; 
-            }
-        }
-        else if (user.Credential.FailedLoginAttempts > 0)
-        {
-            // Reset failed attempts on success (only if we didn't already save above)
-            var cred = await _context.UserCredentials.FindAsync(user.Id);
-            if (cred != null)
-            {
-                cred.FailedLoginAttempts = 0;
-                cred.LastFailedLoginAt = null;
-                cred.LockedUntil = null;
-                _context.UserCredentials.Update(cred);
-                await _context.SaveChangesAsync();
-            }
+            cred.FailedLoginAttempts = 0;
+            cred.LastFailedLoginAt = null;
+            cred.LockedUntil = null;
+            dirty = true;
         }
 
-        return new NetworcoIdUserDto
+        // Check for legacy password hash and upgrade if necessary
+        if (!_passwordHasher.IsArgon2id(cred.PasswordHash))
+        {
+            _logger.LogInformation("Upgrading password hash for user {UserId} from PBKDF2 to Argon2id", user.Id);
+            cred.PasswordHash = _passwordHasher.HashPassword(password);
+            cred.UpdatedAt = now;
+            dirty = true;
+
+            // Update the local user object's hash so we don't return stale data if used later
+            user.Credential.PasswordHash = cred.PasswordHash;
+        }
+
+        if (dirty)
+        {
+            _context.UserCredentials.Update(cred);
+            await _context.SaveChangesAsync();
+        }
+
+        return AuthenticationResult.Succeeded(new NetworcoIdUserDto
         {
             Id = user.Id,
             NationalId = user.NationalId ?? user.PhoneNumber ?? user.Email,
@@ -244,8 +328,8 @@ public class AuthService : IAuthService
             BirthDate = user.BirthDate,
             // Removed: Role - authorization handled by resource server
             Password = null,
-            MustChangePassword = user.Credential.MustChangePassword,
-            
+            MustChangePassword = cred.MustChangePassword,
+
             // Map Address Fields
             AddressFormatted = user.AddressFormatted,
             AddressStreetAddress = user.AddressStreetAddress,
@@ -253,7 +337,7 @@ public class AuthService : IAuthService
             AddressRegion = user.AddressRegion,
             AddressPostalCode = user.AddressPostalCode,
             AddressCountry = user.AddressCountry
-        };
+        });
     }
 
     public async Task<NetworcoIdUserDto?> RegisterUserAsync(string email, string password, string firstName, string lastName, string? nationalId, string? phoneNumber)
@@ -1335,6 +1419,7 @@ public class AuthService : IAuthService
             user.Credential.MustChangePassword = false;
             user.Credential.UpdatedAt = DateTimeOffset.UtcNow;
             user.Credential.FailedLoginAttempts = 0;
+            user.Credential.LastFailedLoginAt = null;
             user.Credential.LockedUntil = null;
             _context.UserCredentials.Update(user.Credential);
         }

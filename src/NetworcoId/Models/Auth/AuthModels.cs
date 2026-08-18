@@ -40,6 +40,11 @@ public class NetworcoIdConfig
     public int MaxFailedLoginAttempts { get; set; } = 5;
     public int LockoutDurationMinutes { get; set; } = 15;
 
+    /// <summary>How long a failed-login counter survives without a new failure.
+    /// Past this, the counter decays back to zero so an account doesn't sit parked
+    /// at the threshold waiting for the next typo to re-lock it.</summary>
+    public int FailedLoginAttemptWindowMinutes { get; set; } = 15;
+
     public int IpLockoutMaxFailures { get; set; } = 10;
     public int IpLockoutDurationMinutes { get; set; } = 30;
 
