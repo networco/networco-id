@@ -201,8 +201,7 @@ public static class AuthEndpoints
 
     private static async Task<IResult> ResetPassword(
         [FromBody] ResetPasswordRequest request,
-        IAuthService authService,
-        HttpContext httpContext)
+        IAuthService authService)
     {
         if (string.IsNullOrWhiteSpace(request.Token) || string.IsNullOrWhiteSpace(request.NewPassword))
         {
