@@ -246,28 +246,6 @@ public class AuditLogEntityConfiguration : IEntityTypeConfiguration<AuditLogEnti
 }
 
 /// <summary>
-/// EF Core configuration for IpLockoutEntity.
-/// </summary>
-public class IpLockoutEntityConfiguration : IEntityTypeConfiguration<IpLockoutEntity>
-{
-    public void Configure(EntityTypeBuilder<IpLockoutEntity> builder)
-    {
-        builder.HasKey(l => l.IpAddress);
-
-        builder.Property(l => l.IpAddress)
-            .HasMaxLength(45); // IPv6 length
-
-        builder.Property(l => l.FailedAttempts)
-            .HasDefaultValue(0);
-
-        builder.Property(l => l.LastAttemptAt)
-            .HasDefaultValueSql("now()");
-
-        builder.HasIndex(l => l.LockedUntil);
-    }
-}
-
-/// <summary>
 /// EF Core configuration for OAuthClientEntity.
 /// </summary>
 public class OAuthClientEntityConfiguration : IEntityTypeConfiguration<OAuthClientEntity>
