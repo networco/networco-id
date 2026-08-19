@@ -81,6 +81,10 @@ public class IndexModel : PageModel
         {
             credential.FailedLoginAttempts = 0;
             credential.LockedUntil = null;
+            // An admin unlock is a full pardon: clear the escalation strikes too,
+            // so the next lockout (if any) starts back at the base duration.
+            credential.LastFailedLoginAt = null;
+            credential.LockoutStrikes = 0;
             
             _context.UserCredentials.Update(credential);
             
