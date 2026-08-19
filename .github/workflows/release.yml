@@ -3,11 +3,24 @@
 # =============================================================================
 #
 # Triggered when a GitHub Release is published (tag must match v* — e.g. v1.2.3).
-# Mirrors networco-app's release.yml (trigger + VERSION bump + build) but reuses
-# this repo's self-contained deploy-test.yml deploy style (tailnet + inline
-# kubectl) for the prod rollout. No approval gate — publishing a release deploys
-# straight to production. (Add required reviewers to the `production` GitHub
-# Environment later if you want a manual gate.)
+# Shares its SHAPE with networco-app's release.yml — same `released` trigger, same
+# tag → VERSION → build → deploy sequence — while the prod rollout uses this repo's
+# self-contained deploy-test.yml style (tailnet + inline kubectl).
+#
+# Shape only: the two repos' VERSION SERIES are independent and deliberately so.
+# They release on their own cadences, so networco-id's v0.14.x has no relationship
+# to networco-app's v0.56.x and the numbers are never expected to line up. Only
+# test and prod of THIS repo are kept in lockstep (an rc is promoted unchanged).
+#
+# Where they must not drift is behaviour. This file once grew a `workflow_dispatch`
+# trigger and a `tag_name || 'v0.0.0'` fallback that networco-app never had; on
+# 2026-08-19 a manual run took that fallback and deployed prod as 0.0.0.16, moved
+# `latest` onto it and wrote 0.0.0.16 to VERSION. Both are gone (see the trigger
+# block and the version step). Keep the release path event-driven in both repos.
+#
+# No approval gate — publishing a release deploys straight to production. (Add
+# required reviewers to the `production` GitHub Environment later if you want a
+# manual gate.)
 #
 # Flow:
 #   1. update-version — strips the leading 'v' from the tag, appends the run
