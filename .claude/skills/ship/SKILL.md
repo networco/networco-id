@@ -50,9 +50,10 @@ Merging to `main` does **NOT** deploy to test anymore — `deploy-test.yml` is g
 1. **Pick the bump.** If the user said patch/minor/major, use it. If they just said "release to test", **infer from the merged diff since the last prod release** (see *Semver inference*).
 2. **Compute the candidate version** from the last **full** release:
    ```bash
-   gh release list --repo <repo> --exclude-pre-releases --limit 1   # e.g. v0.49.7
+   gh release list --repo <repo> --exclude-pre-releases --limit 1   # the repo's own last full release
    ```
-   patch → `v0.49.8`, minor → `v0.50.0`, major → `v1.0.0`.
+   Given `v1.2.3`: patch → `v1.2.4`, minor → `v1.3.0`, major → `v2.0.0`. Read this from
+   the repo you are shipping — the two repos' series are unrelated (see the table below).
 3. **Pick the rc number** — next `-rc.N` for that version (rc.1 if none exist yet):
    ```bash
    gh release list --repo <repo> | grep 'vX.Y.Z-rc'   # highest N → N+1
@@ -105,17 +106,21 @@ Always **state the chosen bump and the reason** before tagging.
 
 | | networco-app (`networco/networco`) | networco-id (`networco/networco-id`) |
 |---|---|---|
-| Local path | `/Users/bisand/dev/networco/networco-app` | `/Users/bisand/dev/networco/networco-id` |
+| Local path | `~/dev/networco/networco-app` | `~/dev/networco/networco-id` |
 | Local checks | `pnpm type-check` + `pnpm lint` + `pnpm test`; `dotnet test apps/api.tests/…`; `go build` | `dotnet build src/NetworcoId/…` + `dotnet test` |
 | Deploy mechanism | `scripts/deploy.sh TEST\|PROD` — **EF migration-job gate**, then rollout | **inline `kubectl`** — `rollout restart` + `rollout status --timeout=180s`; **no migration job** (migrates at startup) |
 | Deployments | `networco-api`, `networco-worker`, `networco-web`, `blob` | `networcoid`, `networcoid-worker` |
 | Health line | `Deployment of {TEST\|PROD} successful — all rollouts healthy ✓` | `deployment "networcoid" successfully rolled out` (+ `networcoid-worker`) |
 | Extra prod step | — | **"Register app redirect URI + audience on the OAuth client"** psql step (targets the CNPG **primary** in `networco-db`; can legitimately log `UPDATE 0`) |
-| Version series | `v0.49.x` (as of 2026-06) | `v0.10.x` (as of 2026-06) |
+| Version series | `v0.56.x` (as of 2026-08-19) | `v0.14.x` (as of 2026-08-19) |
+
+**The two version series are independent and deliberately so** — each repo releases on its own cadence, so the numbers never line up and are not meant to. The only lockstep is test↔prod *within* one repo, by promoting an rc unchanged (Phase C). Never infer one repo's next version from the other's; always read the last full release from the repo you are shipping (Phase B step 2).
 
 ## Gotchas (hard-won)
 
 - **rc → test, full → prod.** The split is the GitHub event type: `prereleased`→`deploy-test.yml`, `released`→`release.yml`. Create rc with `--prerelease`; create prod **without** it. Never `--prerelease` a prod version.
+- **Never run `release.yml` by hand — publish a release instead.** Prod's version comes from the release tag, so a manual run has no version to read. On 2026-08-19 a `workflow_dispatch` run of networco-id's release workflow took a `tag_name || 'v0.0.0'` fallback and shipped prod `ghcr.io/networco/networco-id:0.0.0.16` — a tag matching no release — moved `latest` onto it and committed `VERSION` as `0.0.0.16` to main. Nothing was wrong with the code; prod was simply unidentifiable, and the corrupted `VERSION` would have spread (deploy-test.yml's manual path keeps `major.minor.patch` and only replaces the build segment → `0.0.0.N`). networco-id's `workflow_dispatch` is now removed and a missing tag fails the run (networco/networco-id#36); networco-app never had either. **Recovery**, if it happens again: cut a normal patch release — that rebuilds with a real tag, redeploys prod, fixes `latest` and rewrites `VERSION` from the tag. Then delete the bogus ghcr versions (needs `gh auth refresh -s read:packages,delete:packages`).
+- **`deploy-test.yml` by hand is fine** — test-only, and it derives the version from `VERSION` + run number rather than inventing one. Only the prod path is off limits.
 - **An rc must never be GitHub `latest`.** Only full `vX.Y.Z` releases are `latest`. GitHub blocks a prerelease from being latest, so a "latest" rc means it was created *without* `--prerelease` (also wrongly routes to prod). After cutting an rc, verify `isPrerelease=true, isLatest=false`. The model is **kept on purpose** — rc is the promote-the-tested-version-without-re-bumping mechanism.
 - **One CI run per push.** `ci.yml` triggers on `pull_request` only (not `push`), with a `cancel-in-progress` concurrency guard — so each push to a PR branch produces exactly one run. Wait for that single run; don't expect a second. A branch with no open PR gets no run until the PR is opened. networco-id runs no PR CI at all (release-triggered only).
 - **`gh run watch` can return early on releases.** It has exited 0 while **Deploy to Production** was still running. Re-check `status == "completed"` and re-watch.
