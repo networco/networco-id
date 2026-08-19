@@ -27,7 +27,7 @@ spec:
 # letsencrypt-http01 ClusterIssuer (HTTP-01 through Traefik, same challenge
 # type Traefik's own certresolver used). The deploy workflows sed
 # id.networco.no to the environment's host, which renames both the dnsName
-# and the secret consistently. The Ingress below references the secret by
+# and the secret consistently. The Ingress above references the secret by
 # the same sed-rewritten name.
 apiVersion: cert-manager.io/v1
 kind: Certificate
