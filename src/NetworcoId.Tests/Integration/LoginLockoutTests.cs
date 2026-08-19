@@ -334,6 +334,7 @@ public class LoginLockoutTests : IClassFixture<LoginLockoutFactory>
             c.FailedLoginAttempts = 5;
             c.LastFailedLoginAt = DateTimeOffset.UtcNow;
             c.LockedUntil = DateTimeOffset.UtcNow.AddMinutes(15);
+            c.LockoutStrikes = 3;
         });
 
         using (var scope = _factory.Services.CreateScope())
@@ -355,6 +356,7 @@ public class LoginLockoutTests : IClassFixture<LoginLockoutFactory>
         Assert.Equal(0, afterReset.FailedLoginAttempts);
         Assert.Null(afterReset.LastFailedLoginAt);
         Assert.Null(afterReset.LockedUntil);
+        Assert.Equal(0, afterReset.LockoutStrikes);
 
         // The unlock must survive contact with the login form: a wrong password
         // afterwards costs one attempt, and the new password still works.
@@ -367,5 +369,104 @@ public class LoginLockoutTests : IClassFixture<LoginLockoutFactory>
         var cred = await GetCredentialAsync(userId);
         Assert.Equal(0, cred.FailedLoginAttempts);
         Assert.Null(cred.LockedUntil);
+    }
+
+    [Fact]
+    public async Task SecondLockout_LastsTwiceAsLong()
+    {
+        // Escalation: the first lock is the base duration; a second lockout without
+        // an intervening successful login doubles it.
+        var max = Config.MaxFailedLoginAttempts;
+        var baseMinutes = Config.LockoutDurationMinutes;
+        var userId = await CreateUserAsync("escalate@example.com");
+
+        for (var i = 0; i < max; i++)
+        {
+            await AuthenticateAsync("escalate@example.com", BadPassword);
+        }
+        var afterFirst = await GetCredentialAsync(userId);
+        Assert.Equal(1, afterFirst.LockoutStrikes);
+        AssertLockDurationCloseTo(afterFirst.LockedUntil, baseMinutes);
+
+        // Expire the lock, keeping the last failure recent so strikes survive.
+        await MutateCredentialAsync(userId, c =>
+        {
+            c.LockedUntil = DateTimeOffset.UtcNow.AddMinutes(-1);
+            c.LastFailedLoginAt = DateTimeOffset.UtcNow.AddMinutes(-1);
+        });
+
+        for (var i = 0; i < max; i++)
+        {
+            await AuthenticateAsync("escalate@example.com", BadPassword);
+        }
+        var afterSecond = await GetCredentialAsync(userId);
+        Assert.Equal(2, afterSecond.LockoutStrikes);
+        AssertLockDurationCloseTo(afterSecond.LockedUntil, baseMinutes * 2);
+    }
+
+    [Fact]
+    public async Task Escalation_IsCappedAtSixteenTimesTheBaseDuration()
+    {
+        var max = Config.MaxFailedLoginAttempts;
+        var baseMinutes = Config.LockoutDurationMinutes;
+        var userId = await CreateUserAsync("capped@example.com", c =>
+        {
+            // Far beyond the cap exponent: the multiplier must clamp at 2^4 = 16.
+            c.LockoutStrikes = 10;
+            c.LastFailedLoginAt = DateTimeOffset.UtcNow;
+        });
+
+        for (var i = 0; i < max; i++)
+        {
+            await AuthenticateAsync("capped@example.com", BadPassword);
+        }
+
+        var cred = await GetCredentialAsync(userId);
+        Assert.Equal(11, cred.LockoutStrikes);
+        AssertLockDurationCloseTo(cred.LockedUntil, baseMinutes * 16);
+    }
+
+    [Fact]
+    public async Task SuccessfulLogin_ResetsStrikes()
+    {
+        var userId = await CreateUserAsync("strikereset@example.com", c =>
+        {
+            c.LockoutStrikes = 3;
+            c.LastFailedLoginAt = DateTimeOffset.UtcNow;
+        });
+
+        var result = await AuthenticateAsync("strikereset@example.com", GoodPassword);
+        Assert.Equal(AuthenticationOutcome.Success, result.Outcome);
+
+        var cred = await GetCredentialAsync(userId);
+        Assert.Equal(0, cred.LockoutStrikes);
+    }
+
+    [Fact]
+    public async Task Strikes_AreForgottenAfterADayWithoutFailures()
+    {
+        // Escalation punishes bursts, not history: a typo a month after the last
+        // lockout must lock (if it ever gets that far) at the base duration again.
+        var userId = await CreateUserAsync("strikedecay@example.com", c =>
+        {
+            c.LockoutStrikes = 3;
+            c.LastFailedLoginAt = DateTimeOffset.UtcNow.AddHours(-25);
+        });
+
+        var result = await AuthenticateAsync("strikedecay@example.com", BadPassword);
+        Assert.Equal(AuthenticationOutcome.InvalidCredentials, result.Outcome);
+
+        var cred = await GetCredentialAsync(userId);
+        Assert.Equal(0, cred.LockoutStrikes); // decayed; a plain failure adds none
+        Assert.Equal(1, cred.FailedLoginAttempts);
+    }
+
+    /// <summary>The lock deadline should sit at now + expectedMinutes, give or take
+    /// test scheduling slack.</summary>
+    private static void AssertLockDurationCloseTo(DateTimeOffset? lockedUntil, int expectedMinutes)
+    {
+        Assert.NotNull(lockedUntil);
+        var remaining = lockedUntil!.Value - DateTimeOffset.UtcNow;
+        Assert.InRange(remaining, TimeSpan.FromMinutes(expectedMinutes - 1), TimeSpan.FromMinutes(expectedMinutes + 1));
     }
 }

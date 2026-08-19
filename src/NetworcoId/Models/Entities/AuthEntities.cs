@@ -102,6 +102,14 @@ public class UserCredentialEntity
     public DateTimeOffset? LastFailedLoginAt { get; set; }
     public DateTimeOffset? LockedUntil { get; set; }
 
+    /// <summary>How many lockouts this account has tripped without an intervening
+    /// successful login or password reset. Each strike doubles the next lock
+    /// duration (capped — see AuthService.MaxLockoutEscalation), so a patient
+    /// attacker cycling the threshold gets slower with every round while the
+    /// failure counter itself still decays normally. Cleared on success, on a
+    /// completed password reset, and after a full day without failures.</summary>
+    public int LockoutStrikes { get; set; } = 0;
+
     // Navigation property
     public UserEntity User { get; set; } = null!;
 }
