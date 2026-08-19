@@ -163,10 +163,7 @@
 
         <div class="mt-10 pt-8 border-t border-networco-border dark:border-gray-700">
             <p class="text-[10px] leading-relaxed text-center text-networco-authority-light/70 dark:text-gray-500 font-medium uppercase tracking-wider">
-                Sikker registrering fra Networco.@if (Model.IduraEnabled)
-                {
-                    <text> Du kan også bruke BankID for rask tilgang.</text>
-                }
+                Sikker registrering fra Networco.@(Model.IduraEnabled ? " Du kan også bruke BankID for rask tilgang." : "")
             </p>
         </div>
     </div>
@@ -184,25 +181,30 @@
         // The regexes use Unicode property escapes so they match the server's
         // Unicode-aware checks (char.IsUpper/IsLower/IsDigit/IsLetterOrDigit) — an
         // ASCII-only regex would false-green 'ø' as special or reject 'Å' as upper.
-        const requirements = {
-            length: { el: document.getElementById('req-length'), check: (p) => p.length >= @Model.MinPasswordLength },
-        @if (Model.RequireUppercase)
-        {
-            <text>upper: { el: document.getElementById('req-upper'), label: 'én stor bokstav', check: (p) => /\p{Lu}/u.test(p) },</text>
-        }
-        @if (Model.RequireLowercase)
-        {
-            <text>lower: { el: document.getElementById('req-lower'), label: 'én liten bokstav', check: (p) => /\p{Ll}/u.test(p) },</text>
-        }
-        @if (Model.RequireDigit)
-        {
-            <text>digit: { el: document.getElementById('req-digit'), label: 'ett tall', check: (p) => /\p{Nd}/u.test(p) },</text>
-        }
-        @if (Model.RequireNonAlphanumeric)
-        {
-            <text>special: { el: document.getElementById('req-special'), label: 'ett spesialtegn', check: (p) => /[^\p{L}\p{Nd}]/u.test(p) },</text>
-        }
+        // The policy flags render once from the server; the conditionals are plain JS
+        // so this script block carries no Razor text-tag transitions — SDK 10.0.300's
+        // Razor compiler mis-parses those inside script elements (RZ1021/RZ1026).
+        const policy = {
+            requireUppercase: @Json.Serialize(Model.RequireUppercase),
+            requireLowercase: @Json.Serialize(Model.RequireLowercase),
+            requireDigit: @Json.Serialize(Model.RequireDigit),
+            requireNonAlphanumeric: @Json.Serialize(Model.RequireNonAlphanumeric)
         };
+        const requirements = {
+            length: { el: document.getElementById('req-length'), check: (p) => p.length >= @Model.MinPasswordLength }
+        };
+        if (policy.requireUppercase) {
+            requirements.upper = { el: document.getElementById('req-upper'), label: 'én stor bokstav', check: (p) => /\p{Lu}/u.test(p) };
+        }
+        if (policy.requireLowercase) {
+            requirements.lower = { el: document.getElementById('req-lower'), label: 'én liten bokstav', check: (p) => /\p{Ll}/u.test(p) };
+        }
+        if (policy.requireDigit) {
+            requirements.digit = { el: document.getElementById('req-digit'), label: 'ett tall', check: (p) => /\p{Nd}/u.test(p) };
+        }
+        if (policy.requireNonAlphanumeric) {
+            requirements.special = { el: document.getElementById('req-special'), label: 'ett spesialtegn', check: (p) => /[^\p{L}\p{Nd}]/u.test(p) };
+        }
 
         const strengthBars = [
             document.getElementById('strength-1'),
@@ -276,12 +278,9 @@
 
             let score = metCount;
             if (p.length > @Model.MinPasswordLength + 4) score++;
-        @if (!Model.RequireNonAlphanumeric)
-        {
             // Reward symbols only when a special char isn't already a required (and
             // thus already counted in metCount) — avoids double-counting the same char.
-            <text>if (/[^\p{L}\p{Nd}]/u.test(p)) score++;</text>
-        }
+            if (!policy.requireNonAlphanumeric && /[^\p{L}\p{Nd}]/u.test(p)) score++;
 
             if (p.length < @Model.MinPasswordLength) return 1;
 
