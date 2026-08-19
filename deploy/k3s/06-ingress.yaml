@@ -36,6 +36,11 @@ metadata:
   namespace: networco-id
 spec:
   secretName: id.networco.no-tls
+  privateKey:
+    # Regenerate the key on every issuance. Also required for cert-manager to
+    # take over a Secret whose existing key doesn't match its defaults (the
+    # cutover Secrets were extracted from Traefik's acme.json).
+    rotationPolicy: Always
   issuerRef:
     name: letsencrypt-http01
     kind: ClusterIssuer
