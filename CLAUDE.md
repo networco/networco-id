@@ -29,11 +29,10 @@ Four projects under `src/`:
 
 Named policies registered in `Program.cs` and applied per-endpoint via `.RequireRateLimiting("name")`:
 
-- `fixed-ip` — 100/min global IP cap.
 - `admin-login-strict` / `auth-login-strict` — Limits driven by `NetworcoIdConfig.AdminRateLimit*` / `AuthRateLimit*`.
 - `auth-strict` — Hard 5/min cap for sensitive auth endpoints.
 
-When adding a new auth-adjacent endpoint, attach an appropriate policy rather than relying on the global one.
+There is **no global limiter** — an endpoint without a policy attached is unlimited, so every new auth-adjacent endpoint must attach one explicitly. (A `fixed-ip` "global cap" existed as config but was never attached anywhere; it was removed rather than enabled, because on prod all client IPs currently collapse to the ingress gateway address and a global per-IP cap would throttle the whole user base at once.)
 
 ## Messaging boundary (NATS JetStream)
 
