@@ -145,12 +145,18 @@ spec:
         # Startup is genuinely slow: migrations retry 10x with a 5s backoff, then
         # bootstrap and NATS provisioning run before the app serves. A liveness probe
         # alone would kill the pod mid-migration, so startupProbe owns that window and
-        # liveness only takes over once the app has answered once. 30 x 5s = 150s of
-        # grace, comfortably past the migration retry budget.
+        # liveness only takes over once the app has answered once. 10s + 30 x 5s = 160s
+        # of grace, comfortably past the migration retry budget.
+        #
+        # The initial delay buys nothing for reliability -- it is there so the first
+        # two attempts, which cannot succeed because the port is not bound yet, stop
+        # emitting "Startup probe failed" warnings that sit in the cluster event log
+        # for an hour after every rollout and look like an incident.
         startupProbe:
           httpGet:
             path: /health
             port: 8080
+          initialDelaySeconds: 10
           periodSeconds: 5
           failureThreshold: 30
           timeoutSeconds: 3
