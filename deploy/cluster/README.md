@@ -10,28 +10,53 @@ cluster-wide ingress — a bad value here takes down every site, not just this o
 
 Apply by hand, one cluster at a time, and watch it.
 
-## Why these live in git
-
-They were cluster-only state until 2026-08-18. That is how the client-IP problem below
-stayed invisible: nothing in any repo described the setting that caused it, so there was
-no diff to read and no history to blame. A cluster rebuild would also have silently
-reverted it.
-
 ## Files
 
 | File | Cluster | Notes |
 |---|---|---|
-| `traefik-test.yaml` | test (`tst01`) | single node; `externalTrafficPolicy: Local` |
-| `traefik-prod.yaml` | prod (`srv01/02/03`) | three nodes; policy left at the `Cluster` default — see below |
+| `traefik-test.yaml` | test (`tst01`) | identical values to prod since 2026-08-19 |
+| `traefik-prod.yaml` | prod (`srv01/02/03`) | identical values to test since 2026-08-19 |
 
-They differ in exactly two things: `persistence.storageClass` (`local-path` vs
-`longhorn`) and the `service.spec` block that only test has.
+Since the cert-manager migration (2026-08-19) the two files carry **identical
+values**: Traefik holds no certificate state, so nothing env-specific remains.
+`networco-app` carries the same values in
+`infrastructure/k3s/manifests/00-traefik-config.yaml`, applied by its `deploy.sh` on
+every release — **the three files manage the same cluster object; change all of them
+together or a later app deploy reverts your change.**
+
+## The design (post-migration)
+
+- **TLS**: every host's certificate is a `kubernetes.io/tls` Secret named
+  `<host>-tls`, owned by a cert-manager `Certificate` and referenced by its
+  Ingress/IngressRoute. Issuance/renewal is Let's Encrypt **HTTP-01** through the
+  `letsencrypt-http01` ClusterIssuer — no DNS credentials involved. The IdP's
+  Certificate rides in `deploy/k3s/06-ingress.yaml`; the app hosts' live in
+  `networco-app`.
+- **Traefik**: a **DaemonSet** (one pod per node) with **no ACME resolver and no
+  persistence**, and `service.spec.externalTrafficPolicy: Local`.
+- **Client IPs are real**: `Local` skips kube-proxy's SNAT, so Traefik stamps the
+  actual client address into `X-Forwarded-For`. Verified on both clusters on
+  2026-08-19: prod `audit_logs` recorded a real public address where every prior
+  row had the CNI gateway (`10.42.0.1` / `10.42.1.1`).
+
+## Rules that keep it working
+
+- **Do NOT re-add `certificatesresolvers` to any Traefik config.** Besides
+  re-introducing RWO cert state (which forces a single replica and breaks
+  `Local` on multi-node prod), the resolver intercepts every
+  `/.well-known/acme-challenge/` request on port 80 and 404s cert-manager's
+  HTTP-01 challenges — the two cannot coexist.
+- **Do NOT remove `externalTrafficPolicy: Local`.** With the chart-default
+  `Cluster` policy every request arrives as the CNI gateway: per-IP rate limits
+  become one global budget and audit trails lose the client address.
+- A new HTTPS host needs: a `Certificate` (issuer `letsencrypt-http01`, secret
+  `<host>-tls`) plus `secretName` on its Ingress/IngressRoute. Nothing in the
+  Traefik config changes.
+- k3s installs Traefik from a `HelmChart`, so a `HelmChartConfig` is the only
+  durable way to change it. **A `kubectl patch` on the Service is reverted by the
+  helm-controller** — it will appear to work and then quietly undo itself.
 
 ## Applying
-
-k3s installs Traefik from a `HelmChart`, so a `HelmChartConfig` is the only durable way
-to change it. **A `kubectl patch` on the Service is reverted by the helm-controller** —
-it will appear to work and then quietly undo itself.
 
 ```bash
 export KUBECONFIG=~/.kube/networco-tailscale.yaml
@@ -40,65 +65,26 @@ kubectl --context networco-test apply -f deploy/cluster/traefik-test.yaml
 
 The default context is **prod**, so always pass `--context` explicitly.
 
-Applying restarts Traefik. The chart uses `updateStrategy: Recreate` (the old pod is
-terminated before the new one starts, because the ACME volume is RWO and a rolling
-update deadlocks on it), so expect a brief ingress blip on every change.
-
 ## Verifying a file still matches its cluster
-
-Both files are byte-identical to what is live. Check before editing, so you never apply a
-file that has drifted from reality:
 
 ```bash
 kubectl --context networco-test diff -f deploy/cluster/traefik-test.yaml
 ```
 
-Empty output means no drift. Run the prod equivalent before touching `traefik-prod.yaml`.
+Empty output means no drift. Run the prod equivalent before touching
+`traefik-prod.yaml`.
 
-## The client-IP problem, and why prod does not have the fix
+## History
 
-With the chart default (`externalTrafficPolicy: Cluster`) kube-proxy SNATs the connection
-before Traefik sees it, so Traefik stamps `X-Forwarded-For` with the CNI gateway
-`10.42.0.1` and **every user collapses into a single address** downstream. The app side is
-correct — `Program.cs` configures `ForwardedHeaders.XForwardedFor` with cleared
-allowlists and `UseForwardedHeaders()` runs first — it just faithfully records a useless
-value.
-
-Consequences in the IdP:
-
-- the per-IP account lockout (10 failures / 30 min) becomes a **global** lockout: ten
-  failed logins from anyone locks out everyone
-- the per-IP rate limiters become global budgets — including the `auth-strict` cap of
-  **5 requests/minute on `POST /oauth/token`**, i.e. five logins per minute for the
-  entire user base
-
-Test was fixed on 2026-08-18 with `externalTrafficPolicy: Local`, which skips the SNAT
-and delivers straight to a node-local Traefik pod. Confirmed by a real request recording
-`81.166.239.243` where all 206 prior audit rows had recorded `10.42.0.1`.
-
-**Prod cannot take that change as it stands.** All three node IPs are round-robined in
-DNS, but Traefik runs as a single replica, because its ACME store is one RWO Longhorn
-volume. `Local` only delivers to a node-local Traefik pod, so the two nodes without one
-would blackhole roughly two thirds of all traffic.
-
-### Sequence to fix prod
-
-The blocker is TLS state, not the policy. Traefik has to be runnable on every node first:
-
-1. Issue certificates through cert-manager for `id.networco.no`, `networco.no` and
-   `api.networco.no`. cert-manager is installed with a working `letsencrypt-prod`
-   ClusterIssuer but currently issues **nothing** — there are no `Certificate` resources.
-   (`wildcard-tls` in the `networco` namespace is for the retired
-   `*.networco.countdown.no` and expired on 2026-07-05; it is not usable here.)
-2. Switch each ingress from `traefik.ingress.kubernetes.io/router.tls.certresolver` to the
-   issued secret, and verify HTTPS on all three hosts. Ingresses live in two repos —
-   `networco-id` owns `06-ingress.yaml`, `networco-app` owns the other two.
-3. Only once no host depends on the resolver: drop the ACME `additionalArguments` and
-   `persistence` from `traefik-prod.yaml`, so Traefik holds no state.
-4. Scale Traefik across the nodes (DaemonSet, or replicas with anti-affinity) so every
-   node that DNS points at has a local pod.
-5. Add the `service.spec.externalTrafficPolicy: Local` block, and confirm real client IPs
-   land in `audit_logs.ip_address`.
-
-Sequenced wrong, every prod site loses HTTPS at once. Steps 1–2 are reversible and can be
-done well ahead of the rest.
+- Until 2026-08-18 this configuration was cluster-only state; that is how the
+  client-IP problem stayed invisible for months.
+- Until 2026-08-19 Traefik ran its own ACME resolver against an RWO volume,
+  which pinned it to one replica; on 3-node prod that made
+  `externalTrafficPolicy: Local` impossible (two nodes would blackhole), so
+  every request was SNAT'd and arrived as `10.42.0.1`. The fix: move TLS to
+  cert-manager Secrets (bootstrapped by extracting Traefik's existing certs from
+  `acme.json`, so no re-issuance was needed for the cutover), then run Traefik
+  stateless as a DaemonSet with `Local`.
+- The `*.networco.countdown.no` legacy redirect was retired the same day (the
+  addresses are no longer in use); its IngressRoute, Middleware and certs were
+  deleted from both clusters.

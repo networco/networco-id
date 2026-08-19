@@ -1,11 +1,19 @@
-# Traefik configuration for the TEST cluster (tst01), applied BY HAND.
+# Traefik configuration for the TEST (tst01) cluster — IDENTICAL for test and prod
+# since the cert-manager migration (2026-08-19). Applied BY HAND (see README);
+# networco-app carries the same values in
+# infrastructure/k3s/manifests/00-traefik-config.yaml, applied by its deploy.sh —
+# keep the two in sync, they manage the SAME cluster object.
 #
-# Not applied by any workflow — see deploy/cluster/README.md. k3s installs Traefik
-# from a HelmChart, so this HelmChartConfig is the only durable way to change it:
-# a kubectl patch on the Service is reverted by the helm-controller.
+# Traefik holds NO certificate state. TLS comes from cert-manager-issued
+# Secrets referenced by each Ingress/IngressRoute. That is what allows:
+#   - DaemonSet: one Traefik pod per node (no RWO ACME volume pinning it to one)
+#   - externalTrafficPolicy: Local — kube-proxy stops SNAT-ing, so Traefik sees
+#     the REAL client IP instead of the CNI gateway 10.42.0.1
 #
-# The values below are byte-identical to what is live on the test cluster; verify
-# with the kubectl diff in the README.
+# Do NOT re-add certificatesresolvers here. Besides re-creating the state
+# problem, the resolver intercepts every /.well-known/acme-challenge/ request
+# on port 80, which 404s cert-manager's HTTP-01 challenges — the two cannot
+# coexist.
 apiVersion: helm.cattle.io/v1
 kind: HelmChartConfig
 metadata:
@@ -13,43 +21,17 @@ metadata:
   namespace: kube-system
 spec:
   valuesContent: |-
-    # Roll Traefik with Recreate, NOT the chart-default RollingUpdate
-    # (maxUnavailable:0, maxSurge:1). Traefik's ACME store is a single RWO Longhorn
-    # PVC: a rolling update surges a new pod before terminating the old one, but the
-    # new pod can't attach the RWO volume while the old pod (often on another node)
-    # still holds it — so the rollout deadlocks in Pending indefinitely and the old
-    # pod keeps serving stale config. (This is exactly what stripped the HTTP→HTTPS
-    # redirect below for ~2 weeks: http://networco.no fell through to Traefik's
-    # default 404, which is what mobile/Facebook in-app browsers hit.) Recreate
-    # terminates the old pod first (freeing the volume), then starts the new one —
-    # a brief ingress blip on each Traefik change, but no deadlock.
-    updateStrategy:
-      type: Recreate
-      # rollingUpdate must be unset for a Recreate strategy.
-      rollingUpdate: null
+    # One pod per node: every node DNS points at has a local Traefik, which
+    # externalTrafficPolicy: Local requires (it never crosses nodes).
+    deployment:
+      kind: DaemonSet
 
-    # Additional arguments for Traefik
     additionalArguments:
-      - "--certificatesresolvers.letsencrypt.acme.email=admin@networco.no"
-      - "--certificatesresolvers.letsencrypt.acme.storage=/data/acme.json"
-      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
-      # Redirect plain HTTP → HTTPS so the bare domain works in a browser. The
-      # ACME HTTP-01 challenge handler keeps priority on the web entrypoint, so
-      # cert issuance/renewal still works.
+      # Redirect plain HTTP -> HTTPS so the bare domain works in a browser.
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
       - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
       - "--log.level=INFO"
 
-    # Persistent storage for ACME certificates. Env-aware (deploy.sh): prod
-    # longhorn; single-node test local-path (no Longhorn there — an unbound PVC
-    # leaves the new Traefik pod Pending, so ACME never issues a real cert).
-    persistence:
-      enabled: true
-      storageClass: local-path
-      size: 128Mi
-      path: /data
-
-    # Ports configuration
     ports:
       web:
         port: 80
@@ -59,37 +41,9 @@ spec:
         exposedPort: 443
         tls:
           enabled: true
-          certResolver: letsencrypt
 
-    # Deployment configuration
-    deployment:
-      replicas: 1
-      podSecurityContext:
-        fsGroup: 65532
-      initContainers:
-        - name: volume-permissions
-          image: busybox:latest
-          command: ["sh", "-c", "touch /data/acme.json && chown 65532:65532 /data/acme.json && chmod 600 /data/acme.json"]
-          # securityContext:
-          #   runAsUser: 0
-          volumeMounts:
-            - name: data
-              mountPath: /data
-
-    # Preserve the real client IP. With the chart default (externalTrafficPolicy:
-    # Cluster) kube-proxy SNATs the connection before Traefik sees it, so Traefik
-    # set X-Forwarded-For to the CNI gateway (10.42.0.1) and every user collapsed
-    # into a single address downstream. That made the IdP's per-IP account lockout
-    # (10 failures / 30 min) a GLOBAL lockout, and its per-IP rate limits a global
-    # budget — including the 5/min auth-strict cap on POST /oauth/token, i.e. five
-    # logins per minute for the whole user base. All 206 audit rows on this cluster
-    # recorded 10.42.0.1; not one real client IP was ever seen.
-    #
-    # Local skips the SNAT and delivers straight to a node-local Traefik pod. Safe
-    # here: single-node cluster, Traefik runs on it. NOT safe on prod as it stands —
-    # 3 nodes round-robin in DNS but Traefik is a single replica (its ACME store is
-    # one RWO volume, see updateStrategy above), so Local would blackhole the two
-    # nodes with no local pod.
+    # Deliver to the node-local pod without SNAT: preserves the client IP and
+    # is safe now that the DaemonSet guarantees a pod on every node.
     service:
       spec:
         externalTrafficPolicy: Local
