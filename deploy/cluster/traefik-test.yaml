@@ -28,6 +28,8 @@ spec:
 
     additionalArguments:
       # Redirect plain HTTP -> HTTPS so the bare domain works in a browser.
+      # HTTP-01 validation is unaffected: Let's Encrypt follows the redirect
+      # and the solver answers over HTTPS. (Verified live on both clusters.)
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
       - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
       - "--log.level=INFO"
