@@ -149,6 +149,17 @@ public interface IAuthService
 /// </summary>
 public class AuthService : IAuthService
 {
+    /// <summary>Escalation cap for repeat lockouts: the lock duration multiplier is
+    /// 2^strikes, at most 2^4 = 16x the base duration. Deliberately a constant, not
+    /// config — regnid uses the same cap, and there is no operational reason to tune
+    /// it separately from LockoutDurationMinutes.</summary>
+    private const int MaxLockoutEscalation = 4;
+
+    /// <summary>How long lockout strikes survive without a new failed attempt.
+    /// Strikes outlive the failure-counter window on purpose (escalation would be
+    /// meaningless otherwise) but are not held forever against a returning user.</summary>
+    private const int StrikeMemoryHours = 24;
+
     private readonly AuthDbContext _context;
     private readonly IPasswordHasher _passwordHasher;
     private readonly ILogger<AuthService> _logger;
@@ -241,6 +252,18 @@ public class AuthService : IAuthService
         // window. Without this the account stays parked at the threshold and
         // the next single typo re-locks it immediately.
         var decayed = false;
+
+        // Strikes are longer-lived than the failure counter: they survive each
+        // expired lock (that is the escalation), and are forgotten only after a
+        // full day without a failed attempt — so a user who fat-fingers into a
+        // lock twice in one evening escalates, but not for a typo next month.
+        if (cred.LockoutStrikes > 0 && cred.LastFailedLoginAt is { } lastFailure &&
+            lastFailure.AddHours(StrikeMemoryHours) <= now)
+        {
+            cred.LockoutStrikes = 0;
+            decayed = true;
+        }
+
         if (cred.LockedUntil.HasValue)
         {
             // Lock has expired (the active case returned above).
@@ -268,14 +291,23 @@ public class AuthService : IAuthService
             DateTimeOffset? lockedUntil = null;
             if (cred.FailedLoginAttempts >= _config.MaxFailedLoginAttempts)
             {
-                lockedUntil = now.AddMinutes(_config.LockoutDurationMinutes);
+                // Repeat lockouts escalate: each strike doubles the duration,
+                // capped at 2^MaxLockoutEscalation (16x). The multiplier uses the
+                // strike count BEFORE this lockout, so the first lock is always
+                // the base duration.
+                var multiplier = 1 << Math.Min(cred.LockoutStrikes, MaxLockoutEscalation);
+                var lockMinutes = _config.LockoutDurationMinutes * multiplier;
+                cred.LockoutStrikes++;
+
+                lockedUntil = now.AddMinutes(lockMinutes);
                 cred.LockedUntil = lockedUntil;
-                _logger.LogWarning("User account locked: {Email} for {Minutes} minutes", user.Email, _config.LockoutDurationMinutes);
+                _logger.LogWarning("User account locked: {Email} for {Minutes} minutes (strike {Strike})",
+                    user.Email, lockMinutes, cred.LockoutStrikes);
 
                 await _emailService.SendEmailAsync(
                     user.Email,
                     "NETWORCO ID: Account Locked",
-                    $"Your account has been temporarily locked due to too many failed login attempts. It will be automatically unlocked in {_config.LockoutDurationMinutes} minutes.",
+                    $"Your account has been temporarily locked due to too many failed login attempts. It will be automatically unlocked in {lockMinutes} minutes.",
                     user.FirstName);
             }
 
@@ -293,11 +325,13 @@ public class AuthService : IAuthService
 
         // Success clears every trace of past failures.
         var dirty = decayed;
-        if (cred.FailedLoginAttempts != 0 || cred.LastFailedLoginAt is not null || cred.LockedUntil is not null)
+        if (cred.FailedLoginAttempts != 0 || cred.LastFailedLoginAt is not null ||
+            cred.LockedUntil is not null || cred.LockoutStrikes != 0)
         {
             cred.FailedLoginAttempts = 0;
             cred.LastFailedLoginAt = null;
             cred.LockedUntil = null;
+            cred.LockoutStrikes = 0;
             dirty = true;
         }
 
@@ -1426,6 +1460,7 @@ public class AuthService : IAuthService
             user.Credential.FailedLoginAttempts = 0;
             user.Credential.LastFailedLoginAt = null;
             user.Credential.LockedUntil = null;
+            user.Credential.LockoutStrikes = 0;
             _context.UserCredentials.Update(user.Credential);
         }
 

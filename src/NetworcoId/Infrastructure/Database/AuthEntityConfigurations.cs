@@ -125,6 +125,9 @@ public class UserCredentialEntityConfiguration : IEntityTypeConfiguration<UserCr
         builder.Property(c => c.FailedLoginAttempts)
             .HasDefaultValue(0);
 
+        builder.Property(c => c.LockoutStrikes)
+            .HasDefaultValue(0);
+
         // Index for performance
         builder.HasIndex(c => c.Id);
     }
