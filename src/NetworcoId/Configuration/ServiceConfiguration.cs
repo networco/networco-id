@@ -143,7 +143,6 @@ public static class ServiceConfiguration
         services.AddScoped<IKeyManagementService, KeyManagementService>();
         services.AddHostedService<KeyRotationWorker>();
         services.AddHostedService<CacheInvalidationWorker>();
-        services.AddHostedService<LockoutCleanupWorker>();
 
         // JWT service
         services.AddScoped<IJwtService, JwtService>();
@@ -162,7 +161,6 @@ public static class ServiceConfiguration
         services.AddHostedService<SettingsInitialLoader>();
         services.AddScoped<IClientManagementService, ClientManagementService>();
         services.AddScoped<Services.Messaging.IEmailService, Services.Messaging.NatsEmailService>();
-        services.AddScoped<Services.Security.ILockoutService, Services.Security.LockoutService>();
 
         // Add ASP.NET Core Authentication & Authorization
         services.AddAuthorization();

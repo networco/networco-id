@@ -10,13 +10,12 @@ using NetworcoId.Infrastructure.Database;
 using NetworcoId.Models.Auth;
 using NetworcoId.Services;
 using NetworcoId.Services.Messaging;
-using NetworcoId.Services.Security;
 
 namespace NetworcoId.Pages;
 
 [IgnoreAntiforgeryToken]
 [EnableRateLimiting("auth-login-strict")]
-public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthDbContext dbContext, IEmailService emailService, ILogger<LoginModel> logger, ILockoutService lockoutService, IClientManagementService clientService) : PageModel
+public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthDbContext dbContext, IEmailService emailService, ILogger<LoginModel> logger, IClientManagementService clientService) : PageModel
 {
     [BindProperty(SupportsGet = true)]
     public string? client_id { get; set; }
@@ -229,15 +228,6 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
 
             logger.LogInformation("Login Post: Email={Email}, ClientId={ClientId}, RedirectUri={RedirectUri}", Email, ClientId, RedirectUri);
 
-            // Check IP Lockout
-            var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-            if (await lockoutService.IsLockedAsync(ip))
-            {
-                logger.LogWarning("Login attempt from locked IP: {Ip}", ip);
-                ErrorMessage = "Din IP-adresse er midlertidig sperret pga. for mange feilede forsøk.";
-                return Page();
-            }
-
             // Authenticate user. AuthService owns every failed-attempt counter and
             // lockout deadline; this page only renders the outcome. Doing our own
             // bookkeeping here used to double-count attempts and re-arm the lock on
@@ -249,16 +239,6 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
             {
                 logger.LogWarning("Login Post: Authentication failed for {Email} ({Outcome})", Email, result.Outcome);
 
-                // An attempt refused by an already-active account lock never reached
-                // the password check, so it isn't evidence of guessing and must not
-                // count toward the IP throttle either. Every other failure does count,
-                // including an identifier with no account behind it: IP throttling is
-                // the defence against spraying and email enumeration.
-                if (result.Outcome != AuthenticationOutcome.Locked || result.PasswordWasChecked)
-                {
-                    await lockoutService.RecordFailureAsync(ip);
-                }
-
                 ErrorMessage = result.Outcome == AuthenticationOutcome.Locked && result.LockedUntil.HasValue
                     ? $"Kontoen er låst pga. for mange feilede forsøk. Prøv igjen om {FormatRemaining(result.LockedUntil.Value)}."
                     : "Ugyldig e-post eller passord";
@@ -267,10 +247,6 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
             }
 
             var user = result.User!;
-
-            // Reset IP failure on success
-            var ipSuccess = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-            await lockoutService.ResetAsync(ipSuccess);
 
             // Block login until the user has verified their email. We surface a
             // resend CTA so anyone whose verification link expired (or got lost)

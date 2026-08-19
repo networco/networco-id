@@ -61,14 +61,6 @@ public class IndexModel : PageModel
         [Range(1, 365)]
         public int RefreshTokenExpirationDays { get; set; }
 
-        [Display(Name = "IP Lockout Max Failures")]
-        [Range(1, 100)]
-        public int IpLockoutMaxFailures { get; set; }
-
-        [Display(Name = "IP Lockout Duration (Minutes)")]
-        [Range(1, 1440)]
-        public int IpLockoutDurationMinutes { get; set; }
-
         [Display(Name = "Admin Rate Limit (Requests)")]
         [Range(1, 100)]
         public int AdminRateLimitPermit { get; set; }
@@ -100,8 +92,6 @@ public class IndexModel : PageModel
             AccessTokenExpirationMinutes = _config.AccessTokenExpirationMinutes,
             RefreshTokenExpirationDays = _config.RefreshTokenExpirationDays,
             
-            IpLockoutMaxFailures = _config.IpLockoutMaxFailures,
-            IpLockoutDurationMinutes = _config.IpLockoutDurationMinutes,
             AdminRateLimitPermit = _config.AdminRateLimitPermit,
             AdminRateLimitWindowSeconds = _config.AdminRateLimitWindowSeconds,
             AuthRateLimitPermit = _config.AuthRateLimitPermit,
@@ -129,8 +119,6 @@ public class IndexModel : PageModel
         _config.AccessTokenExpirationMinutes = Input.AccessTokenExpirationMinutes;
         _config.RefreshTokenExpirationDays = Input.RefreshTokenExpirationDays;
 
-        _config.IpLockoutMaxFailures = Input.IpLockoutMaxFailures;
-        _config.IpLockoutDurationMinutes = Input.IpLockoutDurationMinutes;
         _config.AdminRateLimitPermit = Input.AdminRateLimitPermit;
         _config.AdminRateLimitWindowSeconds = Input.AdminRateLimitWindowSeconds;
         _config.AuthRateLimitPermit = Input.AuthRateLimitPermit;

@@ -10,7 +10,6 @@ using Microsoft.EntityFrameworkCore;
 using NetworcoId.Infrastructure.Database;
 using NetworcoId.Services.Audit;
 using NetworcoId.Services.Messaging;
-using NetworcoId.Services.Security;
 using NetworcoId.Pages;
 
 namespace NetworcoId.Endpoints;
@@ -202,9 +201,7 @@ public static class AuthEndpoints
 
     private static async Task<IResult> ResetPassword(
         [FromBody] ResetPasswordRequest request,
-        IAuthService authService,
-        ILockoutService lockoutService,
-        HttpContext httpContext)
+        IAuthService authService)
     {
         if (string.IsNullOrWhiteSpace(request.Token) || string.IsNullOrWhiteSpace(request.NewPassword))
         {
@@ -216,10 +213,6 @@ public static class AuthEndpoints
         {
             return Results.BadRequest(new { error = "Invalid or expired reset token" });
         }
-
-        // A completed reset proves account ownership — drop the IP throttle so the
-        // user isn't blocked by leftover failures from before the reset.
-        await lockoutService.ResetAsync(httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown");
 
         return Results.Ok(new { message = "Password has been successfully reset." });
     }

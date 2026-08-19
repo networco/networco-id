@@ -45,9 +45,6 @@ public class NetworcoIdConfig
     /// at the threshold waiting for the next typo to re-lock it.</summary>
     public int FailedLoginAttemptWindowMinutes { get; set; } = 15;
 
-    public int IpLockoutMaxFailures { get; set; } = 10;
-    public int IpLockoutDurationMinutes { get; set; } = 30;
-
     public int AdminRateLimitPermit { get; set; } = 3;
     public int AdminRateLimitWindowSeconds { get; set; } = 60;
 

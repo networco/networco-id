@@ -78,8 +78,6 @@ public class SettingsService : ISettingsService
         await SaveSettingAsync(nameof(config.RefreshTokenExpirationDays), config.RefreshTokenExpirationDays.ToString());
         
         // Brute Force & Rate Limiting
-        await SaveSettingAsync(nameof(config.IpLockoutMaxFailures), config.IpLockoutMaxFailures.ToString());
-        await SaveSettingAsync(nameof(config.IpLockoutDurationMinutes), config.IpLockoutDurationMinutes.ToString());
         await SaveSettingAsync(nameof(config.AdminRateLimitPermit), config.AdminRateLimitPermit.ToString());
         await SaveSettingAsync(nameof(config.AdminRateLimitWindowSeconds), config.AdminRateLimitWindowSeconds.ToString());
         await SaveSettingAsync(nameof(config.AuthRateLimitPermit), config.AuthRateLimitPermit.ToString());
@@ -121,12 +119,6 @@ public class SettingsService : ISettingsService
                     break;
                 case nameof(_config.RefreshTokenExpirationDays):
                     if (int.TryParse(value, out var refreshExp)) _config.RefreshTokenExpirationDays = refreshExp;
-                    break;
-                case nameof(_config.IpLockoutMaxFailures):
-                    if (int.TryParse(value, out var ipMax)) _config.IpLockoutMaxFailures = ipMax;
-                    break;
-                case nameof(_config.IpLockoutDurationMinutes):
-                    if (int.TryParse(value, out var ipDur)) _config.IpLockoutDurationMinutes = ipDur;
                     break;
                 case nameof(_config.AdminRateLimitPermit):
                     if (int.TryParse(value, out var admPerm)) _config.AdminRateLimitPermit = admPerm;
