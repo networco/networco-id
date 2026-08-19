@@ -43,7 +43,11 @@ on:
   # go to test (deploy-test.yml) and never trigger a prod deploy here.
   release:
     types: [released]
-  workflow_dispatch:
+  # NO workflow_dispatch. This workflow deploys PRODUCTION and takes its version
+  # from the release tag; a manual run has no release payload, so it used to fall
+  # back to v0.0.0 — on 2026-08-19 that shipped prod an untraceable
+  # ghcr.io/networco/networco-id:0.0.0.16 image, repointed `latest` at it and
+  # rewrote VERSION to 0.0.0.16 on main. Prod ships by publishing a release.
 
 env:
   REGISTRY: ghcr.io
@@ -68,7 +72,14 @@ jobs:
         id: ver
         run: |
           # v1.2.3 → 1.2.3 ; then 1.2.3.<run_number> (major.minor.patch.build)
-          SEMVER=$(echo "${{ github.event.release.tag_name || 'v0.0.0' }}" | sed 's/^v//')
+          TAG="${{ github.event.release.tag_name }}"
+          # Belt and braces alongside dropping workflow_dispatch above: refuse to
+          # invent a version rather than deploy prod as 0.0.0.
+          if [ -z "$TAG" ]; then
+            echo "::error::No release tag on this event — refusing to deploy production." >&2
+            exit 1
+          fi
+          SEMVER=$(echo "$TAG" | sed 's/^v//')
           echo "semver=${SEMVER}" >> "$GITHUB_OUTPUT"
           echo "version=${SEMVER}.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
       - name: Write & commit VERSION
