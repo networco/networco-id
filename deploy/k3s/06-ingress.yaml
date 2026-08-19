@@ -6,11 +6,11 @@ metadata:
   annotations:
     kubernetes.io/ingress.class: traefik
     traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
-    traefik.ingress.kubernetes.io/router.tls.certresolver: letsencrypt
 spec:
   tls:
   - hosts:
     - id.networco.no
+    secretName: id.networco.no-tls
   rules:
   - host: id.networco.no
     http:
@@ -22,3 +22,27 @@ spec:
             name: networcoid
             port:
               number: 80
+---
+# TLS certificate for the IdP host, issued by cert-manager through the
+# letsencrypt-http01 ClusterIssuer (HTTP-01 through Traefik, same challenge
+# type Traefik's own certresolver used). The deploy workflows sed
+# id.networco.no to the environment's host, which renames both the dnsName
+# and the secret consistently. The Ingress above references the secret by
+# the same sed-rewritten name.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: networcoid-tls
+  namespace: networco-id
+spec:
+  secretName: id.networco.no-tls
+  privateKey:
+    # Regenerate the key on every issuance. Also required for cert-manager to
+    # take over a Secret whose existing key doesn't match its defaults (the
+    # cutover Secrets were extracted from Traefik's acme.json).
+    rotationPolicy: Always
+  issuerRef:
+    name: letsencrypt-http01
+    kind: ClusterIssuer
+  dnsNames:
+    - id.networco.no
