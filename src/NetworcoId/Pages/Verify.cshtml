@@ -1,7 +1,7 @@
 @page
 @model NetworcoId.Pages.VerifyModel
 @{
-    ViewData["Title"] = Model.IsVerified ? "E-post bekreftet" : "Bekrefter...";
+    ViewData["Title"] = Model.IsVerified || Model.AlreadyVerified ? "E-post bekreftet" : "Bekrefter...";
 }
 
 @section Styles {
@@ -49,6 +49,26 @@
                     <div class="w-2 h-2 bg-networco-primary dark:bg-indigo-400 rounded-full animate-pulse"></div>
                     <p class="text-xs font-bold text-networco-authority-light/80 dark:text-gray-500 uppercase tracking-widest">Logger deg inn...</p>
                 </div>
+            </div>
+        }
+        else if (Model.AlreadyVerified)
+        {
+            <div class="text-center">
+                <div class="mx-auto w-20 h-20 bg-networco-baby-50 dark:bg-green-900/30 text-networco-primary dark:text-green-400 rounded-full flex items-center justify-center mb-6">
+                    <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                </div>
+                <h1 class="font-heading text-3xl font-black text-networco-authority-dark dark:text-white tracking-tight mb-3">Allerede bekreftet</h1>
+                <p class="text-networco-text dark:text-gray-400 font-medium mb-4 leading-relaxed">
+                    Du har allerede klikket på lenken og bekreftet.
+                </p>
+                <p class="text-networco-text dark:text-gray-400 font-medium mb-8 leading-relaxed">
+                    Nå kan du bare gå til NETWORCO og logge inn som vanlig med brukernavnet og passordet du opprettet.
+                </p>
+                <a href="@Model.HomeUrl" class="inline-block w-full bg-networco-coral text-white font-bold py-4 px-6 rounded-2xl hover:bg-networco-coral-light hover:shadow-lg hover:shadow-networco-coral/30 transition-all duration-200 text-lg">
+                    Gå til NETWORCO
+                </a>
             </div>
         }
         else if (Model.VerificationEmailResent)

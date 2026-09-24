@@ -32,6 +32,9 @@ public class VerifyModel(
     public bool RequiresManualLogin { get; set; }
     /// <summary>URL the user can click to log in after manual-login fallback.</summary>
     public string LoginUrl { get; set; } = "/Login";
+    /// <summary>True when the link was opened again after the email had
+    /// already been confirmed (double click, refresh, etc.).</summary>
+    public bool AlreadyVerified { get; set; }
     /// <summary>True after a fresh verification email has been requested via the resend form.</summary>
     public bool VerificationEmailResent { get; set; }
     /// <summary>True when the failure is recoverable by sending a new link.
@@ -77,6 +80,16 @@ public class VerifyModel(
                 return Page();
             }
 
+            // The link was already used (second click, page refresh, mail scanner
+            // pre-fetch, …). Tell the user they're done instead of showing an error
+            // that reads like a rejection. No auto-login here — the session id was
+            // cleared on the first use, so this is purely informational.
+            if (user.EmailVerified)
+            {
+                AlreadyVerified = true;
+                return Page();
+            }
+
             if (user.EmailVerificationTokenExpiresAt < DateTimeOffset.UtcNow)
             {
                 ErrorMessage = "Bekreftelsestoken har utløpt";
@@ -93,11 +106,13 @@ public class VerifyModel(
                 && !string.IsNullOrEmpty(cookieSessionId)
                 && string.Equals(user.EmailVerificationSessionId, cookieSessionId, StringComparison.Ordinal);
 
-            // Mark email as verified and clear the verification token + session id
-            // (single use either way — the user is verified and the link is spent).
+            // Mark email as verified and clear the session id (single use — the
+            // link can never auto-login again). The token itself is kept so a
+            // repeat click can be recognised and answered with "already
+            // confirmed" rather than "invalid token". It grants nothing once
+            // EmailVerified is set, and is replaced/cleared by any later
+            // resend, email change or password reset.
             user.EmailVerified = true;
-            user.EmailVerificationToken = null;
-            user.EmailVerificationTokenExpiresAt = null;
             user.EmailVerificationSessionId = null;
 
             await dbContext.SaveChangesAsync();
