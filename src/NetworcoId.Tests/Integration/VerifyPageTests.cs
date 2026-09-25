@@ -92,8 +92,25 @@ public class VerifyPageTests : IClassFixture<WebApplicationFactory<Program>>, ID
         var second = await _client.GetAsync($"/verify?token={Token}");
         Assert.Equal(HttpStatusCode.OK, second.StatusCode);
         var secondBody = await second.Content.ReadAsStringAsync();
-        Assert.Contains("Du har allerede klikket på lenken og bekreftet.", secondBody);
+        Assert.Contains("E-posten din er bekreftet", secondBody);
+        Assert.Contains("Gå til innlogging", secondBody);
         Assert.DoesNotContain("Bekreftelse mislyktes", secondBody);
+    }
+
+    [Fact]
+    public async Task Verify_SecondClick_WithAppLoginFlow_ResumesIt()
+    {
+        // Registration started from the app carries its /Login?client_id=… request
+        // through the email link; the "already confirmed" button must resume it so
+        // the user ends up back in the app rather than on the home page.
+        var returnUrl = "/Login?client_id=networco-app&redirect_uri=https%3A%2F%2Fapp.example%2Fauth%2Fcallback&state=abc";
+        var link = $"/verify?token={Token}&return_url={Uri.EscapeDataString(returnUrl)}";
+
+        await _client.GetAsync(link);
+        var body = await (await _client.GetAsync(link)).Content.ReadAsStringAsync();
+
+        Assert.Contains("E-posten din er bekreftet", body);
+        Assert.Contains("href=\"/Login?client_id=networco-app&amp;redirect_uri=", body);
     }
 
     [Fact]

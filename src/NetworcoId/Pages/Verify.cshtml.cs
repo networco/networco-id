@@ -35,6 +35,10 @@ public class VerifyModel(
     /// <summary>True when the link was opened again after the email had
     /// already been confirmed (double click, refresh, etc.).</summary>
     public bool AlreadyVerified { get; set; }
+    /// <summary>True when the link carries the relying party's /Login?client_id=…
+    /// request, so logging in via <see cref="LoginUrl"/> lands the user back in
+    /// the app. A bare /Login would strand them on this service instead.</summary>
+    public bool ResumesOAuthLogin => ReturnUrl.StartsWith("/Login", StringComparison.OrdinalIgnoreCase);
     /// <summary>True after a fresh verification email has been requested via the resend form.</summary>
     public bool VerificationEmailResent { get; set; }
     /// <summary>True when the failure is recoverable by sending a new link.
@@ -47,6 +51,11 @@ public class VerifyModel(
     public async Task<IActionResult> OnGetAsync(string? token, string? return_url)
     {
         ReturnUrl = !string.IsNullOrWhiteSpace(return_url) ? return_url : _config.FrontendUrl;
+
+        // Build a sensible login URL we can show on the manual-login and
+        // already-confirmed screens. Preserves the original OAuth params if the
+        // user came via /Login so they can resume the same flow after authenticating.
+        LoginUrl = ResumesOAuthLogin ? ReturnUrl : "/Login";
 
         if (string.IsNullOrEmpty(token))
         {
@@ -82,8 +91,8 @@ public class VerifyModel(
 
             // The link was already used (second click, page refresh, mail scanner
             // pre-fetch, …). Tell the user they're done instead of showing an error
-            // that reads like a rejection. No auto-login here — the session id was
-            // cleared on the first use, so this is purely informational.
+            // that reads like a rejection, and send them on to log in. No auto-login
+            // here — the session id was cleared on the first use.
             if (user.EmailVerified)
             {
                 AlreadyVerified = true;
@@ -119,13 +128,6 @@ public class VerifyModel(
 
             // Always clear the binding cookie too so it can't be replayed.
             Response.Cookies.Delete(RegisterModel.VerifyCookieName);
-
-            // Build a sensible login URL we can show on the manual-login screen.
-            // Preserves the original OAuth params if the user came via /Login so
-            // they can resume the same flow after authenticating.
-            LoginUrl = ReturnUrl.StartsWith("/Login", StringComparison.OrdinalIgnoreCase)
-                ? ReturnUrl
-                : "/Login";
 
             if (!sameBrowser)
             {
