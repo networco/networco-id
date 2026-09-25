@@ -59,15 +59,13 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
                     </svg>
                 </div>
-                <h1 class="font-heading text-3xl font-black text-networco-authority-dark dark:text-white tracking-tight mb-3">Allerede bekreftet</h1>
-                <p class="text-networco-text dark:text-gray-400 font-medium mb-4 leading-relaxed">
-                    Du har allerede klikket på lenken og bekreftet.
-                </p>
+                <h1 class="font-heading text-3xl font-black text-networco-authority-dark dark:text-white tracking-tight mb-3">E-posten din er bekreftet</h1>
+                @* Worded so it's also true when a mail scanner opened the link before the user did. *@
                 <p class="text-networco-text dark:text-gray-400 font-medium mb-8 leading-relaxed">
-                    Nå kan du bare gå til NETWORCO og logge inn som vanlig med brukernavnet og passordet du opprettet.
+                    Nå kan du logge inn på vanlig måte med e-postadressen og passordet du opprettet.
                 </p>
-                <a href="@Model.HomeUrl" class="inline-block w-full bg-networco-coral text-white font-bold py-4 px-6 rounded-2xl hover:bg-networco-coral-light hover:shadow-lg hover:shadow-networco-coral/30 transition-all duration-200 text-lg">
-                    Gå til NETWORCO
+                <a href="@(Model.ResumesOAuthLogin ? Model.LoginUrl : Model.HomeUrl)" class="inline-block w-full bg-networco-coral text-white font-bold py-4 px-6 rounded-2xl hover:bg-networco-coral-light hover:shadow-lg hover:shadow-networco-coral/30 transition-all duration-200 text-lg">
+                    Gå til innlogging
                 </a>
             </div>
         }
