@@ -23,7 +23,9 @@
         @if (Model.VerificationEmailResent)
         {
             <div class="bg-networco-baby-50 dark:bg-green-900/20 border border-networco-primary/20 dark:border-green-800/30 text-networco-primary dark:text-green-400 rounded-2xl p-4 mb-8 text-center text-sm font-medium">
-                Vi har sendt en ny bekreftelseslenke hvis e-postadressen er registrert. Sjekk innboksen din.
+                @* Same reply for unknown, unverified and already-verified addresses (no account probing). *@
+                Hvis e-postadressen er registrert og ikke bekreftet ennå, har vi sendt en ny bekreftelseslenke. Sjekk innboksen din.
+                Har du allerede bekreftet, kan du logge inn under som vanlig.
             </div>
         }
         else if (Model.RequiresEmailVerification)

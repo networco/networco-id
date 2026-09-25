@@ -79,9 +79,14 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
                     </svg>
                 </div>
-                <h1 class="font-heading text-3xl font-black text-networco-authority-dark dark:text-white tracking-tight mb-3">Sjekk innboksen din</h1>
+                <h1 class="font-heading text-3xl font-black text-networco-authority-dark dark:text-white tracking-tight mb-3">Forespørsel mottatt</h1>
+                @* Deliberately the same reply whether the address is unknown, unverified or
+                   already verified, so the form can't be used to probe accounts. *@
+                <p class="text-networco-text dark:text-gray-400 font-medium mb-4 leading-relaxed">
+                    Hvis e-postadressen er registrert og ikke bekreftet ennå, har vi sendt en ny bekreftelseslenke. Sjekk innboksen din (og kanskje søppelpost-mappen).
+                </p>
                 <p class="text-networco-text dark:text-gray-400 font-medium mb-8 leading-relaxed">
-                    Hvis e-postadressen er registrert hos oss, har vi sendt en ny bekreftelseslenke. Sjekk innboksen din (og kanskje søppelpost-mappen).
+                    Har du allerede bekreftet e-posten din, trenger du ingen ny lenke. Da kan du bare logge inn som vanlig med brukernavnet og passordet du opprettet.
                 </p>
                 <a href="/Login" class="inline-block w-full bg-networco-coral text-white font-bold py-4 px-6 rounded-2xl hover:bg-networco-coral-light hover:shadow-lg hover:shadow-networco-coral/30 transition-all duration-200 text-lg">
                     Tilbake til innlogging

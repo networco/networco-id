@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -101,5 +102,25 @@ public class VerifyPageTests : IClassFixture<WebApplicationFactory<Program>>, ID
         var response = await _client.GetAsync("/verify?token=does-not-exist");
         var body = await response.Content.ReadAsStringAsync();
         Assert.Contains("Bekreftelse mislyktes", body);
+    }
+
+    [Fact]
+    public async Task Resend_AlreadyVerified_TellsUserToLogIn()
+    {
+        await _client.GetAsync($"/verify?token={Token}");
+
+        // Load the form like a browser would (the tokenless error page renders it)
+        // to get the antiforgery cookie + field for the POST.
+        var formPage = await (await _client.GetAsync("/verify")).Content.ReadAsStringAsync();
+        var antiforgery = Regex.Match(formPage, "name=\"__RequestVerificationToken\" type=\"hidden\" value=\"([^\"]+)\"").Groups[1].Value;
+
+        var response = await _client.PostAsync("/verify?handler=Resend", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = antiforgery,
+            ["resendEmail"] = "verify.page@networco.dev",
+        }));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("Har du allerede bekreftet e-posten din, trenger du ingen ny lenke.", body);
     }
 }
