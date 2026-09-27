@@ -192,6 +192,20 @@ builder.Services.AddRateLimiter(options =>
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));
+
+    // Server-to-server API (/api/service/*, networco-app's account deletion). One shared
+    // bucket, not per IP: on prod every caller arrives as the ingress gateway address, and
+    // the only legitimate caller is networco-app, which retries. Generous enough for its
+    // hourly sweep; caps key-guessing to a trickle.
+    options.AddPolicy("service-api", _ =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: "service-api",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 120,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
 });
 
 var app = builder.Build();

@@ -90,7 +90,13 @@ public class AccountLifecycleTests : IClassFixture<LoginLockoutFactory>
         var (id, email) = await CreateUserAsync();
         // A failed login for the email alone is logged without a user id.
         await WithScopeAsync(sp => sp.GetRequiredService<IAuthService>().AuthenticateAsync(email, "Wrong@12345678"));
-        await WithScopeAsync(sp => sp.GetRequiredService<IAuthService>().AuthenticateAsync(email.ToUpperInvariant() + "x", Password));
+        // …and a row that names the email in another case, with no user id at all.
+        await WithScopeAsync(async sp =>
+        {
+            var db = sp.GetRequiredService<AuthDbContext>();
+            db.AuditLogs.Add(new AuditLogEntity { Id = Guid.NewGuid(), EventType = "LoginFailed", Description = $"Login attempt for unknown user: {email.ToUpperInvariant()}", Timestamp = DateTimeOffset.UtcNow });
+            return await db.SaveChangesAsync();
+        });
 
         Assert.True(await WithScopeAsync(sp => sp.GetRequiredService<IAccountLifecycleService>().DeleteAsync(id, "test")));
 
@@ -152,4 +158,39 @@ public class AccountLifecycleTests : IClassFixture<LoginLockoutFactory>
         // Idempotent.
         Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/service/users/{id}")).StatusCode);
     }
+
+    [Fact]
+    public async Task Delete_scrubs_rows_naming_the_national_id_but_leaves_other_users_similar_emails_alone()
+    {
+        var (id, email) = await CreateUserAsync();
+        const string nationalId = "01020312345";
+        var otherEmail = "k" + email; // contains the deleted email as a substring
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+            var user = await db.Users.SingleAsync(u => u.Id == id);
+            user.NationalId = nationalId;
+            db.AuditLogs.AddRange(
+                new AuditLogEntity { Id = Guid.NewGuid(), EventType = "LoginFailed", Description = $"Login attempt for unknown user: {nationalId}", Timestamp = DateTimeOffset.UtcNow },
+                new AuditLogEntity { Id = Guid.NewGuid(), EventType = "LoginFailed", Description = $"Login attempt for unknown user: {otherEmail}", IpAddress = "10.0.0.1", Timestamp = DateTimeOffset.UtcNow });
+            await db.SaveChangesAsync();
+        }
+
+        Assert.True(await WithScopeAsync(sp => sp.GetRequiredService<IAccountLifecycleService>().DeleteAsync(id, "test")));
+
+        var logs = await WithScopeAsync(sp => sp.GetRequiredService<AuthDbContext>().AuditLogs.AsNoTracking().ToListAsync());
+        Assert.DoesNotContain(logs, l => l.Description.Contains(nationalId));
+        var other = Assert.Single(logs, l => l.Description.EndsWith(otherEmail));
+        Assert.Equal("10.0.0.1", other.IpAddress);
+    }
+
+    [Theory]
+    [InlineData("Login attempt for unknown user: ola@x.no", "ola@x.no", true)]
+    [InlineData("User logged in: OLA@X.NO.", "ola@x.no", true)]
+    [InlineData("Login attempt for unknown user: kola@x.no", "ola@x.no", false)]
+    [InlineData("Login attempt for unknown user: ola@x.no.uk", "ola@x.no", false)]
+    [InlineData("Login attempt for unknown user: 01020312345", "01020312345", true)]
+    [InlineData("Login attempt for unknown user: 101020312345", "01020312345", false)]
+    public void MentionsIdentifier_matches_whole_tokens_only(string text, string identifier, bool expected) =>
+        Assert.Equal(expected, AccountLifecycleService.MentionsIdentifier(text, identifier));
 }

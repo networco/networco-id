@@ -333,16 +333,8 @@ public class AuthService : IAuthService
                 : AuthenticationResult.InvalidCredentials();
         }
 
-        if (!user.IsActive)
-        {
-            _logger.LogWarning("Login attempt for deactivated account {UserId}", user.Id);
-            await _auditService.LogAsync("LoginFailed", $"Login attempt for deactivated account: {user.Email}", user.Id);
-            return AuthenticationResult.Disabled();
-        }
-
-        await _auditService.LogAsync("LoginSuccess", $"User logged in: {user.Email}", user.Id);
-
-        // Success clears every trace of past failures.
+        // Correct password: clears every trace of past failures (also for a deactivated
+        // account, so stale counters don't outlive a reactivation).
         var dirty = decayed;
         if (cred.FailedLoginAttempts != 0 || cred.LastFailedLoginAt is not null ||
             cred.LockedUntil is not null || cred.LockoutStrikes != 0)
@@ -371,6 +363,15 @@ public class AuthService : IAuthService
             _context.UserCredentials.Update(cred);
             await _context.SaveChangesAsync();
         }
+
+        if (!user.IsActive)
+        {
+            _logger.LogWarning("Login attempt for deactivated account {UserId}", user.Id);
+            await _auditService.LogAsync("LoginFailed", $"Login attempt for deactivated account: {user.Email}", user.Id);
+            return AuthenticationResult.Disabled();
+        }
+
+        await _auditService.LogAsync("LoginSuccess", $"User logged in: {user.Email}", user.Id);
 
         return AuthenticationResult.Succeeded(new NetworcoIdUserDto
         {

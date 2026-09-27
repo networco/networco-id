@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using NetworcoId.Infrastructure.Database;
 using NetworcoId.Services.Audit;
@@ -75,11 +76,20 @@ public class AccountLifecycleService(
 
         // The audit log outlives the user (FK is SetNull) and its free text carries the
         // email, IP and user agent. Scrub the user's own rows, plus rows that only name
-        // them by email (e.g. failed logins for an identifier, which have no user id).
-        var email = user.Email.ToLower();
-        var logs = await context.AuditLogs
-            .Where(l => l.UserId == userId || l.Description.ToLower().Contains(email))
-            .ToListAsync();
+        // them by an identifier — a failed login logs whatever was typed (email, national
+        // id or phone) with no user id.
+        var logs = await context.AuditLogs.Where(l => l.UserId == userId).ToListAsync();
+        foreach (var identifier in IdentifiersOf(user))
+        {
+            var lowered = identifier.ToLower();
+            var candidates = await context.AuditLogs
+                .Where(l => l.UserId != userId && l.Description.ToLower().Contains(lowered))
+                .ToListAsync();
+            // Contains is only a pre-filter: "ola@x.no" is also inside "kola@x.no", and
+            // another user's audit trail must not be wiped.
+            logs.AddRange(candidates.Where(l => MentionsIdentifier(l.Description, identifier)));
+        }
+        logs = logs.DistinctBy(l => l.Id).ToList();
         foreach (var log in logs)
         {
             log.Description = RedactedDescription;
@@ -101,4 +111,21 @@ public class AccountLifecycleService(
         logger.LogInformation("Deleted user {UserId} ({LogCount} audit rows scrubbed): {Reason}", userId, logs.Count, reason);
         return true;
     }
+
+    private static IEnumerable<string> IdentifiersOf(NetworcoId.Models.Entities.UserEntity user) =>
+        new[] { user.Email, user.NationalId, user.PhoneNumber }
+            .Where(v => !string.IsNullOrWhiteSpace(v))
+            .Select(v => v!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The identifier as a whole token: not preceded by a character that could belong to
+    /// it (letters, digits, <c>.+-_</c>), and not followed by one (a trailing sentence
+    /// period is fine, <c>.uk</c> is not).
+    /// </summary>
+    public static bool MentionsIdentifier(string text, string identifier) =>
+        Regex.IsMatch(
+            text,
+            $@"(?<![\w.+\-]){Regex.Escape(identifier)}(?![\w\-]|\.\w)",
+            RegexOptions.IgnoreCase);
 }

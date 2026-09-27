@@ -21,6 +21,7 @@ public static class ServiceEndpoints
     public static void MapServiceApi(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/service")
+            .RequireRateLimiting("service-api")
             .AddEndpointFilter(async (ctx, next) =>
             {
                 var config = ctx.HttpContext.RequestServices.GetRequiredService<NetworcoIdConfig>();
