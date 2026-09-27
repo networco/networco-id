@@ -231,6 +231,7 @@ app.MapOAuth();
 app.MapAuth();
 app.MapExternalAuth();
 app.MapAdmin();
+app.MapServiceApi();
 
 // Health check.
 //

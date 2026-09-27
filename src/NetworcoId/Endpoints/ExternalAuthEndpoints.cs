@@ -24,6 +24,10 @@ public static class ExternalAuthEndpoints
 {
     internal const string Provider = "idura";
     internal const string ExternalScheme = "ExternalLogin";
+
+    /// <summary>Shown when a deactivated account tries to log in (password or BankID).</summary>
+    internal const string AccountDisabledMessage =
+        "Denne kontoen er deaktivert eller under sletting. Ta kontakt med support hvis du mener dette er feil.";
     // AuthenticationProperties.Items keys carried through the BankID round-trip in link mode.
     private const string LinkUserIdItem = "link_user_id";
     private const string LinkReturnItem = "link_return";
@@ -232,6 +236,16 @@ public static class ExternalAuthEndpoints
         NetworcoIdConfig config,
         ILogger logger)
     {
+        // A deactivated account (admin, or a pending account deletion) gets no session.
+        // Checked here because both the BankID callback and the account picker end up here.
+        var authService = context.RequestServices.GetRequiredService<IAuthService>();
+        if (!await authService.IsUserActiveAsync(user.Id))
+        {
+            logger.LogWarning("External login refused for deactivated user {UserId}", user.Id);
+            await context.SignOutAsync(ExternalScheme);
+            return "/Login?error=account_disabled&error_description=" + Uri.EscapeDataString(AccountDisabledMessage);
+        }
+
         var authTime = DateTimeOffset.UtcNow;
         var claims = new List<Claim>
         {

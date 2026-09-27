@@ -12,6 +12,7 @@ using System.Text.Json.Serialization;
 using Microsoft.Extensions.Caching.Memory;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.IdentityModel.Tokens;
 
@@ -100,6 +101,9 @@ public static class ServiceConfiguration
         config.IduraCallbackPath = iduraCallbackPath;
         config.IduraAcrValues = iduraAcrValues;
 
+        var serviceApiKey = EnvOr(configuration, "SERVICE_API_KEY", "NetworcoId:ServiceApiKey");
+        config.ServiceApiKey = serviceApiKey;
+
         services.AddSingleton(provider =>
         {
             var optionsConfig = provider.GetRequiredService<IOptions<NetworcoIdConfig>>().Value;
@@ -135,6 +139,7 @@ public static class ServiceConfiguration
             optionsConfig.IduraScopes = iduraScopes;
             optionsConfig.IduraCallbackPath = iduraCallbackPath;
             optionsConfig.IduraAcrValues = iduraAcrValues;
+            optionsConfig.ServiceApiKey = serviceApiKey;
 
             return optionsConfig;
         });
@@ -155,6 +160,7 @@ public static class ServiceConfiguration
         // shared across requests.
         services.AddSingleton<IAuthCodeStore, NatsKvAuthCodeStore>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IAccountLifecycleService, AccountLifecycleService>();
         services.AddScoped<IAuthSeeder, AuthSeeder>();
         services.AddScoped<IBootstrapService, BootstrapService>();
         services.AddSingleton<ISettingsService, SettingsService>();
@@ -177,6 +183,24 @@ public static class ServiceConfiguration
                 options.SlidingExpiration = true;
                 options.Cookie.HttpOnly = true;
                 options.Cookie.SameSite = SameSiteMode.Lax;
+                // A deactivated user (admin toggle, or an account-deletion request from
+                // networco-app) must lose their IdP session at once — otherwise the SSO
+                // short-circuit in /oauth/authorize keeps minting codes for up to the
+                // cookie's 60-minute sliding lifetime. One PK lookup per cookie request.
+                options.Events.OnValidatePrincipal = async context =>
+                {
+                    if (!Guid.TryParse(context.Principal?.FindFirst("sub")?.Value, out var userId))
+                        return;
+
+                    var db = context.HttpContext.RequestServices.GetRequiredService<NetworcoId.Infrastructure.Database.AuthDbContext>();
+                    var isActive = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AnyAsync(
+                        db.Users, u => u.Id == userId && u.IsActive);
+                    if (!isActive)
+                    {
+                        context.RejectPrincipal();
+                        await context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+                    }
+                };
             })
             .AddJwtBearer(options =>
             {

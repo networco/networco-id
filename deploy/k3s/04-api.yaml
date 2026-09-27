@@ -140,6 +140,15 @@ spec:
               name: networcoid-secrets
               key: idura-acr-values
               optional: true
+        # Shared key for the server-to-server API (/api/service/*) that networco-app
+        # uses for account deletion. Must equal NETWORCO_ID_SERVICE_API_KEY on the app
+        # side. Unset → the service API refuses every call.
+        - name: SERVICE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: networcoid-secrets
+              key: service-api-key
+              optional: true
         ports:
         - containerPort: 8080
         # Startup is genuinely slow: migrations retry 10x with a 5s backoff, then

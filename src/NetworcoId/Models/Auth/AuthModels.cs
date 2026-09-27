@@ -72,6 +72,13 @@ public class NetworcoIdConfig
     public string IduraCallbackPath { get; set; } = "/auth/callback/external";
     /// <summary>Optional acr_values to pin a BankID assurance level. Empty = let IDura/device decide.</summary>
     public string? IduraAcrValues { get; set; }
+
+    /// <summary>
+    /// Shared secret for the server-to-server API (<c>/api/service/*</c>), sent by
+    /// networco-app in the <c>X-Service-Key</c> header. From env SERVICE_API_KEY. When
+    /// unset the service API refuses every call (fail closed).
+    /// </summary>
+    public string? ServiceApiKey { get; set; }
 }
 
 /// <summary>

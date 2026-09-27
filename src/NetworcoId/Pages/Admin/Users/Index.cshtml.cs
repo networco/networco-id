@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using NetworcoId.Infrastructure.Database;
 using NetworcoId.Models.Entities;
+using NetworcoId.Services;
 using NetworcoId.Services.Audit;
 
 using NetworcoId.Infrastructure.Auth;
@@ -16,11 +17,13 @@ public class IndexModel : PageModel
 {
     private readonly AuthDbContext _context;
     private readonly IAuditService _auditService;
+    private readonly IAccountLifecycleService _lifecycle;
 
-    public IndexModel(AuthDbContext context, IAuditService auditService)
+    public IndexModel(AuthDbContext context, IAuditService auditService, IAccountLifecycleService lifecycle)
     {
         _context = context;
         _auditService = auditService;
+        _lifecycle = lifecycle;
     }
 
     public PagedResult<UserEntity> Users { get; set; } = null!;
@@ -115,14 +118,15 @@ public class IndexModel : PageModel
                 }
             }
 
-            user.IsActive = !user.IsActive;
-            _context.Users.Update(user);
-            
-            await _auditService.LogAsync("UserStatusToggled", $"User status toggled to {(user.IsActive ? "Active" : "Inactive")}: {user.Email}", id);
+            // Deactivating also revokes the user's refresh tokens, so it takes effect
+            // at once instead of when their current session happens to end.
+            var nowActive = !user.IsActive;
+            if (nowActive)
+                await _lifecycle.ReactivateAsync(id, "admin");
+            else
+                await _lifecycle.DeactivateAsync(id, "admin");
 
-            await _context.SaveChangesAsync();
-            
-            TempData["StatusMessage"] = $"User {user.Email} is now {(user.IsActive ? "Active" : "Inactive")}.";
+            TempData["StatusMessage"] = $"User {user.Email} is now {(nowActive ? "Active" : "Inactive")}.";
         }
 
         return RedirectToPage();
@@ -150,10 +154,8 @@ public class IndexModel : PageModel
                 return RedirectToPage();
             }
 
-            await _auditService.LogAsync("UserDeleted", $"User deleted: {user.Email}", id);
-            
-            _context.Users.Remove(user);
-            await _context.SaveChangesAsync();
+            // Also scrubs the user's personal data from the audit log.
+            await _lifecycle.DeleteAsync(id, "admin");
 
             TempData["StatusMessage"] = $"User {user.Email} has been deleted.";
             return RedirectToPage();
