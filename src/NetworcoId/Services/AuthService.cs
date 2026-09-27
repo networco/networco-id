@@ -44,7 +44,13 @@ public enum AuthenticationOutcome
     /// <summary>Unknown identifier, or a wrong password that did not trip the lockout.</summary>
     InvalidCredentials,
     /// <summary>An account lockout is in force — see <see cref="AuthenticationResult.LockedUntil"/>.</summary>
-    Locked
+    Locked,
+    /// <summary>
+    /// Correct password, but the account is deactivated (admin, or a pending account
+    /// deletion). Only reported after the password checked out, so it tells nothing to
+    /// someone guessing.
+    /// </summary>
+    Disabled
 }
 
 /// <summary>
@@ -80,6 +86,9 @@ public sealed record AuthenticationResult
     /// credential row) behind it, where there was no hash to verify against.</param>
     public static AuthenticationResult InvalidCredentials(bool passwordWasChecked = true) =>
         new() { Outcome = AuthenticationOutcome.InvalidCredentials, PasswordWasChecked = passwordWasChecked };
+
+    public static AuthenticationResult Disabled() =>
+        new() { Outcome = AuthenticationOutcome.Disabled, PasswordWasChecked = true };
 
     public static AuthenticationResult Locked(DateTimeOffset lockedUntil, bool passwordWasChecked) =>
         new() { Outcome = AuthenticationOutcome.Locked, LockedUntil = lockedUntil, PasswordWasChecked = passwordWasChecked };
@@ -125,6 +134,9 @@ public interface IAuthService
 
     /// <summary>Revokes refresh tokens and invalidates outstanding access tokens for a user (e.g. after an email change).</summary>
     Task InvalidateActiveSessionsAsync(Guid userId);
+
+    /// <summary>False for a deactivated (or missing) account — such an account must not get a session or tokens.</summary>
+    Task<bool> IsUserActiveAsync(Guid userId);
 
     /// <summary>Sets (or replaces) a user's password, creating the credential row if absent.</summary>
     Task<bool> SetPasswordAsync(Guid userId, string newPassword);
@@ -321,9 +333,8 @@ public class AuthService : IAuthService
                 : AuthenticationResult.InvalidCredentials();
         }
 
-        await _auditService.LogAsync("LoginSuccess", $"User logged in: {user.Email}", user.Id);
-
-        // Success clears every trace of past failures.
+        // Correct password: clears every trace of past failures (also for a deactivated
+        // account, so stale counters don't outlive a reactivation).
         var dirty = decayed;
         if (cred.FailedLoginAttempts != 0 || cred.LastFailedLoginAt is not null ||
             cred.LockedUntil is not null || cred.LockoutStrikes != 0)
@@ -352,6 +363,15 @@ public class AuthService : IAuthService
             _context.UserCredentials.Update(cred);
             await _context.SaveChangesAsync();
         }
+
+        if (!user.IsActive)
+        {
+            _logger.LogWarning("Login attempt for deactivated account {UserId}", user.Id);
+            await _auditService.LogAsync("LoginFailed", $"Login attempt for deactivated account: {user.Email}", user.Id);
+            return AuthenticationResult.Disabled();
+        }
+
+        await _auditService.LogAsync("LoginSuccess", $"User logged in: {user.Email}", user.Id);
 
         return AuthenticationResult.Succeeded(new NetworcoIdUserDto
         {
@@ -973,6 +993,13 @@ public class AuthService : IAuthService
                 }
 
                 var validUser = await GetUserByEmailOrNationalIdAsync(session.EmailOrNationalId);
+                if (validUser != null && !await IsUserActiveAsync(validUser.Id))
+                {
+                    // Single choke point for every code-based login (password, BankID,
+                    // SSO cookie): a deactivated account never gets tokens.
+                    _logger.LogWarning("Refusing code exchange for deactivated user {UserId}", validUser.Id);
+                    return (null, null, null);
+                }
                 if (validUser != null)
                 {
                     validUser.Nonce = session.Nonce;
@@ -1103,6 +1130,9 @@ public class AuthService : IAuthService
         }
     }
 
+    public Task<bool> IsUserActiveAsync(Guid userId) =>
+        _context.Users.AsNoTracking().AnyAsync(u => u.Id == userId && u.IsActive);
+
     public async Task InvalidateActiveSessionsAsync(Guid userId)
     {
         // 1. Revoke refresh tokens so stale identity can't be renewed.
@@ -1225,7 +1255,7 @@ public class AuthService : IAuthService
                 && token.RevokedAt > DateTimeOffset.UtcNow.AddSeconds(-60)
                 && token.ExpiresAt > DateTimeOffset.UtcNow;
 
-        if (!isValid)
+        if (!isValid || !token.User.IsActive)
             return null;
 
         var user = token.User;

@@ -221,6 +221,7 @@ jobs:
             --from-literal=idura-client-id="$IDURA_CLIENT_ID" \
             --from-literal=idura-client-secret="$IDURA_CLIENT_SECRET" \
             --from-literal=idura-acr-values="$IDURA_ACR_VALUES" \
+            --from-literal=service-api-key="$SERVICE_API_KEY" \
             --dry-run=client -o yaml | kubectl apply -f -
           # Hydrate manifests: id.test host + test image tags
           tmp=$(mktemp -d); cp deploy/k3s/0*.yaml "$tmp/"

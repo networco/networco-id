@@ -12,6 +12,7 @@ using System.Text.Json.Serialization;
 using Microsoft.Extensions.Caching.Memory;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.IdentityModel.Tokens;
 
@@ -100,6 +101,9 @@ public static class ServiceConfiguration
         config.IduraCallbackPath = iduraCallbackPath;
         config.IduraAcrValues = iduraAcrValues;
 
+        var serviceApiKey = EnvOr(configuration, "SERVICE_API_KEY", "NetworcoId:ServiceApiKey");
+        config.ServiceApiKey = serviceApiKey;
+
         services.AddSingleton(provider =>
         {
             var optionsConfig = provider.GetRequiredService<IOptions<NetworcoIdConfig>>().Value;
@@ -135,6 +139,7 @@ public static class ServiceConfiguration
             optionsConfig.IduraScopes = iduraScopes;
             optionsConfig.IduraCallbackPath = iduraCallbackPath;
             optionsConfig.IduraAcrValues = iduraAcrValues;
+            optionsConfig.ServiceApiKey = serviceApiKey;
 
             return optionsConfig;
         });
@@ -155,6 +160,7 @@ public static class ServiceConfiguration
         // shared across requests.
         services.AddSingleton<IAuthCodeStore, NatsKvAuthCodeStore>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IAccountLifecycleService, AccountLifecycleService>();
         services.AddScoped<IAuthSeeder, AuthSeeder>();
         services.AddScoped<IBootstrapService, BootstrapService>();
         services.AddSingleton<ISettingsService, SettingsService>();
@@ -177,6 +183,37 @@ public static class ServiceConfiguration
                 options.SlidingExpiration = true;
                 options.Cookie.HttpOnly = true;
                 options.Cookie.SameSite = SameSiteMode.Lax;
+                // A deactivated user (admin toggle, or an account-deletion request from
+                // networco-app) must lose their IdP session — otherwise the SSO short-circuit
+                // in /oauth/authorize keeps minting codes for up to the cookie's 60-minute
+                // sliding lifetime. Re-checked at most once a minute per session (the
+                // timestamp rides in the cookie); the code exchange refuses a deactivated
+                // user regardless, so the minute of slack never yields tokens.
+                options.Events.OnValidatePrincipal = async context =>
+                {
+                    if (!Guid.TryParse(context.Principal?.FindFirst("sub")?.Value, out var userId))
+                        return;
+
+                    const string checkedAtKey = "active_checked_at";
+                    var now = DateTimeOffset.UtcNow;
+                    if (context.Properties.Items.TryGetValue(checkedAtKey, out var raw) &&
+                        long.TryParse(raw, out var checkedAt) &&
+                        now.ToUnixTimeSeconds() - checkedAt < 60)
+                        return;
+
+                    var db = context.HttpContext.RequestServices.GetRequiredService<NetworcoId.Infrastructure.Database.AuthDbContext>();
+                    var isActive = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AnyAsync(
+                        db.Users, u => u.Id == userId && u.IsActive);
+                    if (!isActive)
+                    {
+                        context.RejectPrincipal();
+                        await context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+                        return;
+                    }
+
+                    context.Properties.Items[checkedAtKey] = now.ToUnixTimeSeconds().ToString();
+                    context.ShouldRenew = true;
+                };
             })
             .AddJwtBearer(options =>
             {
@@ -205,6 +242,17 @@ public static class ServiceConfiguration
                             if (Guid.TryParse(userIdStr, out var userId))
                             {
                                 var dbContext = context.HttpContext.RequestServices.GetRequiredService<NetworcoId.Infrastructure.Database.AuthDbContext>();
+
+                                // A deactivated account's still-unexpired token is refused here
+                                // too — the iat check below can't catch it for BankID-only
+                                // users, who have no credential row to bump.
+                                var isActive = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AnyAsync(
+                                    dbContext.Users, u => u.Id == userId && u.IsActive);
+                                if (!isActive)
+                                {
+                                    context.Fail("Account is deactivated.");
+                                    return;
+                                }
 
                                 // Check user credentials timestamp
                                 var creds = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(

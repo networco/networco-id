@@ -1,3 +1,4 @@
+using NetworcoId.Endpoints;
 using System.Web;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
@@ -239,9 +240,13 @@ public class LoginModel(IAuthService authService, NetworcoIdConfig config, AuthD
             {
                 logger.LogWarning("Login Post: Authentication failed for {Email} ({Outcome})", Email, result.Outcome);
 
-                ErrorMessage = result.Outcome == AuthenticationOutcome.Locked && result.LockedUntil.HasValue
-                    ? $"Kontoen er låst pga. for mange feilede forsøk. Prøv igjen om {FormatRemaining(result.LockedUntil.Value)}."
-                    : "Ugyldig e-post eller passord";
+                ErrorMessage = result.Outcome switch
+                {
+                    AuthenticationOutcome.Locked when result.LockedUntil.HasValue =>
+                        $"Kontoen er låst pga. for mange feilede forsøk. Prøv igjen om {FormatRemaining(result.LockedUntil.Value)}.",
+                    AuthenticationOutcome.Disabled => ExternalAuthEndpoints.AccountDisabledMessage,
+                    _ => "Ugyldig e-post eller passord"
+                };
 
                 return Page();
             }
