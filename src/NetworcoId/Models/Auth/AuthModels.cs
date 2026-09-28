@@ -72,6 +72,12 @@ public class NetworcoIdConfig
     public string IduraCallbackPath { get; set; } = "/auth/callback/external";
     /// <summary>Optional acr_values to pin a BankID assurance level. Empty = let IDura/device decide.</summary>
     public string? IduraAcrValues { get; set; }
+    /// <summary>
+    /// login_hint sent to IDura when the BankID flow starts in our mobile app, so Norwegian
+    /// BankID goes straight to the BankID app instead of the method picker. Default "BIS"
+    /// (BankID app, biometrics allowed); empty = no hint (the device default decides).
+    /// </summary>
+    public string? IduraAppLoginHint { get; set; }
 
     /// <summary>
     /// Shared secret for the server-to-server API (<c>/api/service/*</c>), sent by

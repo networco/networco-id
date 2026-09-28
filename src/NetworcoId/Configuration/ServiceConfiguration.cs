@@ -84,6 +84,8 @@ public static class ServiceConfiguration
         var iduraScopes = EnvOr(configuration, "IDURA_SCOPES", "NetworcoId:IduraScopes") ?? "openid birthdate";
         var iduraCallbackPath = EnvOr(configuration, "IDURA_CALLBACK_PATH", "NetworcoId:IduraCallbackPath") ?? "/auth/callback/external";
         var iduraAcrValues = EnvOr(configuration, "IDURA_ACR_VALUES", "NetworcoId:IduraAcrValues");
+        // Set IDURA_APP_LOGIN_HINT to an empty string to stop steering app users to the BankID app.
+        var iduraAppLoginHint = EnvOr(configuration, "IDURA_APP_LOGIN_HINT", "NetworcoId:IduraAppLoginHint") ?? "BIS";
         // Only enable when explicitly turned on AND fully configured — otherwise the
         // OIDC scheme (which needs a reachable authority) isn't registered at all.
         var iduraEnabledRaw = Environment.GetEnvironmentVariable("IDURA_ENABLED") ?? configuration["IDURA_ENABLED"];
@@ -100,6 +102,7 @@ public static class ServiceConfiguration
         config.IduraScopes = iduraScopes;
         config.IduraCallbackPath = iduraCallbackPath;
         config.IduraAcrValues = iduraAcrValues;
+        config.IduraAppLoginHint = iduraAppLoginHint;
 
         var serviceApiKey = EnvOr(configuration, "SERVICE_API_KEY", "NetworcoId:ServiceApiKey");
         config.ServiceApiKey = serviceApiKey;
@@ -139,6 +142,7 @@ public static class ServiceConfiguration
             optionsConfig.IduraScopes = iduraScopes;
             optionsConfig.IduraCallbackPath = iduraCallbackPath;
             optionsConfig.IduraAcrValues = iduraAcrValues;
+            optionsConfig.IduraAppLoginHint = iduraAppLoginHint;
             optionsConfig.ServiceApiKey = serviceApiKey;
 
             return optionsConfig;
@@ -322,6 +326,12 @@ public static class ServiceConfiguration
                             if (!string.IsNullOrWhiteSpace(iduraAcrValues))
                             {
                                 ctx.ProtocolMessage.AcrValues = iduraAcrValues;
+                            }
+                            // Set by /auth/external/bankid|link when the flow started in our app.
+                            if (ctx.Properties.Items.TryGetValue(NetworcoId.Endpoints.ExternalAuthEndpoints.LoginHintItem, out var loginHint)
+                                && !string.IsNullOrWhiteSpace(loginHint))
+                            {
+                                ctx.ProtocolMessage.LoginHint = loginHint;
                             }
                             return Task.CompletedTask;
                         },
