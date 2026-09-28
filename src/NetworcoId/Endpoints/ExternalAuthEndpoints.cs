@@ -31,6 +31,8 @@ public static class ExternalAuthEndpoints
     // AuthenticationProperties.Items keys carried through the BankID round-trip in link mode.
     private const string LinkUserIdItem = "link_user_id";
     private const string LinkReturnItem = "link_return";
+    // login_hint for IDura, set when the flow started in our mobile app (see IduraAppLoginHint).
+    internal const string LoginHintItem = "idura_login_hint";
 
     public static void MapExternalAuth(this WebApplication app)
     {
@@ -57,6 +59,7 @@ public static class ExternalAuthEndpoints
                 + (safeReturn.Length > 0 ? "?returnUrl=" + Uri.EscapeDataString(safeReturn) : string.Empty);
 
             var props = new AuthenticationProperties { RedirectUri = completeUrl };
+            if (IsNativeAppAuthorizeReturn(safeReturn)) SetAppLoginHint(props, config);
             return Results.Challenge(props, new[] { Provider });
         })
         .WithName("ExternalBankIdChallenge")
@@ -85,7 +88,8 @@ public static class ExternalAuthEndpoints
         // arrives here with a one-time ticket; we resolve it to the target account and
         // start the BankID challenge in "link mode" (the account id rides through the
         // round-trip in the protected auth properties).
-        app.MapGet("/auth/external/link", async (HttpContext context, string? ticket, string? returnPath, IAuthService authService, NetworcoIdConfig config) =>
+        // `app=1` is added by the NETWORCO app when the link flow runs in its in-app sheet.
+        app.MapGet("/auth/external/link", async (HttpContext context, string? ticket, string? returnPath, string? app, IAuthService authService, NetworcoIdConfig config) =>
         {
             if (!config.IduraEnabled) return Results.NotFound();
 
@@ -101,6 +105,7 @@ public static class ExternalAuthEndpoints
             var props = new AuthenticationProperties { RedirectUri = "/auth/external/complete" };
             props.Items[LinkUserIdItem] = userId.Value.ToString();
             if (IsSafeRelativePath(returnPath)) props.Items[LinkReturnItem] = returnPath!;
+            if (app == "1") SetAppLoginHint(props, config);
             return Results.Challenge(props, new[] { Provider });
         })
         .WithName("ExternalBankIdLink")
@@ -281,6 +286,28 @@ public static class ExternalAuthEndpoints
         return IsValidReturnUrl(returnUrl)
             ? returnUrl!
             : await ResolveFallbackDestinationAsync(clientService, config, logger);
+    }
+
+    private static void SetAppLoginHint(AuthenticationProperties props, NetworcoIdConfig config)
+    {
+        if (!string.IsNullOrWhiteSpace(config.IduraAppLoginHint))
+            props.Items[LoginHintItem] = config.IduraAppLoginHint;
+    }
+
+    /// <summary>
+    /// True when <paramref name="returnUrl"/> is an /oauth/authorize request whose
+    /// redirect_uri is a custom scheme (e.g. <c>networco://auth/callback</c>) — i.e. the
+    /// login started in our mobile app, not a browser.
+    /// </summary>
+    public static bool IsNativeAppAuthorizeReturn(string? returnUrl)
+    {
+        if (!IsValidReturnUrl(returnUrl)) return false;
+        var q = returnUrl!.IndexOf('?');
+        if (q < 0) return false;
+        var redirectUri = System.Web.HttpUtility.ParseQueryString(returnUrl[(q + 1)..])["redirect_uri"];
+        return Uri.TryCreate(redirectUri, UriKind.Absolute, out var uri)
+            && uri.Scheme != Uri.UriSchemeHttp
+            && uri.Scheme != Uri.UriSchemeHttps;
     }
 
     /// <summary>A safe app-local return path: absolute-local ("/...") and not protocol-relative ("//").</summary>
