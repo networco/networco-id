@@ -108,6 +108,10 @@ public class ExternalUserInfo
 public class NetworcoIdUserDto
 {
     public required Guid Id { get; set; }
+    /// <summary>
+    /// The user's real national id, or empty. Emitted as the <c>national_id</c> claim when
+    /// set, so never fill it with a stand-in (email/phone): consumers treat it as a fødselsnummer.
+    /// </summary>
     public required string NationalId { get; set; }
     public required string FirstName { get; set; }
     public required string LastName { get; set; }

@@ -376,7 +376,7 @@ public class AuthService : IAuthService
         return AuthenticationResult.Succeeded(new NetworcoIdUserDto
         {
             Id = user.Id,
-            NationalId = user.NationalId ?? user.PhoneNumber ?? user.Email,
+            NationalId = user.NationalId ?? "",
             FirstName = user.FirstName,
             LastName = user.LastName,
             Email = user.Email,
@@ -472,7 +472,7 @@ public class AuthService : IAuthService
         return new NetworcoIdUserDto
         {
             Id = user.Id,
-            NationalId = user.NationalId ?? user.PhoneNumber ?? user.Email,
+            NationalId = user.NationalId ?? "",
             FirstName = user.FirstName,
             LastName = user.LastName,
             Email = user.Email,
@@ -831,7 +831,7 @@ public class AuthService : IAuthService
     private static NetworcoIdUserDto MapToDto(UserEntity user) => new()
     {
         Id = user.Id,
-        NationalId = user.NationalId ?? user.PhoneNumber ?? user.Email,
+        NationalId = user.NationalId ?? "",
         FirstName = user.FirstName,
         LastName = user.LastName,
         Email = user.Email,
@@ -872,7 +872,7 @@ public class AuthService : IAuthService
         return new NetworcoIdUserDto
         {
             Id = user.Id,
-            NationalId = user.NationalId ?? user.PhoneNumber ?? user.Email,
+            NationalId = user.NationalId ?? "",
             FirstName = user.FirstName,
             LastName = user.LastName,
             Email = user.Email,
@@ -1262,7 +1262,7 @@ public class AuthService : IAuthService
         return new NetworcoIdUserDto
         {
             Id = user.Id,
-            NationalId = user.NationalId ?? user.PhoneNumber ?? user.Email,
+            NationalId = user.NationalId ?? "",
             FirstName = user.FirstName,
             LastName = user.LastName,
             Email = user.Email,
