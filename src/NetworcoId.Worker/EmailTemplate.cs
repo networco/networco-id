@@ -74,7 +74,7 @@ public static class EmailTemplate
         // Header strip with brand mark.
         sb.Append($"<tr><td style=\"padding:24px 32px;border-bottom:1px solid {BorderSoft};\">");
         sb.Append($"<div style=\"font-size:18px;font-weight:700;letter-spacing:0.04em;color:{TextHeading};\">NETWORCO</div>");
-        sb.Append($"<div style=\"font-size:12px;color:{AccentCognac};margin-top:2px;\">Vi kobler ungdom og arbeidsgivere</div>");
+        sb.Append($"<div style=\"font-size:12px;color:{AccentCognac};margin-top:2px;\">Vi kobler unge og arbeidsgivere</div>");
         sb.Append("</td></tr>");
 
         // Body.
@@ -127,7 +127,7 @@ public static class EmailTemplate
     public static string ToText(EmailTemplateModel model)
     {
         var sb = new StringBuilder(512);
-        sb.AppendLine("NETWORCO — Vi kobler ungdom og arbeidsgivere");
+        sb.AppendLine("NETWORCO — Vi kobler unge og arbeidsgivere");
         sb.AppendLine(new string('-', 56));
         sb.AppendLine();
         sb.AppendLine(model.Heading);
