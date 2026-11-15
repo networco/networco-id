@@ -151,6 +151,13 @@ spec:
               optional: true
         ports:
         - containerPort: 8080
+        # Steady state is ~110-250Mi. The limit turns a future leak into a clean
+        # OOMKill + restart instead of growing until the node runs out (2026-11 leak, #47).
+        resources:
+          requests:
+            memory: 192Mi
+          limits:
+            memory: 512Mi
         # Startup is genuinely slow: migrations retry 10x with a 5s backoff, then
         # bootstrap and NATS provisioning run before the app serves. A liveness probe
         # alone would kill the pod mid-migration, so startupProbe owns that window and
