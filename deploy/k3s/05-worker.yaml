@@ -87,6 +87,13 @@ spec:
           value: "brevo,resend"
         - name: WORKER_LIVENESS_FILE
           value: /tmp/networcoid-worker-alive
+        # Steady state is ~25-40Mi. Same reason as the API: a leak should end in a
+        # clean OOMKill + restart, not in the node running out of memory.
+        resources:
+          requests:
+            memory: 64Mi
+          limits:
+            memory: 256Mi
         # The worker serves no HTTP, so liveness stats a file the consume loop refreshes
         # once a minute while a consumer is established. It is NOT a throughput check —
         # a worker with no mail to deliver is healthy, so "nothing processed lately" must
