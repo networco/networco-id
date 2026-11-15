@@ -371,7 +371,8 @@ public static class ServiceConfiguration
                         // Use the app's singleton factory: building a service provider here
                         // leaked a whole container (and a console-logger thread) per request.
                         using var dbContext = dbFactory.CreateDbContext();
-                        return audiences.Any(aud => dbContext.OAuthClients.Any(c => c.Audience == aud));
+                        var candidates = audiences.ToArray();
+                        return dbContext.OAuthClients.Any(c => c.IsActive && candidates.Contains(c.Audience));
                     },
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,

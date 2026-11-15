@@ -19,6 +19,7 @@ namespace NetworcoId.Tests.Integration;
 public class AudienceValidatorLeakTests : IClassFixture<WebApplicationFactory<Program>>, IDisposable
 {
     private const string ClientAudience = "leak-test-audience";
+    private const string InactiveAudience = "leak-test-inactive-audience";
     private readonly WebApplicationFactory<Program> _factory;
     private readonly string? _originalDbUrl;
     private int _optionsBuilds;
@@ -60,6 +61,15 @@ public class AudienceValidatorLeakTests : IClassFixture<WebApplicationFactory<Pr
             PrimaryClientSecretHash = "unused",
             CreatedAt = DateTimeOffset.UtcNow
         });
+        db.OAuthClients.Add(new OAuthClientEntity
+        {
+            ClientId = "leak-test-inactive-client",
+            Audience = InactiveAudience,
+            DisplayName = "Inactive Client",
+            PrimaryClientSecretHash = "unused",
+            IsActive = false,
+            CreatedAt = DateTimeOffset.UtcNow
+        });
         db.SaveChanges();
     }
 
@@ -83,5 +93,15 @@ public class AudienceValidatorLeakTests : IClassFixture<WebApplicationFactory<Pr
         }
 
         Assert.Equal(before, Volatile.Read(ref _optionsBuilds));
+    }
+
+    [Fact]
+    public void AudienceValidator_rejects_a_deactivated_clients_audience()
+    {
+        var parameters = _factory.Services.GetRequiredService<IOptionsMonitor<JwtBearerOptions>>()
+            .Get(JwtBearerDefaults.AuthenticationScheme).TokenValidationParameters;
+
+        Assert.False(parameters.AudienceValidator!(new[] { InactiveAudience }, null!, parameters));
+        Assert.True(parameters.AudienceValidator!(new[] { "unknown", ClientAudience }, null!, parameters));
     }
 }
