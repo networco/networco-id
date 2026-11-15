@@ -20,6 +20,7 @@ public class AudienceValidatorLeakTests : IClassFixture<WebApplicationFactory<Pr
 {
     private const string ClientAudience = "leak-test-audience";
     private const string InactiveAudience = "leak-test-inactive-audience";
+    private static readonly Guid UserId = Guid.NewGuid();
     private readonly WebApplicationFactory<Program> _factory;
     private readonly string? _originalDbUrl;
     private int _optionsBuilds;
@@ -45,6 +46,7 @@ public class AudienceValidatorLeakTests : IClassFixture<WebApplicationFactory<Pr
                 {
                     Interlocked.Increment(ref _optionsBuilds);
                     options.UseInMemoryDatabase(dbName);
+                    options.ConfigureWarnings(x => x.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning));
                 };
                 services.AddDbContextFactory<AuthDbContext>(configureOptions, ServiceLifetime.Singleton);
                 services.AddDbContext<AuthDbContext>(configureOptions, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
@@ -70,6 +72,16 @@ public class AudienceValidatorLeakTests : IClassFixture<WebApplicationFactory<Pr
             IsActive = false,
             CreatedAt = DateTimeOffset.UtcNow
         });
+        db.Users.Add(new UserEntity
+        {
+            Id = UserId,
+            Email = "leak.test@networco.dev",
+            FirstName = "Leak",
+            LastName = "Test",
+            IsActive = true,
+            EmailVerified = true,
+            CreatedAt = DateTimeOffset.UtcNow
+        });
         db.SaveChanges();
     }
 
@@ -93,6 +105,29 @@ public class AudienceValidatorLeakTests : IClassFixture<WebApplicationFactory<Pr
         }
 
         Assert.Equal(before, Volatile.Read(ref _optionsBuilds));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)] // fresh pod: the token was minted elsewhere, this pod's key cache is empty
+    public async Task Client_audience_token_reaches_a_bearer_endpoint(bool coldKeyCache)
+    {
+        string token;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<NetworcoId.Infrastructure.Auth.IKeyManagementService>().RotateKeysAsync();
+            token = await scope.ServiceProvider.GetRequiredService<NetworcoId.Infrastructure.Auth.IJwtService>().GenerateAccessTokenAsync(
+                new NetworcoId.Models.Auth.NetworcoIdUserDto { Id = UserId, NationalId = "", FirstName = "A", LastName = "B", Email = "a@b.no" },
+                ClientAudience);
+        }
+        if (coldKeyCache)
+            _factory.Services.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>().Remove("valid_signing_keys");
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var response = await client.GetAsync("/auth/me");
+
+        Assert.True(response.StatusCode != System.Net.HttpStatusCode.Unauthorized, response.Headers.WwwAuthenticate.ToString());
     }
 
     [Fact]

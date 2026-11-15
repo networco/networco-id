@@ -381,8 +381,19 @@ public static class ServiceConfiguration
                     {
                         var keys = new List<SecurityKey>();
 
-                        // 1. Try to get keys from cache (populated by KeyRotationWorker/JwtService)
-                        if (cache.TryGetValue("valid_signing_keys", out List<NetworcoId.Models.Entities.SigningKeyEntity>? cachedKeys) && cachedKeys != null)
+                        // 1. Keys from the cache JwtService shares, loaded here on a miss: a fresh pod
+                        // (or one that hasn't minted a token for 10 min) otherwise rejects every RSA token.
+                        // Same filter and lifetime as KeyManagementService.GetValidKeysAsync / JwtService.
+                        var cachedKeys = cache.GetOrCreate("valid_signing_keys", entry =>
+                        {
+                            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
+                            using var db = dbFactory.CreateDbContext();
+                            return db.SigningKeys
+                                .Where(k => !k.IsRevoked && (k.Status == NetworcoId.Models.Entities.KeyStatus.Active || k.Status == NetworcoId.Models.Entities.KeyStatus.Previous))
+                                .AsNoTracking()
+                                .ToList();
+                        });
+                        if (cachedKeys != null)
                         {
                             foreach (var keyEntity in cachedKeys)
                             {
