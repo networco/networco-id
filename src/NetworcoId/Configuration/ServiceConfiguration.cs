@@ -10,6 +10,7 @@ using Microsoft.Extensions.Options;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.EntityFrameworkCore;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authentication;
@@ -348,7 +349,7 @@ public static class ServiceConfiguration
 
         // Configure JwtBearerOptions with dependency injection to access IMemoryCache
         services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
-            .Configure<IMemoryCache, IOptions<NetworcoIdConfig>>((options, cache, configOptions) =>
+            .Configure<IMemoryCache, IOptions<NetworcoIdConfig>, IDbContextFactory<NetworcoId.Infrastructure.Database.AuthDbContext>>((options, cache, configOptions, dbFactory) =>
             {
                 var config = configOptions.Value;
 
@@ -366,12 +367,12 @@ public static class ServiceConfiguration
                         // 1. Check if it matches the primary audience (IDP itself)
                         if (audiences.Contains(config.Audience)) return true;
                         
-                        // 2. Check if it's a registered client audience
-                        // We use a scope here to access the database
-                        using var scope = services.BuildServiceProvider().CreateScope();
-                        var dbContext = scope.ServiceProvider.GetRequiredService<NetworcoId.Infrastructure.Database.AuthDbContext>();
-                        
-                        return audiences.Any(aud => dbContext.OAuthClients.Any(c => c.Audience == aud));
+                        // 2. Check if it's a registered client audience.
+                        // Use the app's singleton factory: building a service provider here
+                        // leaked a whole container (and a console-logger thread) per request.
+                        using var dbContext = dbFactory.CreateDbContext();
+                        var candidates = audiences.ToArray();
+                        return dbContext.OAuthClients.Any(c => c.IsActive && candidates.Contains(c.Audience));
                     },
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
